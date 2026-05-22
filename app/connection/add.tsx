@@ -48,7 +48,7 @@ export default function AddConnectionScreen() {
     setIsConnecting(true)
 
     // Test connection first
-    const success = await testConnection(
+    const result = await testConnection(
       {
         id: "",
         name: name || "My Server",
@@ -59,7 +59,7 @@ export default function AddConnectionScreen() {
       password || undefined,
     )
 
-    if (success) {
+    if (result.ok) {
       // Save and go back
       await addConnection(
         {
@@ -76,7 +76,7 @@ export default function AddConnectionScreen() {
       setIsConnecting(false)
       Alert.alert(
         "Connection Failed",
-        "Could not connect to the server.\n\nMake sure:\n1. OpenCode is running: opencode serve --hostname 0.0.0.0\n2. You're on the same WiFi network\n3. The IP address is correct",
+        `Could not connect to ${serverUrl}\n\n${result.error || "Unknown error"}\n\nMake sure:\n1. OpenCode is running: opencode serve --hostname 0.0.0.0\n2. You're on the same network (or Tailscale is connected)\n3. The address is correct (use the IP for tailnet if MagicDNS isn't enabled)`,
         [{ text: "OK" }],
       )
     }
@@ -128,13 +128,13 @@ export default function AddConnectionScreen() {
         <View style={styles.ipRow}>
           <TextInput
             style={[styles.input, styles.ipInput, isDark && styles.inputDark]}
-            placeholder="192.168.1.100"
+            placeholder="192.168.1.100 or my-mac.ts.net"
             placeholderTextColor={isDark ? "#666666" : "#999999"}
             value={ip}
             onChangeText={setIp}
             autoCapitalize="none"
             autoCorrect={false}
-            keyboardType="decimal-pad"
+            keyboardType="url"
           />
           <Text style={[styles.ipColon, isDark && styles.textDark]}>:</Text>
           <TextInput

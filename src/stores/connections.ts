@@ -30,7 +30,7 @@ interface ConnectionsState {
   addConnection: (connection: Omit<ServerConnection, "id">, password?: string) => Promise<void>
   removeConnection: (id: string) => Promise<void>
   setActiveConnection: (id: string) => Promise<void>
-  testConnection: (connection: ServerConnection, password?: string) => Promise<boolean>
+  testConnection: (connection: ServerConnection, password?: string) => Promise<{ ok: boolean; error?: string }>
   updateConnection: (id: string, updates: Partial<ServerConnection>) => Promise<void>
   refreshProject: () => Promise<void>
   // Create a one-off client pointing at a specific directory (for cross-project operations)
@@ -227,9 +227,9 @@ export const useConnections = create<ConnectionsState>((set, get) => ({
       })
 
       await client.global.health()
-      return true
-    } catch {
-      return false
+      return { ok: true }
+    } catch (error) {
+      return { ok: false, error: error instanceof Error ? error.message : String(error) }
     }
   },
 

@@ -68,7 +68,7 @@ export default function EditConnectionScreen() {
     }
 
     setIsTesting(true)
-    const success = await testConnection(
+    const result = await testConnection(
       {
         id: connection.id,
         name: name || "Test",
@@ -82,8 +82,10 @@ export default function EditConnectionScreen() {
     setIsTesting(false)
 
     Alert.alert(
-      success ? "Success" : "Failed",
-      success ? "Connection successful!" : "Could not connect to the server. Check the URL and credentials.",
+      result.ok ? "Success" : "Failed",
+      result.ok
+        ? "Connection successful!"
+        : `Could not connect to ${url.trim()}\n\n${result.error || "Check the URL and credentials."}`,
     )
   }
 
