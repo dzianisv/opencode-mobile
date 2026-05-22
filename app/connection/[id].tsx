@@ -14,6 +14,8 @@ import { router, useLocalSearchParams } from "expo-router"
 import { Ionicons } from "@expo/vector-icons"
 import { useConnections } from "../../src/stores/connections"
 import type { ConnectionType } from "../../src/lib/types"
+import { probeConnection, shareReport } from "../../src/lib/diagnostics"
+import { captureDiagnostic } from "../../src/lib/sentry"
 
 const CONNECTION_TYPES: Array<{
   type: ConnectionType
@@ -79,14 +81,25 @@ export default function EditConnectionScreen() {
       },
       password || undefined,
     )
+
+    if (result.ok) {
+      setIsTesting(false)
+      Alert.alert("Success", "Connection successful!")
+      return
+    }
+
+    // Failed: run active diagnostics, capture to Sentry, offer a shareable report.
+    const report = await probeConnection(
+      url.trim(),
+      username.trim() && password ? { username: username.trim(), password } : undefined,
+    )
+    captureDiagnostic(report, result.error ? new Error(result.error) : undefined)
     setIsTesting(false)
 
-    Alert.alert(
-      result.ok ? "Success" : "Failed",
-      result.ok
-        ? "Connection successful!"
-        : `Could not connect to ${url.trim()}\n\n${result.error || "Check the URL and credentials."}`,
-    )
+    Alert.alert("Connection Failed", `${report.summary}\n\n(${result.error || "no detail"})`, [
+      { text: "OK", style: "cancel" },
+      { text: "Share report", onPress: () => shareReport(report) },
+    ])
   }
 
   const handleSave = async () => {

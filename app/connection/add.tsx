@@ -14,6 +14,8 @@ import { router } from "expo-router"
 import { Ionicons } from "@expo/vector-icons"
 import { useConnections } from "../../src/stores/connections"
 import type { ConnectionType } from "../../src/lib/types"
+import { probeConnection, shareReport } from "../../src/lib/diagnostics"
+import { captureDiagnostic } from "../../src/lib/sentry"
 
 export default function AddConnectionScreen() {
   const colorScheme = useColorScheme()
@@ -90,11 +92,20 @@ export default function AddConnectionScreen() {
       setIsConnecting(false)
       router.back()
     } else {
+      // Failed: run active diagnostics, capture to Sentry, offer a shareable report.
+      const report = await probeConnection(
+        serverUrl,
+        username.trim() && password ? { username: username.trim(), password } : undefined,
+      )
+      captureDiagnostic(report, result.error ? new Error(result.error) : undefined)
       setIsConnecting(false)
       Alert.alert(
         "Connection Failed",
-        `Could not connect to ${serverUrl}\n\n${result.error || "Unknown error"}\n\nMake sure:\n1. OpenCode is running: opencode serve --hostname 0.0.0.0\n2. You're on the same network (or Tailscale is connected)\n3. The address is correct (use the IP for tailnet if MagicDNS isn't enabled)`,
-        [{ text: "OK" }],
+        `${report.summary}\n\nTarget: ${serverUrl}\nError: ${result.error || "Unknown error"}`,
+        [
+          { text: "OK", style: "cancel" },
+          { text: "Share report", onPress: () => shareReport(report) },
+        ],
       )
     }
   }

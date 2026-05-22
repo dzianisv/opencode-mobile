@@ -12,10 +12,13 @@ import { useCatalog } from "../src/stores/catalog"
 import { useSettings } from "../src/stores/settings"
 import { AuthGate } from "../src/components/AuthGate"
 import * as notifications from "../src/lib/notifications"
+import { initSentry, wrap } from "../src/lib/sentry"
+
+initSentry()
 
 const queryClient = new QueryClient()
 
-export default function RootLayout() {
+function RootLayout() {
   const colorScheme = useColorScheme()
   const isDark = colorScheme === "dark"
 
@@ -118,3 +121,5 @@ export default function RootLayout() {
     </GestureHandlerRootView>
   )
 }
+
+export default wrap(RootLayout)

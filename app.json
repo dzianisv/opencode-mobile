@@ -21,7 +21,7 @@
       "bundler": "metro",
       "output": "static"
     },
-    "plugins": ["expo-router", "expo-secure-store", "expo-local-authentication"],
+    "plugins": ["expo-router", "expo-secure-store", "expo-local-authentication", "@sentry/react-native/expo"],
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true

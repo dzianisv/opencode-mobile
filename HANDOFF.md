@@ -61,6 +61,22 @@
 3. **Add accessibility labels** — add `content-desc="Send"` to the send button in the app for better CUA reliability
 4. **More scenarios** — settings toggle, reconnect after server restart, slash commands
 
+## Connection Diagnostics (added in feat/connection-diagnostics-sentry)
+
+When a connect attempt fails, the app now runs an **active triage probe** instead of
+showing a generic error. It classifies the cause: `malformed-url`, `no-internet`,
+`server-unreachable`, `health-failed`, `tls-error`, `timeout`. The dialog shows a
+plain-English summary plus a **Share report** button (copies a full report —
+target URL, per-probe results, device/app info, recent logs — to clipboard + share sheet).
+
+- Code: `src/lib/diagnostics.ts` (probe + report), `src/lib/logbuffer.ts` (ring buffer),
+  `src/lib/sentry.ts` (auto-upload wrapper).
+- **Sentry auto-upload** is opt-in via env var: set `EXPO_PUBLIC_SENTRY_DSN` at build time.
+  Without it, Sentry is a no-op and only the in-app Share report works (fully offline).
+  For source-map upload at build, also set `SENTRY_AUTH_TOKEN` / `SENTRY_ORG` / `SENTRY_PROJECT`.
+- The probe runs on-device, so it reports the *phone's* real network reality —
+  unlike the co-located emulator, it can distinguish a true remote-peer tailnet failure.
+
 ## Repo & Auth
 - Repo: `dzianisv/opencode-mobile`
 - GitHub auth: `source ~/.env.d/github-dzianisv.env`
