@@ -1,5 +1,6 @@
 import { create } from "zustand"
 import * as SecureStore from "expo-secure-store"
+import * as Crypto from "expo-crypto"
 import type { ServerConnection, ConnectionType } from "../lib/types"
 import { createClient, type Client, type Project } from "../lib/sdk"
 import { addBreadcrumb } from "../lib/sentry"
@@ -43,7 +44,7 @@ interface ConnectionsState {
 }
 
 function generateId(): string {
-  return Math.random().toString(36).slice(2, 11)
+  return Crypto.randomUUID().replace(/-/g, "").slice(0, 16)
 }
 
 function buildClient(
