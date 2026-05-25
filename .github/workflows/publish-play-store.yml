@@ -56,6 +56,13 @@ jobs:
       - name: Install dependencies
         run: npm install --legacy-peer-deps
 
+      - name: Bump android.versionCode in app.json
+        # Play Store rejects duplicate versionCodes, so derive a monotonic value
+        # from github.run_number. expo prebuild reads this into build.gradle.
+        run: |
+          node -e "const f='app.json';const j=require('./'+f);j.expo.android=j.expo.android||{};j.expo.android.versionCode=${{ github.run_number }};require('fs').writeFileSync(f,JSON.stringify(j,null,2)+'\n')"
+          echo "versionCode now: $(node -p "require('./app.json').expo.android.versionCode")"
+
       - name: Expo prebuild
         run: npx expo prebuild --platform android --no-install
 
@@ -78,10 +85,11 @@ jobs:
           path: android/app/build/outputs/bundle/release/app-release.aab
 
       - name: Publish to Play Store
-        uses: r0adkll/upload-google-play@v1
+        uses: r0adkll/upload-google-play@e738b9dd8f2476ea806d921b64aacd24f34515a5 # v1.1.5
         with:
           serviceAccountJsonPlainText: ${{ secrets.PLAY_STORE_SERVICE_ACCOUNT_JSON }}
           packageName: ai.opencode.mobile
           releaseFiles: android/app/build/outputs/bundle/release/app-release.aab
           track: internal
           status: completed
+          whatsNewDirectory: distribution/whatsnew

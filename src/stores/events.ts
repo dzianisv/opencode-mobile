@@ -2,6 +2,10 @@ import { create } from "zustand"
 import { useConnections } from "./connections"
 import { useSessions } from "./sessions"
 import { send as notify } from "../lib/notifications"
+
+const MAX_NOTIF_BODY = 200
+const sanitizeBody = (s: string | undefined, fallback: string): string =>
+  (s ? s.replace(/[\x00-\x1f\x7f]/g, " ").trim().slice(0, MAX_NOTIF_BODY) : "") || fallback
 import { addBreadcrumb } from "../lib/sentry"
 import type { Client, Part, Session, Message } from "../lib/sdk"
 
@@ -141,7 +145,7 @@ export const useEvents = create<EventsState>((set, get) => ({
           notify({
             category: "connection",
             title: "Connection interrupted",
-            body: "Trying to reconnect to your server",
+            body: sanitizeBody(undefined, "Trying to reconnect to your server"),
             sessionId: "",
             dedupeKey: "sse-prolonged-disconnect",
             dedupeCooldownMs: 60_000,
@@ -204,7 +208,7 @@ export const useEvents = create<EventsState>((set, get) => ({
                 notify({
                   category: "completed",
                   title: "Task completed",
-                  body: match?.title || "Session finished processing",
+                  body: sanitizeBody(match?.title, "Session finished processing"),
                   sessionId: sessionID,
                 })
               }
@@ -271,7 +275,7 @@ export const useEvents = create<EventsState>((set, get) => ({
               notify({
                 category: "errors",
                 title: "Session error",
-                body: error?.message || "Something went wrong",
+                body: sanitizeBody(error?.message, "Something went wrong"),
                 sessionId: sessionID,
               })
               break
@@ -291,7 +295,7 @@ export const useEvents = create<EventsState>((set, get) => ({
               notify({
                 category: "permissions",
                 title: req.permission || "Permission requested",
-                body: req.patterns?.join(", ") || "A tool needs your approval",
+                body: sanitizeBody(req.patterns?.join(", "), "A tool needs your approval"),
                 sessionId: req.sessionID,
               })
               break
@@ -324,7 +328,7 @@ export const useEvents = create<EventsState>((set, get) => ({
               notify({
                 category: "questions",
                 title: req.questions?.[0]?.header || "Input needed",
-                body: req.questions?.[0]?.question || "The assistant has a question",
+                body: sanitizeBody(req.questions?.[0]?.question, "The assistant has a question"),
                 sessionId: req.sessionID,
               })
               break
