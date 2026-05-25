@@ -71,7 +71,7 @@ export const useAuth = create<AuthState>((set, get) => ({
       set({
         error: "Failed to initialize authentication",
         isLoading: false,
-        isAuthenticated: true, // Fail open for usability
+        isAuthenticated: false,
       })
     }
   },
