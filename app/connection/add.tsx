@@ -9,6 +9,7 @@ import {
   useColorScheme,
   ActivityIndicator,
   Alert,
+  Linking,
 } from "react-native"
 import { router } from "expo-router"
 import { Ionicons } from "@expo/vector-icons"
@@ -33,6 +34,7 @@ export default function AddConnectionScreen() {
   const [username, setUsername] = useState("")
   const [password, setPassword] = useState("")
   const [isConnecting, setIsConnecting] = useState(false)
+  const [waitlistEmail, setWaitlistEmail] = useState("")
 
   const buildUrl = () => {
     if (mode === "advanced") return url.trim()
@@ -135,6 +137,13 @@ export default function AddConnectionScreen() {
     router.back()
   }
 
+  const handleJoinWaitlist = () => {
+    const email = waitlistEmail.trim()
+    const subject = encodeURIComponent("OpenCode Connect Waitlist")
+    const body = encodeURIComponent(email ? `Sign me up!\n\nEmail: ${email}` : "Sign me up!")
+    Linking.openURL(`mailto:connect@vibebrowser.app?subject=${subject}&body=${body}`)
+  }
+
   // Quick connect mode - simplified
   if (mode === "quick") {
     return (
@@ -233,6 +242,40 @@ export default function AddConnectionScreen() {
             Make sure OpenCode is running:{"\n"}
             <Text style={styles.code}>opencode serve --hostname 0.0.0.0</Text>
           </Text>
+        </View>
+
+        {/* OpenCode Connect — Coming Soon */}
+        <View style={[styles.connectCard, isDark && styles.connectCardDark]}>
+          <View style={styles.connectCardHeader}>
+            <Ionicons name="cloud-done-outline" size={28} color="#6366f1" />
+            <View style={styles.connectCardTitles}>
+              <Text style={[styles.connectCardTitle, isDark && styles.textDark]}>OpenCode Connect</Text>
+              <View style={styles.connectCardBadge}>
+                <Text style={styles.connectCardBadgeText}>Coming Soon</Text>
+              </View>
+            </View>
+          </View>
+          <Text style={[styles.connectCardDesc, isDark && styles.hintDark]}>
+            Bridge your phone to your opencode server — no tunnel setup, no firewall config. One-tap connect from
+            anywhere.
+          </Text>
+          <TextInput
+            style={[styles.input, isDark && styles.inputDark, { marginTop: 12 }]}
+            placeholder="your@email.com"
+            placeholderTextColor={isDark ? "#666666" : "#999999"}
+            value={waitlistEmail}
+            onChangeText={setWaitlistEmail}
+            autoCapitalize="none"
+            autoCorrect={false}
+            keyboardType="email-address"
+          />
+          <TouchableOpacity
+            style={styles.waitlistButton}
+            onPress={handleJoinWaitlist}
+          >
+            <Ionicons name="mail-outline" size={16} color="#ffffff" />
+            <Text style={styles.waitlistButtonText}>Join Waitlist</Text>
+          </TouchableOpacity>
         </View>
 
         {/* Advanced mode link */}
@@ -572,5 +615,65 @@ const styles = StyleSheet.create({
     color: "#0a0a0a",
     marginTop: 32,
     marginBottom: 8,
+  },
+  connectCard: {
+    backgroundColor: "#f0f0ff",
+    borderRadius: 12,
+    padding: 16,
+    marginTop: 24,
+    borderWidth: 1,
+    borderColor: "#c7d2fe",
+  },
+  connectCardDark: {
+    backgroundColor: "#1e1b4b",
+    borderColor: "#3730a3",
+  },
+  connectCardHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    marginBottom: 8,
+  },
+  connectCardTitles: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    flexWrap: "wrap",
+  },
+  connectCardTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#0a0a0a",
+  },
+  connectCardBadge: {
+    backgroundColor: "#6366f1",
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  connectCardBadgeText: {
+    color: "#ffffff",
+    fontSize: 11,
+    fontWeight: "600",
+  },
+  connectCardDesc: {
+    fontSize: 13,
+    color: "#666666",
+    lineHeight: 20,
+  },
+  waitlistButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    padding: 12,
+    borderRadius: 8,
+    backgroundColor: "#6366f1",
+    marginTop: 12,
+  },
+  waitlistButtonText: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: "#ffffff",
   },
 })
