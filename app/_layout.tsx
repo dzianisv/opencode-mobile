@@ -44,24 +44,25 @@ function RootLayout() {
     })
 
     // Load telemetry consent — initialise Sentry only if previously granted
-    loadTelemetryConsent().then((state) => {
-      if (state === "granted") {
-        // initSentry is called inside loadTelemetryConsent pathway via setTelemetryConsent
-        // but here we need to call it directly since we just loaded the state.
-        // Import and call directly to avoid duplication.
-        import("../src/lib/sentry").then(({ initSentry }) => {
-          initSentry()
-          addBreadcrumb({ category: "app.lifecycle", message: "app started" })
-        })
-        setConsentState("decided")
-      } else if (state === "denied") {
-        addBreadcrumb({ category: "app.lifecycle", message: "app started (telemetry off)" })
-        setConsentState("decided")
-      } else {
-        // 'unknown' — show consent modal
+    loadTelemetryConsent()
+      .then((state) => {
+        if (state === "granted") {
+          import("../src/lib/sentry").then(({ initSentry }) => {
+            initSentry()
+            addBreadcrumb({ category: "app.lifecycle", message: "app started" })
+          })
+          setConsentState("decided")
+        } else if (state === "denied") {
+          addBreadcrumb({ category: "app.lifecycle", message: "app started (telemetry off)" })
+          setConsentState("decided")
+        } else {
+          setConsentState("unknown")
+        }
+      })
+      .catch(() => {
+        // SecureStore unavailable — show modal so user can decide
         setConsentState("unknown")
-      }
-    })
+      })
 
     return unsubNotifications
   }, [])

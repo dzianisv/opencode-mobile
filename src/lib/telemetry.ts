@@ -43,11 +43,14 @@ export async function loadTelemetryConsent(): Promise<ConsentState> {
       _resolved = false
       return "denied"
     }
+    // No stored value — first launch
+    _resolved = null
+    return "unknown"
   } catch {
-    // SecureStore unavailable — treat as unknown, degrade gracefully.
+    // SecureStore unavailable — don't clobber a previously resolved in-memory state.
+    // Return unknown so the caller can surface the modal.
+    return "unknown"
   }
-  _resolved = null
-  return "unknown"
 }
 
 /**

@@ -19,7 +19,7 @@ export function TelemetryConsentModal({ visible, onAllow, onDecline }: Props) {
   const isDark = colorScheme === "dark"
 
   return (
-    <Modal visible={visible} transparent animationType="fade" statusBarTranslucent>
+    <Modal visible={visible} transparent animationType="fade" statusBarTranslucent onRequestClose={onDecline}>
       <View style={styles.overlay}>
         <View style={[styles.card, isDark && styles.cardDark]}>
           {/* Icon */}
