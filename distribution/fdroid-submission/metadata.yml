@@ -1,0 +1,107 @@
+# F-Droid metadata for ai.opencode.mobile
+# Target file path in fdroiddata: metadata/ai.opencode.mobile.yml
+#
+# BEFORE FILING THE MR:
+#   1. Replace <SIGNING_KEY_SHA256_FINGERPRINT> with the actual colon-separated hex fingerprint
+#      (found in distribution/SIGNING-KEY-FINGERPRINTS.md)
+#   2. Replace <FIRST_GITHUB_RELEASE_TAG> with the first tag that has a signed APK attached
+#      (e.g. v0.2.4)
+#   3. Verify the build steps produce a matching APK against AllowedAPKSigningKeys
+#
+# Do NOT file this MR until:
+#   - First Google Play release is live (establishes signing key in production use)
+#   - Sentry opt-in gate is merged to main (anti-feature Tracking avoided)
+#   - You have the exact colon-separated SHA-256 key fingerprint confirmed
+
+Categories:
+  - Development
+
+License: MIT
+
+AuthorName: VIBE TECHNOLOGIES, LLC
+AuthorEmail: support@vibebrowser.app
+
+WebSite: https://opencode.vibebrowser.app
+SourceCode: https://github.com/dzianisv/opencode-mobile
+IssueTracker: https://github.com/dzianisv/opencode-mobile/issues
+Changelog: https://github.com/dzianisv/opencode-mobile/releases
+
+Summary: Drive your self-hosted AI coding agent from your phone
+
+Description: |-
+    OpenCode Mobile is a free, open-source (MIT) client for the opencode AI coding
+    agent (sst/opencode). Connect to your self-hosted opencode server and drive
+    AI-powered coding sessions from your phone — no proprietary backend, no mandatory
+    accounts, no tracking by default.
+
+    '''Key features'''
+
+    * Multiple connection types — local network, secure tunnels (Cloudflare, ngrok),
+      or any self-hosted opencode instance
+    * Biometric unlock — fingerprint / PIN to keep your sessions private
+    * Real-time streaming chat — watch your AI agent think and respond live
+    * File diff viewer — see exactly what code changes the agent proposes
+    * Multi-session management — start, resume, and switch between coding sessions
+    * Tool call approval — review and approve agent actions before they run
+
+    '''Self-hosted first'''
+
+    The app requires your own opencode server. Your AI traffic goes directly to your
+    backend (Claude, GPT, Gemini, local models — your choice). No middleman required.
+
+    An optional hosted backend ("opencode Cloud") is planned as a future paid service,
+    but the client is always free and fully functional without it.
+
+    '''Crash reporting'''
+
+    Sentry crash reporting is opt-in with default OFF. Code, prompts, and AI responses
+    never leave your own server.
+
+    '''Anti-features'''
+
+    NonFreeNet: the opencode server you connect to may connect to proprietary AI
+    services (OpenAI, Anthropic, Google). The app itself contains no proprietary
+    network code.
+
+AntiFeatures:
+  NonFreeNet:
+    en-US: >-
+      The app connects to a user-self-hosted opencode server which may in turn
+      connect to proprietary AI services (OpenAI API, Anthropic API, Google Gemini).
+      The app itself is fully open source and does not require any specific provider.
+
+RepoType: git
+Repo: https://github.com/dzianisv/opencode-mobile
+
+Builds:
+  - versionName: '1.0.0'
+    versionCode: 1
+    commit: <FIRST_GITHUB_RELEASE_TAG>
+    subdir: android
+    sudo:
+      - apt-get update
+      - apt-get install -y nodejs npm
+    init:
+      - npm install --prefix .. --legacy-peer-deps
+      - npx --prefix .. expo prebuild --platform android --non-interactive
+    gradle:
+      - release
+    ndk: 26.1.10909125
+    # Node 20+ required for Expo SDK 52+
+    # prebuild regenerates android/ from app.json + package.json
+    # The signed AAB/APK is then compared against AllowedAPKSigningKeys
+    prebuild:
+      - cd .. && npm install --legacy-peer-deps
+      - cd .. && npx expo prebuild --platform android --non-interactive
+
+# AllowedAPKSigningKeys pins our release signing key.
+# F-Droid will serve our pre-signed APK rather than re-signing with their key.
+# This requires reproducible builds (identical output across machines).
+AllowedAPKSigningKeys: <SIGNING_KEY_SHA256_FINGERPRINT_LOWERCASE_NO_COLONS>
+
+AutoUpdateMode: Version v%v
+UpdateCheckMode: Tags
+UpdateCheckData: https://raw.githubusercontent.com/dzianisv/opencode-mobile/main/app.json|"version":\s*"([^"]+)"|.|.
+
+CurrentVersion: '1.0.0'
+CurrentVersionCode: 1

@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>OpenCode Mobile — Privacy Policy</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      font-size: 16px;
+      line-height: 1.7;
+      color: #1a1a2e;
+      background: #ffffff;
+      padding: 24px 16px 64px;
+      max-width: 760px;
+      margin: 0 auto;
+    }
+    header {
+      border-bottom: 2px solid #3b82f6;
+      padding-bottom: 20px;
+      margin-bottom: 32px;
+    }
+    header h1 {
+      font-size: 28px;
+      font-weight: 700;
+      color: #0f172a;
+      margin-bottom: 6px;
+    }
+    header .meta {
+      font-size: 14px;
+      color: #64748b;
+    }
+    h2 {
+      font-size: 20px;
+      font-weight: 700;
+      color: #0f172a;
+      margin-top: 36px;
+      margin-bottom: 12px;
+      border-left: 4px solid #3b82f6;
+      padding-left: 12px;
+    }
+    p { margin-bottom: 14px; }
+    ul {
+      margin: 10px 0 14px 24px;
+    }
+    ul li { margin-bottom: 6px; }
+    a { color: #3b82f6; text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    .highlight-box {
+      background: #eff6ff;
+      border: 1px solid #bfdbfe;
+      border-radius: 8px;
+      padding: 16px 20px;
+      margin: 20px 0;
+    }
+    .highlight-box strong { color: #1e40af; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 14px 0;
+      font-size: 14px;
+    }
+    th {
+      background: #f1f5f9;
+      text-align: left;
+      padding: 10px 12px;
+      border: 1px solid #e2e8f0;
+      font-weight: 600;
+    }
+    td {
+      padding: 10px 12px;
+      border: 1px solid #e2e8f0;
+      vertical-align: top;
+    }
+    tr:nth-child(even) td { background: #f8fafc; }
+    footer {
+      margin-top: 48px;
+      padding-top: 20px;
+      border-top: 1px solid #e2e8f0;
+      font-size: 13px;
+      color: #94a3b8;
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>OpenCode Mobile — Privacy Policy</h1>
+  <p class="meta">
+    Effective date: 2026-05-24 &nbsp;|&nbsp;
+    Operator: VIBE TECHNOLOGIES, LLC &nbsp;|&nbsp;
+    App: OpenCode Mobile (<code>ai.opencode.mobile</code>)
+  </p>
+</header>
+
+<div class="highlight-box">
+  <strong>Summary:</strong> OpenCode Mobile does not collect your code, prompts, AI responses,
+  server URLs, or any chat content. All AI traffic goes directly from the app to your own
+  opencode server. We use Sentry only for anonymous crash diagnostics, and only with your
+  consent.
+</div>
+
+<h2>1. Who We Are</h2>
+<p>
+  OpenCode Mobile is developed and distributed by <strong>VIBE TECHNOLOGIES, LLC</strong>,
+  a Washington State limited liability company.<br>
+  Address: 519 S Henderson St, Seattle, WA 98108-4522, USA<br>
+  Contact: <a href="mailto:support@vibebrowser.app">support@vibebrowser.app</a>
+</p>
+<p>
+  The app is open-source (MIT license). Source code:
+  <a href="https://github.com/dzianisv/opencode-mobile">github.com/dzianisv/opencode-mobile</a>.
+</p>
+
+<h2>2. Data We Do NOT Collect</h2>
+<p>
+  We want to be explicit about what we never collect, transmit to our servers, or share with
+  third parties:
+</p>
+<ul>
+  <li>Your code, files, or repository content</li>
+  <li>Your prompts, chat messages, or AI responses</li>
+  <li>Your opencode server URL, IP address, or hostname</li>
+  <li>Authentication tokens, API keys, or credentials you enter</li>
+  <li>Account information, email addresses, or names</li>
+  <li>Location data</li>
+  <li>Photos, microphone recordings, or camera data (unless you attach them to a message,
+      in which case they go only to your own server)</li>
+  <li>Contacts, calendar, or any other personal data</li>
+</ul>
+<p>
+  All communication between the app and your AI coding agent travels directly between your
+  device and your self-hosted opencode server. VIBE TECHNOLOGIES, LLC never sees this traffic.
+</p>
+
+<h2>3. Data We Do Collect (Crash Diagnostics)</h2>
+<p>
+  With your explicit consent (shown at first launch), we collect anonymous crash diagnostic
+  data via <strong>Sentry</strong> to help us identify and fix bugs.
+</p>
+
+<table>
+  <thead>
+    <tr>
+      <th>Data type</th>
+      <th>What is captured</th>
+      <th>What is NOT captured</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Device info</td>
+      <td>Device model (e.g. "Pixel 7"), OS version, screen resolution, app version</td>
+      <td>Device serial number, IMEI, advertising ID</td>
+    </tr>
+    <tr>
+      <td>Crash / error reports</td>
+      <td>Stack traces, exception types and messages, source file names and line numbers</td>
+      <td>Variable values at time of crash, no user data in scope</td>
+    </tr>
+    <tr>
+      <td>Breadcrumbs</td>
+      <td>Screen names and function call sequence leading to the crash (e.g., "navigated to session screen")</td>
+      <td>Message bodies, server URLs, prompt text — all stripped before upload by our URL-scrubbing filter</td>
+    </tr>
+    <tr>
+      <td>App version and build</td>
+      <td>Version string and build number</td>
+      <td>—</td>
+    </tr>
+  </tbody>
+</table>
+
+<p>
+  URL scrubbing: before any event is sent to Sentry, our code strips all server URLs,
+  authentication tokens, and query parameters. Stack traces are checked for embedded URLs.
+  No server hostname or port number ever leaves your device via Sentry.
+</p>
+
+<h2>4. Consent and Control</h2>
+<p>
+  Crash reporting is <strong>opt-in and off by default</strong>. The first time you launch
+  the app you will see a consent prompt. You can change this at any time:
+</p>
+<ul>
+  <li>Open the app → <strong>Settings</strong> → <strong>Privacy</strong> →
+      <strong>Crash reporting</strong> toggle.</li>
+  <li>When the toggle is off, Sentry is never initialised and no data leaves your device.</li>
+</ul>
+
+<h2>5. Third-Party Services</h2>
+<p>
+  We use one third-party service for diagnostics:
+</p>
+<ul>
+  <li>
+    <strong>Sentry</strong> — crash and error monitoring.<br>
+    Privacy policy: <a href="https://sentry.io/privacy/" target="_blank" rel="noopener">sentry.io/privacy</a><br>
+    Data is sent to Sentry's US-based servers and retained for approximately 90 days
+    per Sentry's default data-retention policy.
+  </li>
+</ul>
+<p>
+  We use no advertising networks, analytics platforms, social SDKs, or any other
+  third-party data collection services. The app contains no ads and no ad SDKs.
+</p>
+
+<h2>6. Data Retention</h2>
+<p>
+  Crash reports sent to Sentry are retained for approximately 90 days, after which they are
+  automatically deleted per Sentry's retention defaults.
+</p>
+<p>
+  We do not operate our own servers that store your data; there is no VIBE TECHNOLOGIES
+  back end involved in normal app usage.
+</p>
+
+<h2>7. Your Rights</h2>
+<p>
+  You have the right to:
+</p>
+<ul>
+  <li><strong>Opt out</strong> — disable crash reporting at any time in Settings → Privacy.</li>
+  <li><strong>Request deletion</strong> — email <a href="mailto:support@vibebrowser.app">support@vibebrowser.app</a>
+      with subject "Data deletion request" and we will request deletion of any crash events
+      associated with your device from Sentry. Include your device model and approximate date
+      range to help us identify your records.</li>
+  <li><strong>Access</strong> — request a summary of what diagnostic data (if any) we hold
+      about your device by emailing the same address.</li>
+</ul>
+<p>
+  Residents of the EU/EEA/UK may exercise rights under GDPR/UK GDPR. California residents
+  may exercise rights under the CCPA. To do so, contact us at the email above.
+</p>
+
+<h2>8. Children</h2>
+<p>
+  OpenCode Mobile is a developer tool intended for users aged 18 and over. We do not
+  knowingly collect any data from children under 13 (or under 16 in the EU). If you believe
+  a child has submitted data, please contact us and we will delete it promptly.
+</p>
+
+<h2>9. Security</h2>
+<p>
+  All diagnostic data is transmitted over HTTPS (TLS 1.2+) to Sentry. We do not transmit
+  any data over unencrypted connections. Your opencode server traffic uses whatever transport
+  security your server provides — we recommend HTTPS for all self-hosted deployments.
+</p>
+
+<h2>10. Changes to This Policy</h2>
+<p>
+  If we make material changes to this policy, we will update the effective date at the top
+  of this page and, where feasible, notify users via an in-app notice. The latest version
+  is always available at:
+  <a href="https://opencode.vibebrowser.app/privacy">
+    vibebrowser.app/opencode-mobile/privacy
+  </a>
+</p>
+
+<h2>11. Contact</h2>
+<p>
+  VIBE TECHNOLOGIES, LLC<br>
+  519 S Henderson St<br>
+  Seattle, WA 98108-4522<br>
+  USA<br>
+  Email: <a href="mailto:support@vibebrowser.app">support@vibebrowser.app</a>
+</p>
+
+<hr style="margin:40px 0; border:none; border-top:1px solid #e2e8f0;">
+
+<h2>Apple-Specific Addendum (iOS / App Store)</h2>
+<p>This addendum addresses Apple's specific privacy disclosure requirements for iOS apps distributed through the Apple App Store.</p>
+
+<h3>App Tracking Transparency (ATT)</h3>
+<p>OpenCode Mobile does <strong>not</strong> use Apple's App Tracking Transparency (<code>AppTrackingTransparency</code>) framework. The app does not:</p>
+<ul>
+  <li>Access the IDFA (Identifier for Advertisers)</li>
+  <li>Use any cross-app or cross-website tracking</li>
+  <li>Participate in any advertising network</li>
+  <li>Profile users for advertising or marketing purposes</li>
+</ul>
+<p>No ATT permission prompt is ever shown to users because there is nothing to track.</p>
+
+<h3>Apple Privacy Nutrition Label Data Categories</h3>
+<p>The following maps our data practices to Apple's official App Privacy categories (as required in App Store Connect):</p>
+<table style="width:100%;border-collapse:collapse;font-size:14px;margin:16px 0;">
+  <thead>
+    <tr style="background:#f1f5f9;">
+      <th style="border:1px solid #e2e8f0;padding:8px;text-align:left;">Apple Category</th>
+      <th style="border:1px solid #e2e8f0;padding:8px;text-align:left;">Collected?</th>
+      <th style="border:1px solid #e2e8f0;padding:8px;text-align:left;">Linked to identity?</th>
+      <th style="border:1px solid #e2e8f0;padding:8px;text-align:left;">Used for tracking?</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr><td style="border:1px solid #e2e8f0;padding:8px;">Contact Info</td><td style="border:1px solid #e2e8f0;padding:8px;">No</td><td style="border:1px solid #e2e8f0;padding:8px;">N/A</td><td style="border:1px solid #e2e8f0;padding:8px;">No</td></tr>
+    <tr><td style="border:1px solid #e2e8f0;padding:8px;">Location</td><td style="border:1px solid #e2e8f0;padding:8px;">No</td><td style="border:1px solid #e2e8f0;padding:8px;">N/A</td><td style="border:1px solid #e2e8f0;padding:8px;">No</td></tr>
+    <tr><td style="border:1px solid #e2e8f0;padding:8px;">Identifiers (Device ID)</td><td style="border:1px solid #e2e8f0;padding:8px;">Yes (Sentry anonymous ID, with consent)</td><td style="border:1px solid #e2e8f0;padding:8px;">No</td><td style="border:1px solid #e2e8f0;padding:8px;">No</td></tr>
+    <tr><td style="border:1px solid #e2e8f0;padding:8px;">Diagnostics — Crash Data</td><td style="border:1px solid #e2e8f0;padding:8px;">Yes (Sentry, with consent)</td><td style="border:1px solid #e2e8f0;padding:8px;">No</td><td style="border:1px solid #e2e8f0;padding:8px;">No</td></tr>
+    <tr><td style="border:1px solid #e2e8f0;padding:8px;">Diagnostics — Performance Data</td><td style="border:1px solid #e2e8f0;padding:8px;">Yes (Sentry, with consent)</td><td style="border:1px solid #e2e8f0;padding:8px;">No</td><td style="border:1px solid #e2e8f0;padding:8px;">No</td></tr>
+    <tr><td style="border:1px solid #e2e8f0;padding:8px;">All other categories</td><td style="border:1px solid #e2e8f0;padding:8px;">No</td><td style="border:1px solid #e2e8f0;padding:8px;">N/A</td><td style="border:1px solid #e2e8f0;padding:8px;">No</td></tr>
+  </tbody>
+</table>
+<p><strong>App Store Connect summary:</strong> Data Linked to You: <em>None</em>. Data Not Linked to You: <em>Crash Data, Performance Data</em> (when user consents). Tracking: <em>No</em>.</p>
+
+<footer>
+  &copy; 2026 VIBE TECHNOLOGIES, LLC. OpenCode Mobile is MIT-licensed open-source software.
+  Privacy policy effective 2026-05-24.
+</footer>
+
+</body>
+</html>

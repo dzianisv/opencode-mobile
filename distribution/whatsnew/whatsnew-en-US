@@ -1,0 +1,6 @@
+Initial Internal testing release.
+
+- Connect to your self-hosted opencode server (HTTP)
+- Drive AI coding sessions from your phone
+- Streaming chat, diffs, file tree
+- Crash reporting via Sentry
