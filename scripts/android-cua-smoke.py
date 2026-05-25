@@ -245,13 +245,19 @@ def call_llm(client, model: str, system: str, history: list) -> str:
 
 
 def make_client(model: str):
-    """Create OpenAI client. Supports AZURE_OPENAI_*, OPENAI_API_KEY, GEMINI_API_KEY, XAI_API_KEY."""
+    """Create OpenAI client. Supports AZURE_OPENAI_*, AZURE_DEV_AI_*, OPENAI_API_KEY, GEMINI_API_KEY, XAI_API_KEY."""
     if os.environ.get("AZURE_OPENAI_API_KEY"):
+        azure_model = os.environ.get("AZURE_OPENAI_MODEL", "gpt-5.4")
         return AzureOpenAI(
             api_key=os.environ["AZURE_OPENAI_API_KEY"],
             azure_endpoint=os.environ["AZURE_OPENAI_ENDPOINT"],
             api_version=os.environ.get("AZURE_OPENAI_API_VERSION", "2024-08-01-preview"),
-        ), model
+        ), azure_model
+    # Azure AI Foundry endpoint (cognitiveservices.azure.com/openai/v1) — use OpenAI client
+    if os.environ.get("AZURE_DEV_AI_API_KEY"):
+        base_url = os.environ.get("AZURE_DEV_AI_BASE_URL", "https://vibe-dev-ai.cognitiveservices.azure.com/openai/v1")
+        azure_model = os.environ.get("AZURE_DEV_AI_MODEL", "gpt-4o-2024-11-20")
+        return OpenAI(api_key=os.environ["AZURE_DEV_AI_API_KEY"], base_url=base_url), azure_model
     if os.environ.get("OPENAI_API_KEY"):
         base = os.environ.get("OPENAI_BASE_URL")
         return OpenAI(base_url=base) if base else OpenAI(), model
@@ -265,7 +271,22 @@ def make_client(model: str):
             api_key=os.environ["GEMINI_API_KEY"],
             base_url="https://generativelanguage.googleapis.com/v1beta/openai/",
         ), "gemini-2.0-flash"
-    sys.exit("Set AZURE_OPENAI_API_KEY, OPENAI_API_KEY, XAI_API_KEY, or GEMINI_API_KEY")
+    sys.exit("Set AZURE_OPENAI_API_KEY, AZURE_DEV_AI_API_KEY, OPENAI_API_KEY, XAI_API_KEY, or GEMINI_API_KEY")
+
+
+def get_screen_size() -> tuple[int, int]:
+    """Return (width, height) of the connected device screen."""
+    try:
+        out = adb("shell", "wm", "size")
+        # "Physical size: 1080x1920" or "Override size: 1080x1920"
+        for line in out.splitlines():
+            if "size:" in line.lower():
+                dims = line.split(":")[-1].strip()
+                w, h = dims.split("x")
+                return int(w), int(h)
+    except Exception:
+        pass
+    return 1080, 1920
 
 
 def run_cua(goal: str, max_steps: int = 30, model: str = "gpt-4o",
@@ -273,6 +294,7 @@ def run_cua(goal: str, max_steps: int = 30, model: str = "gpt-4o",
     """Run the CUA loop until done/fail/max_steps."""
     client, model = make_client(model)
     history = []
+    screen_w, screen_h = get_screen_size()
 
     for step in range(1, max_steps + 1):
         # Capture screenshot
@@ -280,7 +302,7 @@ def run_cua(goal: str, max_steps: int = 30, model: str = "gpt-4o",
 
         # Build user message with screenshot
         content = [
-            {"type": "text", "text": f"Step {step}. Screen is 1080x2400 pixels. Goal: {goal}\nWhat action should I take next?"},
+            {"type": "text", "text": f"Step {step}. Screen is {screen_w}x{screen_h} pixels. Goal: {goal}\nWhat action should I take next?"},
             {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{img_b64}", "detail": "high"}},
         ]
 
@@ -299,10 +321,17 @@ def run_cua(goal: str, max_steps: int = 30, model: str = "gpt-4o",
 
         # Parse action
         try:
-            # Handle markdown code fences if model wraps response
-            if reply.startswith("```"):
-                reply = reply.split("\n", 1)[1].rsplit("```", 1)[0].strip()
-            action = json.loads(reply)
+            clean = reply.strip()
+            # Strip markdown code fences
+            if clean.startswith("```"):
+                clean = clean.split("\n", 1)[1].rsplit("```", 1)[0].strip()
+            # If model returned multiple JSON objects, take the first
+            import re as _re
+            m = _re.search(r'\{[^{}]*\}', clean)
+            if m:
+                action = json.loads(m.group(0))
+            else:
+                action = json.loads(clean)
         except json.JSONDecodeError:
             if verbose:
                 print(f"  [step {step}] Failed to parse: {reply[:100]}")
