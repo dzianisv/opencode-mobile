@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react"
+import { useEffect, useRef, useState } from "react"
 import { Stack, router } from "expo-router"
 import { StatusBar } from "expo-status-bar"
 import { useColorScheme, View, ActivityIndicator } from "react-native"
@@ -12,11 +12,10 @@ import { useCatalog } from "../src/stores/catalog"
 import { useSettings } from "../src/stores/settings"
 import { AuthGate } from "../src/components/AuthGate"
 import { ErrorBoundary } from "../src/components/ErrorBoundary"
+import { TelemetryConsentModal } from "../src/components/TelemetryConsentModal"
 import * as notifications from "../src/lib/notifications"
-import { addBreadcrumb, initSentry, wrap } from "../src/lib/sentry"
-
-initSentry()
-addBreadcrumb({ category: "app.lifecycle", message: "app started" })
+import { addBreadcrumb, wrap } from "../src/lib/sentry"
+import { loadTelemetryConsent, setTelemetryConsent } from "../src/lib/telemetry"
 
 const queryClient = new QueryClient()
 
@@ -28,6 +27,9 @@ function RootLayout() {
   const { loadConnections, isLoading: connectionsLoading, client } = useConnections()
   const sseStarted = useRef(false)
 
+  // Telemetry consent state: null = loading, 'unknown' = show modal, else decided
+  const [consentState, setConsentState] = useState<"loading" | "unknown" | "decided">("loading")
+
   useEffect(() => {
     initAuth()
     loadConnections()
@@ -37,9 +39,31 @@ function RootLayout() {
     notifications.configure(() => useSettings.getState().notifications)
 
     // Navigate to session when user taps a notification
-    return notifications.onTap((data) => {
+    const unsubNotifications = notifications.onTap((data) => {
       router.push(`/session/${data.sessionId}`)
     })
+
+    // Load telemetry consent — initialise Sentry only if previously granted
+    loadTelemetryConsent().then((state) => {
+      if (state === "granted") {
+        // initSentry is called inside loadTelemetryConsent pathway via setTelemetryConsent
+        // but here we need to call it directly since we just loaded the state.
+        // Import and call directly to avoid duplication.
+        import("../src/lib/sentry").then(({ initSentry }) => {
+          initSentry()
+          addBreadcrumb({ category: "app.lifecycle", message: "app started" })
+        })
+        setConsentState("decided")
+      } else if (state === "denied") {
+        addBreadcrumb({ category: "app.lifecycle", message: "app started (telemetry off)" })
+        setConsentState("decided")
+      } else {
+        // 'unknown' — show consent modal
+        setConsentState("unknown")
+      }
+    })
+
+    return unsubNotifications
   }, [])
 
   // Connect/disconnect SSE and load catalog when client changes
@@ -60,7 +84,7 @@ function RootLayout() {
     }
   }, [client])
 
-  const isLoading = authLoading || connectionsLoading
+  const isLoading = authLoading || connectionsLoading || consentState === "loading"
 
   if (isLoading) {
     return (
@@ -122,6 +146,18 @@ function RootLayout() {
           </QueryClientProvider>
         </BottomSheetModalProvider>
       </GestureHandlerRootView>
+      {/* Telemetry consent modal — shown once on first launch */}
+      <TelemetryConsentModal
+        visible={consentState === "unknown"}
+        onAllow={async () => {
+          await setTelemetryConsent(true)
+          setConsentState("decided")
+        }}
+        onDecline={async () => {
+          await setTelemetryConsent(false)
+          setConsentState("decided")
+        }}
+      />
     </ErrorBoundary>
   )
 }

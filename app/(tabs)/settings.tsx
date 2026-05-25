@@ -20,6 +20,7 @@ import {
   granted as notificationsGranted,
 } from "../../src/lib/notifications"
 import type { Category } from "../../src/lib/notifications"
+import { hasTelemetryConsent, setTelemetryConsent } from "../../src/lib/telemetry"
 
 function SettingRow({
   icon,
@@ -72,6 +73,15 @@ export default function SettingsScreen() {
   const { settings, hasBiometrics, updateSettings, lock } = useAuth()
   const { notifications, setNotification } = useSettings()
   const [osGranted, setOsGranted] = useState<boolean | null>(null)
+
+  // Telemetry consent: hasTelemetryConsent() returns null (unknown), true, or false.
+  // We initialise local state from in-memory value; updates call setTelemetryConsent().
+  const [crashReporting, setCrashReporting] = useState<boolean>(hasTelemetryConsent() ?? false)
+
+  const handleCrashReportingToggle = useCallback(async (value: boolean) => {
+    setCrashReporting(value)
+    await setTelemetryConsent(value)
+  }, [])
 
   // Check OS permission state on first toggle attempt
   const handleToggle = useCallback(
@@ -171,6 +181,30 @@ export default function SettingsScreen() {
             </Text>
           </View>
         )}
+      </SettingSection>
+
+      <SettingSection title="Privacy" isDark={isDark}>
+        <SettingRow
+          icon="shield-checkmark"
+          label="Crash Reporting"
+          description="Share anonymous crash reports via Sentry to help improve OpenCode. No code or prompts are included."
+          isDark={isDark}
+          right={
+            <Switch
+              value={crashReporting}
+              onValueChange={handleCrashReportingToggle}
+              trackColor={{ false: "#767577", true: "#22c55e" }}
+            />
+          }
+        />
+        <SettingRow
+          icon="document-text"
+          label="Privacy Policy"
+          description="What data we collect and how"
+          isDark={isDark}
+          onPress={() => Linking.openURL("https://www.vibebrowser.app/opencode-mobile/privacy")}
+          right={<Ionicons name="open-outline" size={20} color={isDark ? "#666666" : "#999999"} />}
+        />
       </SettingSection>
 
       <SettingSection title="About" isDark={isDark}>
