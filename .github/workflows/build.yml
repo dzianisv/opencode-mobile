@@ -42,17 +42,6 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-gradle-
 
-      - name: Cache Android build outputs
-        uses: actions/cache@v4
-        with:
-          path: |
-            android/app/build/intermediates
-            android/build
-            android/app/.cxx
-          key: ${{ runner.os }}-android-build-${{ hashFiles('package-lock.json', 'android/**/*.gradle*') }}
-          restore-keys: |
-            ${{ runner.os }}-android-build-
-
       - name: Install dependencies
         run: npm install --legacy-peer-deps
 
@@ -67,7 +56,7 @@ jobs:
 
       - name: Build APK
         working-directory: android
-        run: ./gradlew clean assembleRelease
+        run: ./gradlew assembleRelease
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
