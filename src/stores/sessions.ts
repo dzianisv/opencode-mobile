@@ -81,7 +81,12 @@ export const useSessions = create<SessionsState>((set, get) => ({
 
     try {
       set({ isLoading: true, error: null })
-      const sessions = await connState.client.session.list({ limit: 50 })
+      const listClient =
+        !connState.activeConnection?.directory && connState.serverHome
+          ? connState.clientForDirectory(connState.serverHome)
+          : connState.client
+
+      const sessions = await (listClient || connState.client).session.list({ roots: true, limit: 50 })
       set({ sessions, isLoading: false })
     } catch (error) {
       set({ error: "Failed to load sessions", isLoading: false })

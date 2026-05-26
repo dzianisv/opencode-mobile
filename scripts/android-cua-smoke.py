@@ -489,6 +489,22 @@ SMOKE_SCENARIOS = [
     },
 ]
 
+# Extended scenarios requiring an external OpenCode server.
+# Run with: python scripts/android-cua-smoke.py --opencode-url http://<host>:<port>
+def _connect_and_verify_sessions_goal(url: str) -> str:
+    return (
+        f"You see the OpenCode mobile app. "
+        "Go to the Connections tab (bottom navigation bar). "
+        "If a connection to the server already exists, tap it to make it active and skip to the next step. "
+        "Otherwise tap '+' or 'Add Connection', "
+        f"enter the URL '{url}', leave username/password blank, tap Save or Connect. "
+        "Wait 3 seconds. "
+        "Now navigate to the Sessions tab (bottom navigation bar). "
+        "Wait 5 seconds for sessions to load. "
+        "Report SUCCESS if you see at least one session listed (a session title is visible). "
+        "Report FAILURE if the sessions list is empty, shows 'No sessions yet', or shows an error."
+    )
+
 
 def main():
     parser = argparse.ArgumentParser(description="Android CUA smoke test")
@@ -497,6 +513,12 @@ def main():
     parser.add_argument("--max-steps", type=int, default=30)
     parser.add_argument("--include-xml", action="store_true", help="Include UI XML in context")
     parser.add_argument("--quiet", action="store_true")
+    parser.add_argument(
+        "--opencode-url",
+        help="OpenCode server URL (e.g. http://100.108.64.76:4096). "
+             "When set, adds a 'connect_and_verify_sessions' scenario that "
+             "reproduces the empty-session-list-after-sign-in regression.",
+    )
     args = parser.parse_args()
 
     # Verify ADB
@@ -507,7 +529,14 @@ def main():
     except FileNotFoundError:
         sys.exit("adb not found in PATH")
 
-    scenarios = [{"name": "custom", "goal": args.goal}] if args.goal else SMOKE_SCENARIOS
+    scenarios = [{"name": "custom", "goal": args.goal}] if args.goal else list(SMOKE_SCENARIOS)
+
+    # Append the server-connect repro scenario when --opencode-url is provided
+    if args.opencode_url:
+        scenarios.append({
+            "name": "connect_and_verify_sessions",
+            "goal": _connect_and_verify_sessions_goal(args.opencode_url),
+        })
 
     results = []
     for scenario in scenarios:

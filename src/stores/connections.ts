@@ -142,15 +142,31 @@ export const useConnections = create<ConnectionsState>((set, get) => ({
     let base = get().clientBase
     let activeConnection = get().activeConnection
 
+    let project = get().currentProject
+    let serverHome = get().serverHome
+
     if (newConnection.active) {
       activeConnection = newConnection
       const auth = newConnection.username && password ? { username: newConnection.username, password } : undefined
       const built = buildClient(newConnection.url, newConnection.directory, auth)
       client = built.client
       base = built.base
+
+      // Fetch server metadata so loadSessions can use clientForDirectory(serverHome)
+      // immediately after the connection is added (same as setActiveConnection does).
+      try {
+        const [proj, paths] = await Promise.all([
+          client.project.current().catch(() => null),
+          client.path.get().catch(() => null),
+        ])
+        project = proj
+        serverHome = paths?.home || null
+      } catch {
+        // Server might be unreachable; proceed without metadata
+      }
     }
 
-    set({ connections, activeConnection, client, clientBase: base })
+    set({ connections, activeConnection, client, clientBase: base, currentProject: project, serverHome })
   },
 
   removeConnection: async (id) => {
