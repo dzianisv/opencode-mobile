@@ -14,7 +14,7 @@ on:
 jobs:
   cua-test:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 60
     env:
       AZURE_OPENAI_API_KEY: ${{ secrets.AZURE_OPENAI_API_KEY }}
       AZURE_OPENAI_ENDPOINT: ${{ secrets.AZURE_OPENAI_ENDPOINT }}
@@ -47,6 +47,9 @@ jobs:
 
       - name: Setup Android SDK
         uses: android-actions/setup-android@v4
+
+      - name: Add emulator to PATH
+        run: echo "$ANDROID_HOME/emulator" >> $GITHUB_PATH
 
       - name: Enable KVM
         run: |
