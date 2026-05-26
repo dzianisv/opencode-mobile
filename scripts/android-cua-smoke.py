@@ -476,6 +476,17 @@ SMOKE_SCENARIOS = [
             "Report success if you see two assistant reply bubbles."
         ),
     },
+    {
+        "name": "verify_session_list",
+        "goal": (
+            "You see the OpenCode mobile app. Tap the '+' button (top-right) to create a new session. "
+            "Wait 2 seconds for the session to be created. "
+            "Navigate back to the sessions list by tapping the bottom-left 'Sessions' tab or pressing the back button. "
+            "Wait 3 seconds for the session list to load. "
+            "Report success if you can see at least one session entry in the list. "
+            "Report failure if the sessions list appears empty or shows an error message."
+        ),
+    },
 ]
 
 
