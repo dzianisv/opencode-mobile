@@ -1,0 +1,110 @@
+name: Publish F-Droid Repo
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+jobs:
+  publish-fdroid:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pages: write
+      id-token: write
+    env:
+      EXPO_PUBLIC_SENTRY_DSN: ${{ secrets.EXPO_PUBLIC_SENTRY_DSN }}
+      SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+      SENTRY_ORG: ${{ secrets.SENTRY_ORG }}
+      SENTRY_PROJECT: ${{ secrets.SENTRY_PROJECT }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Cache Gradle
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+            android/.gradle
+          key: ${{ runner.os }}-gradle-${{ hashFiles('android/**/*.gradle*', 'android/gradle/wrapper/gradle-wrapper.properties') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-
+
+      - name: Install dependencies
+        run: npm install --legacy-peer-deps
+
+      - name: Expo prebuild
+        run: npx expo prebuild --platform android --no-install
+
+      - name: Setup signing
+        run: |
+          if [[ -n "${{ secrets.KEYSTORE_BASE64 }}" ]]; then
+            echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > android/app/release.keystore
+            echo "RELEASE_STORE_FILE=release.keystore" >> "$GITHUB_ENV"
+            echo "RELEASE_STORE_PASSWORD=${{ secrets.KEYSTORE_PASSWORD }}" >> "$GITHUB_ENV"
+            echo "RELEASE_KEY_ALIAS=${{ secrets.KEY_ALIAS }}" >> "$GITHUB_ENV"
+            echo "RELEASE_KEY_PASSWORD=${{ secrets.KEY_PASSWORD }}" >> "$GITHUB_ENV"
+            echo "Signing: production keystore"
+          else
+            keytool -genkey -v -keystore android/app/debug.keystore -storepass android \
+              -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 \
+              -dname "CN=Android Debug,O=Android,C=US"
+            echo "Signing: debug keystore"
+          fi
+
+      - name: Build APK
+        working-directory: android
+        run: ./gradlew assembleRelease
+
+      - name: Install fdroidserver
+        run: pip install fdroidserver
+
+      - name: Setup F-Droid repo
+        id: fdroid-setup
+        run: |
+          FDROID_DIR="$HOME/fdroid-repo"
+          mkdir -p "$FDROID_DIR/repo"
+          mkdir -p "$FDROID_DIR/metadata"
+
+          echo "${{ secrets.FDROID_REPO_KEYSTORE_B64 }}" | base64 -d > "$FDROID_DIR/repo-keystore.jks"
+
+          cat > "$FDROID_DIR/config.yml" << CONFIGEOF
+          repo_url: https://dzianisv.github.io/opencode-mobile/fdroid/repo
+          repo_name: OpenCode Mobile
+          repo_description: OpenCode Mobile - AI coding assistant companion app
+          keystore: $FDROID_DIR/repo-keystore.jks
+          repo_keyalias: ${{ secrets.FDROID_REPO_KEY_ALIAS }}
+          keystorepass: ${{ secrets.FDROID_REPO_KEYSTORE_PASS }}
+          keypass: ${{ secrets.FDROID_REPO_KEY_PASS }}
+          CONFIGEOF
+
+          cp android/app/build/outputs/apk/release/app-release.apk "$FDROID_DIR/repo/"
+
+          echo "fdroid-dir=$FDROID_DIR" >> "$GITHUB_OUTPUT"
+
+      - name: Generate F-Droid repo index
+        run: |
+          cd "${{ steps.fdroid-setup.outputs.fdroid-dir }}"
+          fdroid update --create-metadata
+
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ${{ steps.fdroid-setup.outputs.fdroid-dir }}/repo
+          destination_dir: fdroid/repo
+          keep_files: true

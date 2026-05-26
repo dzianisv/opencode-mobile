@@ -11,4 +11,5 @@ ios/Pods/
 .env
 .env.*
 keystores/
-*.jks
+__pycache__/
+*.pyc
