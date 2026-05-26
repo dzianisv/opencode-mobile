@@ -10,8 +10,6 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
-      pages: write
-      id-token: write
     env:
       EXPO_PUBLIC_SENTRY_DSN: ${{ secrets.EXPO_PUBLIC_SENTRY_DSN }}
       SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
@@ -71,7 +69,7 @@ jobs:
         run: ./gradlew assembleRelease
 
       - name: Install fdroidserver
-        run: pip install fdroidserver
+        run: pip install "fdroidserver==2.4.4"
 
       - name: Setup F-Droid repo
         id: fdroid-setup
@@ -100,6 +98,16 @@ jobs:
         run: |
           cd "${{ steps.fdroid-setup.outputs.fdroid-dir }}"
           fdroid update --create-metadata
+
+      - name: Verify F-Droid repo index was generated
+        run: |
+          IDX="${{ steps.fdroid-setup.outputs.fdroid-dir }}/repo/index.xml"
+          if [[ ! -f "$IDX" ]]; then
+            echo "ERROR: F-Droid repo index not generated at $IDX"
+            ls -la "${{ steps.fdroid-setup.outputs.fdroid-dir }}/repo/" || true
+            exit 1
+          fi
+          echo "F-Droid repo index verified: $(wc -c < "$IDX") bytes"
 
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v4
