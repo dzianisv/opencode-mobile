@@ -63,13 +63,13 @@ jobs:
           AZURE_OPENAI_API_KEY: ${{ secrets.AZURE_OPENAI_API_KEY }}
           AZURE_OPENAI_ENDPOINT: ${{ secrets.AZURE_OPENAI_ENDPOINT }}
           AZURE_OPENAI_API_VERSION: "2024-08-01-preview"
+          OPENCODE_URL: "http://100.108.64.76:4096"
           ARCHIVEBOX_URL: ${{ secrets.ARCHIVEBOX_URL }}
           ARCHIVEBOX_API_KEY: ${{ secrets.ARCHIVEBOX_API_KEY }}
         run: |
           python3 scripts/android-cua-smoke.py \
             --model gpt-5.4 \
-            --include-xml \
-            --goal "You see the OpenCode mobile app. Tap '+' to create a new session. Type 'smoke test' in the message input and send it. Wait 5 seconds for the assistant to respond. Report success if you see an assistant message."
+            --include-xml
 
       - name: Upload test artifacts
         if: always()

@@ -1,0 +1,12 @@
+- cycle 1: created issue #10, initialized task state.
+- cycle 2: defined problem/goal/success metric in design doc.
+- cycle 3: expanded full design with alternatives, risks, and touched surface.
+- cycle 4: wrote parallelized implementation plan with balanced tradeoff.
+- cycle 5: autopilot approved plan; real smoke failed due debug bundle/Metro dependency and telemetry consent modal blocking flow.
+- cycle 6: reproduced stale deploy-only sessions on release app after connect; confirmed server default scope=11 vs home scope=27.
+- cycle 7: implemented loadSessions fallback to fetch/persist server home when missing, plus connection-switch guard.
+- cycle 8: hardened CUA runner with app-foreground prep and targeted telemetry-consent dismissal.
+- cycle 9: built/install patched release APK; manual deterministic fresh-state connect flow now shows home-scoped sessions (workspace + dental entries), not deploy-only list.
+- cycle 10: independent review flagged 3 warnings; fixed race and over-broad consent fallback; review rerun pending.
+- cycle 11: added default connect-and-verify scenario coverage in CUA script + CI workflow; final implementation review now PASS.
+- cycle 12: re-ran real feature testing from fresh app state; deterministic ADB assertions + focused CUA both PASS; test-report refreshed.

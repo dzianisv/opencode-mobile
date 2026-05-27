@@ -81,10 +81,29 @@ export const useSessions = create<SessionsState>((set, get) => ({
 
     try {
       set({ isLoading: true, error: null })
+      const initialConnectionID = connState.activeConnection?.id || null
+      const hasExplicitDirectory = Boolean(connState.activeConnection?.directory)
+      let home = connState.serverHome
+
+      if (!hasExplicitDirectory && !home) {
+        const paths = await connState.client.path.get().catch(() => null)
+        home = paths?.home || null
+        if (home) {
+          useConnections.setState({ serverHome: home })
+        }
+      }
+
+      const latestConnState = useConnections.getState()
+      const latestConnectionID = latestConnState.activeConnection?.id || null
+      if (latestConnectionID !== initialConnectionID) {
+        set({ isLoading: false })
+        return
+      }
+
       const listClient =
-        !connState.activeConnection?.directory && connState.serverHome
-          ? connState.clientForDirectory(connState.serverHome)
-          : connState.client
+        !latestConnState.activeConnection?.directory && home
+          ? latestConnState.clientForDirectory(home)
+          : latestConnState.client
 
       const sessions = await (listClient || connState.client).session.list({ roots: true, limit: 50 })
       set({ sessions, isLoading: false })
