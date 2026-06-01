@@ -1,17 +1,18 @@
-# F-Droid metadata for ai.opencode.mobile
-# Target file path in fdroiddata: metadata/ai.opencode.mobile.yml
+# F-Droid metadata for cc.agentlabs.opencode
+# Target file path in fdroiddata: metadata/cc.agentlabs.opencode.yml
 #
-# BEFORE FILING THE MR:
-#   1. Replace <SIGNING_KEY_SHA256_FINGERPRINT> with the actual colon-separated hex fingerprint
-#      (found in distribution/SIGNING-KEY-FINGERPRINTS.md)
-#   2. Replace <FIRST_GITHUB_RELEASE_TAG> with the first tag that has a signed APK attached
-#      (e.g. v0.2.4)
-#   3. Verify the build steps produce a matching APK against AllowedAPKSigningKeys
+# BLOCKER (do NOT file the fdroiddata MR until all true):
+#   1. A release tag built AFTER the ai.opencode.mobile -> cc.agentlabs.opencode
+#      rename exists, with a cc.agentlabs.opencode APK attached, signed by the
+#      release key. v0.4.1 and earlier APKs are the OLD package id and cannot be
+#      used. Cut a new tag (e.g. v0.4.2+) post-rename, then set the Builds entry
+#      below (versionName / versionCode / commit) to that tag.
+#   2. First Google Play production release is live (required by F-Droid policy).
+#   3. Reproducible build verified locally (see REPRODUCIBLE-BUILD-NOTES.md). Expo
+#      RN builds are not reproducible by default; expect reviewer back-and-forth.
 #
-# Do NOT file this MR until:
-#   - First Google Play release is live (establishes signing key in production use)
-#   - Sentry opt-in gate is merged to main (anti-feature Tracking avoided)
-#   - You have the exact colon-separated SHA-256 key fingerprint confirmed
+# Signing key SHA-256 (AllowedAPKSigningKeys, lowercase no colons) is confirmed in
+# distribution/SIGNING-KEY-FINGERPRINTS.md and is unchanged across the rename.
 
 Categories:
   - Development
@@ -21,7 +22,7 @@ License: MIT
 AuthorName: VIBE TECHNOLOGIES, LLC
 AuthorEmail: support@vibebrowser.app
 
-WebSite: https://www.vibebrowser.app/opencode
+WebSite: https://agentlabs.cc/opencode
 SourceCode: https://github.com/dzianisv/opencode-mobile
 IssueTracker: https://github.com/dzianisv/opencode-mobile/issues
 Changelog: https://github.com/dzianisv/opencode-mobile/releases
