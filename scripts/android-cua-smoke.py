@@ -603,8 +603,11 @@ def _connect_and_verify_sessions_goal(url: str) -> str:
         "Wait 3 seconds. "
         "Now navigate to the Sessions tab (bottom navigation bar). "
         "Wait 5 seconds for sessions to load. "
+        "If the sessions list is empty or shows 'No sessions yet', tap the '+' button "
+        "(top-right) to create a new session, wait 3 seconds, then navigate back to the "
+        "Sessions tab and wait 3 seconds for the list to refresh. "
         "Report SUCCESS if you see at least one session listed (a session title is visible). "
-        "Report FAILURE if the sessions list is empty, shows 'No sessions yet', or shows an error."
+        "Report FAILURE if the sessions list is still empty, shows 'No sessions yet', or shows an error."
     )
 
 
@@ -625,6 +628,12 @@ def main():
         action="store_true",
         help="Skip the default connect-and-verify regression scenario.",
     )
+    parser.add_argument(
+        "--only-connect-scenario",
+        action="store_true",
+        help="Run ONLY the connect-and-verify-sessions scenario. Use in CI with a "
+             "local opencode server for a deterministic true-E2E (no model backend needed).",
+    )
     args = parser.parse_args()
 
     # Verify ADB
@@ -635,15 +644,20 @@ def main():
     except FileNotFoundError:
         sys.exit("adb not found in PATH")
 
-    scenarios = [{"name": "custom", "goal": args.goal}] if args.goal else list(SMOKE_SCENARIOS)
+    connect_url = args.opencode_url or os.environ.get("OPENCODE_URL") or "http://100.108.64.76:4096"
+    connect_scenario = {
+        "name": "connect_and_verify_sessions",
+        "goal": _connect_and_verify_sessions_goal(connect_url),
+    }
 
-    # Keep connect-and-verify in the default smoke path so regressions are exercised.
-    if not args.goal and not args.skip_connect_scenario:
-        connect_url = args.opencode_url or os.environ.get("OPENCODE_URL") or "http://100.108.64.76:4096"
-        scenarios.append({
-            "name": "connect_and_verify_sessions",
-            "goal": _connect_and_verify_sessions_goal(connect_url),
-        })
+    if args.only_connect_scenario:
+        # CI true-E2E: just connect to the local opencode server and verify the list.
+        scenarios = [connect_scenario]
+    else:
+        scenarios = [{"name": "custom", "goal": args.goal}] if args.goal else list(SMOKE_SCENARIOS)
+        # Keep connect-and-verify in the default smoke path so regressions are exercised.
+        if not args.goal and not args.skip_connect_scenario:
+            scenarios.append(connect_scenario)
 
     results = []
     for scenario in scenarios:

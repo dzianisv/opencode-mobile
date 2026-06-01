@@ -19,7 +19,9 @@ jobs:
       AZURE_OPENAI_API_KEY: ${{ secrets.AZURE_OPENAI_API_KEY }}
       AZURE_OPENAI_ENDPOINT: ${{ secrets.AZURE_OPENAI_ENDPOINT }}
       AZURE_OPENAI_API_VERSION: "2024-08-01-preview"
-      OPENCODE_URL: "http://100.108.64.76:4096"
+      # Android emulator reaches the runner host loopback via 10.0.2.2.
+      # A real `opencode serve` runs on the host (see steps below), making this a true E2E.
+      OPENCODE_URL: "http://10.0.2.2:4096"
       ARCHIVEBOX_URL: ${{ secrets.ARCHIVEBOX_URL }}
       ARCHIVEBOX_API_KEY: ${{ secrets.ARCHIVEBOX_API_KEY }}
     steps:
@@ -67,6 +69,22 @@ jobs:
       - name: Install Python deps
         run: pip install openai
 
+      - name: Install & start opencode server on runner host
+        run: |
+          npm install -g opencode-ai
+          # Bind all interfaces so the emulator can reach it via 10.0.2.2.
+          nohup opencode serve --hostname 0.0.0.0 --port 4096 > /tmp/opencode-server.log 2>&1 &
+          echo "Waiting for opencode server /global/health ..."
+          for i in $(seq 1 60); do
+            if curl -sf http://127.0.0.1:4096/global/health > /dev/null; then
+              echo "opencode server healthy after ${i}s"; break
+            fi
+            sleep 1
+          done
+          curl -sf http://127.0.0.1:4096/global/health || {
+            echo "::error::opencode server failed to become healthy"; cat /tmp/opencode-server.log; exit 1;
+          }
+
       - name: Run CUA smoke test with emulator
         uses: reactivecircus/android-emulator-runner@v2
         with:
@@ -75,10 +93,19 @@ jobs:
           target: google_apis
           emulator-options: -no-window -no-audio -no-boot-anim -gpu swiftshader_indirect -no-snapshot
           script: |
+            # Confirm the host opencode server (started in the previous step) is still up.
+            curl -sf http://127.0.0.1:4096/global/health || {
+              echo "::error::opencode server not reachable from host before smoke"; cat /tmp/opencode-server.log; exit 1;
+            }
             adb install android/app/build/outputs/apk/release/app-release.apk
             adb shell am start -n cc.agentlabs.opencode/.MainActivity
             sleep 5
-            python3 scripts/android-cua-smoke.py --model gpt-5.4 --include-xml
+            # True E2E: app connects to the local opencode server (10.0.2.2:4096) and verifies the session list.
+            python3 scripts/android-cua-smoke.py --model gpt-5.4 --include-xml --only-connect-scenario
+
+      - name: opencode server log
+        if: always()
+        run: cat /tmp/opencode-server.log || true
 
       - name: Upload test artifacts
         if: always()
