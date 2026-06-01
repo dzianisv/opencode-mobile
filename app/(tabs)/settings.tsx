@@ -202,7 +202,7 @@ export default function SettingsScreen() {
           label="Privacy Policy"
           description="What data we collect and how"
           isDark={isDark}
-          onPress={() => Linking.openURL("https://www.vibebrowser.app/opencode-mobile/privacy")}
+          onPress={() => Linking.openURL("https://agentlabs.cc/opencode/privacy")}
           right={<Ionicons name="open-outline" size={20} color={isDark ? "#666666" : "#999999"} />}
         />
       </SettingSection>

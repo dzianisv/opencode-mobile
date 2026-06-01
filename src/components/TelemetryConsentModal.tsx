@@ -46,7 +46,7 @@ export function TelemetryConsentModal({ visible, onAllow, onDecline }: Props) {
 
           {/* Privacy policy link */}
           <TouchableOpacity
-            onPress={() => Linking.openURL("https://www.vibebrowser.app/opencode-mobile/privacy")}
+            onPress={() => Linking.openURL("https://agentlabs.cc/opencode/privacy")}
           >
             <Text style={styles.privacyLink}>Read our full privacy policy</Text>
           </TouchableOpacity>

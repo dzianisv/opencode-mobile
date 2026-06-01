@@ -114,7 +114,7 @@ Issues: github.com/dzianisv/opencode-mobile/issues
 | Tags | developer, ai, coding, open-source, productivity | Submit all five in Play Console. |
 | Email | support@vibebrowser.app | Already verified during signup. |
 | Phone | +1 360-504-8967 | Optional public; matches developer profile. |
-| Website | https://www.vibebrowser.app/opencode | Already verified. |
+| Website | https://agentlabs.cc/opencode | Already verified. |
 
 ---
 

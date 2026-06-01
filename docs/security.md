@@ -152,7 +152,7 @@ When the opencode AI agent requests a file-access permission, the notification b
 **Files:** `app.json:29`, `app.json:38-39`
 **Description:** Both platforms allow HTTP connections, which is required for local/LAN servers. This is intentional and correct for the use case. However, neither the Play Store listing, App Store listing, nor a privacy policy document currently explains that HTTP connections may be made to user-provided servers. Google Play's Data Safety section and Apple's App Privacy report will flag arbitrary network access if not documented.
 **Remediation:**
-1. Update the privacy policy at `vibebrowser.app/opencode-mobile/privacy` to explain that the app connects to user-configured server addresses that may use HTTP.
+1. Update the privacy policy at `agentlabs.cc/opencode/privacy` to explain that the app connects to user-configured server addresses that may use HTTP.
 2. In Play Store Data Safety: disclose "Other app performance data" collected (crash reports via Sentry — opt-in).
 **Status:** Open
 

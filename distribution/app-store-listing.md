@@ -101,7 +101,7 @@ Alternative / supplemental terms to rotate in A/B: `code review`, `AI assistant`
 
 | Field | Value |
 |---|---|
-| Support URL | https://www.vibebrowser.app/opencode |
+| Support URL | https://agentlabs.cc/opencode |
 | Marketing URL | https://github.com/dzianisv/opencode-mobile |
 | Privacy Policy URL | https://opencode.vibebrowser.app/privacy |
 

@@ -106,7 +106,7 @@ All diagnostic data is transmitted over HTTPS (TLS 1.2+) to Sentry. We do not tr
 ## 10. Changes to This Policy
 
 If we make material changes to this policy, we will update the effective date and, where feasible, notify users via an in-app notice. The latest version is always available at:
-https://www.vibebrowser.app/opencode-mobile/privacy
+https://agentlabs.cc/opencode/privacy
 
 ---
 
