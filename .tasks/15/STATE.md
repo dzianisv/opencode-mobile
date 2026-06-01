@@ -21,3 +21,10 @@ and saw a non-empty session list. Observable in the Actions run log.
 - GET /global/health -> {"healthy":true}; /project/current 200; /path 200.
 - POST /session then GET /session returns the created session. Flow validated.
 - phase: 5-implemented, ready for CI verify.
+
+## CI verify round 1 (FAILED -> fixed)
+- run 26750362939: build OK, opencode server step healthy, but emulator
+  script died with dash syntax error on `|| { ...; }` brace group before smoke ran.
+- Fix 42e60db: emulator script: block runs under /usr/bin/sh; replaced brace
+  group with non-fatal one-line re-check.
+- Re-dispatched: run 26751422570.
