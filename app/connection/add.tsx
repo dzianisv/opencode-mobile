@@ -209,6 +209,13 @@ export default function AddConnectionScreen() {
           onChangeText={setPassword}
           secureTextEntry
         />
+        <Text style={[styles.usernameHint, isDark && styles.hintDark]}>
+          Username defaults to <Text style={styles.code}>opencode</Text>. Custom username? Use{" "}
+          <Text style={styles.usernameHintLink} onPress={() => setMode("advanced")}>
+            Advanced options
+          </Text>
+          .
+        </Text>
 
         {/* Connect button */}
         <TouchableOpacity
@@ -523,6 +530,17 @@ const styles = StyleSheet.create({
     backgroundColor: "#e5e5e5",
     paddingHorizontal: 4,
     borderRadius: 4,
+  },
+  usernameHint: {
+    fontSize: 12,
+    color: "#666666",
+    marginTop: 6,
+    marginBottom: 4,
+    lineHeight: 18,
+  },
+  usernameHintLink: {
+    color: "#6366f1",
+    fontWeight: "600",
   },
   advancedLink: {
     flexDirection: "row",
