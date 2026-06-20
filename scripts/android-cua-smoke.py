@@ -362,19 +362,20 @@ def execute_action(action: dict) -> str:
         # Threshold is screen-relative (bottom 25%) so it works on any emulator
         # resolution — API 30 default profile is 1080x1920, not the 2400-tall pixel
         # we previously hardcoded against.
-        screen_w, screen_h = get_screen_size()
+        _, screen_h = get_screen_size()
         bottom_threshold = int(screen_h * 0.75)
         xml = ui_dump()
         matches = re.findall(r'clickable="true"[^>]*bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"', xml)
         bottom_buttons = [(int(x1), int(y1), int(x2), int(y2)) for x1, y1, x2, y2 in matches if int(y1) > bottom_threshold]
         if bottom_buttons:
-            # Rightmost = highest x1
-            send_btn = max(bottom_buttons, key=lambda b: b[0])
+            # Rightmost = highest center-x (not left-edge x1, which misidentifies wide buttons)
+            send_btn = max(bottom_buttons, key=lambda b: (b[0] + b[2]) // 2)
             cx = (send_btn[0] + send_btn[2]) // 2
             cy = (send_btn[1] + send_btn[3]) // 2
             adb("shell", "input", "tap", str(cx), str(cy))
             return f"send button tapped ({cx}, {cy})"
         # Fallback: tap bottom-right corner of the screen, offset slightly inward
+        screen_w, _ = get_screen_size()
         fx = screen_w - 80
         fy = screen_h - 120
         adb("shell", "input", "tap", str(fx), str(fy))
