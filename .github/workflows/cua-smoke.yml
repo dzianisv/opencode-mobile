@@ -115,10 +115,11 @@ jobs:
 
       - name: Start opencode server on runner host
         run: |
-          set -x
           # Bind all interfaces so the emulator can reach it via 10.0.2.2.
+          set -x
           nohup opencode serve --hostname 0.0.0.0 --port 4096 > /tmp/opencode-server.log 2>&1 &
           SRV_PID=$!
+          set +x
           echo "opencode pid=$SRV_PID"
           echo "Waiting for opencode server /global/health ..."
           HEALTHY=0
