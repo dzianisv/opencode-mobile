@@ -361,20 +361,21 @@ def execute_action(action: dict) -> str:
         # Threshold is screen-relative (bottom 25%) so it works on any emulator
         # resolution — API 30 default profile is 1080x1920, not the 2400-tall pixel
         # we previously hardcoded against.
-        screen_w, screen_h = get_screen_size()
+        _, screen_h = get_screen_size()
         bottom_threshold = int(screen_h * 0.75)
         xml = ui_dump()
         matches = re.findall(r'clickable="true"[^>]*bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"', xml)
         if matches:
             bottom_buttons = [(int(x1), int(y1), int(x2), int(y2)) for x1, y1, x2, y2 in matches if int(y1) > bottom_threshold]
             if bottom_buttons:
-                # Rightmost = highest x1
-                send_btn = max(bottom_buttons, key=lambda b: b[0])
+                # Rightmost = highest center-x (not left-edge x1, which misidentifies wide buttons)
+                send_btn = max(bottom_buttons, key=lambda b: (b[0] + b[2]) // 2)
                 cx = (send_btn[0] + send_btn[2]) // 2
                 cy = (send_btn[1] + send_btn[3]) // 2
                 adb("shell", "input", "tap", str(cx), str(cy))
                 return f"send button tapped ({cx}, {cy})"
         # Fallback: tap bottom-right corner of the screen, offset slightly inward
+        screen_w, _ = get_screen_size()
         fx = screen_w - 80
         fy = screen_h - 120
         adb("shell", "input", "tap", str(fx), str(fy))
@@ -602,8 +603,15 @@ SMOKE_SCENARIOS = [
 
 # Extended scenarios requiring an external OpenCode server.
 # Run with: python scripts/android-cua-smoke.py --opencode-url http://<host>:<port>
-def _connect_and_verify_sessions_goal(url: str) -> str:
-    return (
+def _connect_and_verify_sessions_goal(url: str, allow_create: bool = True) -> str:
+    """Build a connect-and-verify goal string.
+
+    When allow_create=True (default): if no sessions exist the agent may tap '+' to
+    create one (self-healing, used by the legacy scenario).
+    When allow_create=False: the agent must find pre-existing sessions and must NOT
+    create any (strict regression gate used by the default CI scenario).
+    """
+    base = (
         f"You see the OpenCode mobile app. "
         "Go to the Connections tab (bottom navigation bar). "
         "If a connection to the server already exists, tap it to make it active and skip to the next step. "
@@ -612,28 +620,27 @@ def _connect_and_verify_sessions_goal(url: str) -> str:
         "Wait 3 seconds. "
         "Now navigate to the Sessions tab (bottom navigation bar). "
         "Wait 5 seconds for sessions to load. "
-        "If the sessions list is empty or shows 'No sessions yet', tap the '+' button "
-        "(top-right) to create a new session, wait 3 seconds, then navigate back to the "
-        "Sessions tab and wait 3 seconds for the list to refresh. "
-        "Report SUCCESS if you see at least one session listed (a session title is visible). "
-        "Report FAILURE if the sessions list is still empty, shows 'No sessions yet', or shows an error."
     )
+    if allow_create:
+        return (
+            base
+            + "If the sessions list is empty or shows 'No sessions yet', tap the '+' button "
+            "(top-right) to create a new session, wait 3 seconds, then navigate back to the "
+            "Sessions tab and wait 3 seconds for the list to refresh. "
+            "Report SUCCESS if you see at least one session listed (a session title is visible). "
+            "Report FAILURE if the sessions list is still empty, shows 'No sessions yet', or shows an error."
+        )
+    else:
+        return (
+            base
+            + "Do NOT create a new session. Do NOT tap the '+' button. This scenario verifies whether existing sessions load immediately after connect. "
+            "Report SUCCESS only if you see at least one pre-existing session listed without creating a new one. "
+            "Report FAILURE if the sessions list is empty, shows 'No sessions yet', shows an error, or only becomes non-empty after creating a new session."
+        )
 
 
 def _connect_and_verify_existing_sessions_goal(url: str) -> str:
-    return (
-        f"You see the OpenCode mobile app. "
-        "Go to the Connections tab (bottom navigation bar). "
-        "If a connection to the server already exists, tap it to make it active and skip to the next step. "
-        "Otherwise tap '+' or 'Add Connection', "
-        f"enter the URL '{url}', leave username/password blank, tap Save or Connect. "
-        "Wait 3 seconds. "
-        "Now navigate to the Sessions tab (bottom navigation bar). "
-        "Wait 5 seconds for sessions to load. "
-        "Do NOT create a new session. Do NOT tap the '+' button. This scenario verifies whether existing sessions load immediately after connect. "
-        "Report SUCCESS only if you see at least one pre-existing session listed without creating a new one. "
-        "Report FAILURE if the sessions list is empty, shows 'No sessions yet', shows an error, or only becomes non-empty after creating a new session."
-    )
+    return _connect_and_verify_sessions_goal(url, allow_create=False)
 
 
 def main():
