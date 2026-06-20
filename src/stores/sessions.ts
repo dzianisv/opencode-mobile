@@ -105,7 +105,7 @@ export const useSessions = create<SessionsState>((set, get) => ({
           ? latestConnState.clientForDirectory(home)
           : latestConnState.client
 
-      const sessions = await (listClient || connState.client).session.list({ roots: true, limit: 50 })
+      const sessions = await (listClient || latestConnState.client!).session.list({ roots: true, limit: 50 })
       set({ sessions, isLoading: false })
     } catch (error) {
       set({ error: "Failed to load sessions", isLoading: false })

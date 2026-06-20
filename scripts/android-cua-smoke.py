@@ -119,8 +119,7 @@ def ensure_app_foreground(package: str = APP_PACKAGE, retries: int = 3,
     return current_foreground_package() == package
 
 
-def maybe_dismiss_telemetry_consent(package: str = APP_PACKAGE,
-                                    verbose: bool = True) -> bool:
+def maybe_dismiss_telemetry_consent(verbose: bool = True) -> bool:
     """Dismiss first-launch telemetry consent modal when present."""
     xml = ui_dump()
     if not xml:
@@ -660,8 +659,9 @@ def main():
         try:
             if not ensure_app_foreground(verbose=not args.quiet):
                 print(f"  [prep] warning: could not confirm {APP_PACKAGE} in foreground")
-            maybe_dismiss_telemetry_consent(verbose=not args.quiet)
-            ensure_app_foreground(verbose=not args.quiet)
+            dismissed = maybe_dismiss_telemetry_consent(verbose=not args.quiet)
+            if dismissed:
+                ensure_app_foreground(verbose=not args.quiet)
 
             result = run_cua(
                 goal=scenario["goal"],
