@@ -68,6 +68,15 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-gradle-
 
+      - name: Purge stale generated sources
+        # The Gradle cache (restore-keys prefix fallback) can restore a
+        # generated autolinking tree from a previous package id. Gradle then
+        # reuses ReactNativeApplicationEntryPoint.java referencing the OLD
+        # package (ai.opencode.mobile.BuildConfig) and compileReleaseJavaWithJavac
+        # fails. Delete generated sources so prebuild + Gradle regenerate them
+        # for the current package (cc.agentlabs.opencode).
+        run: rm -rf android/app/build/generated android/build/generated android/app/build/intermediates
+
       - name: Install dependencies & build APK
         env:
           SENTRY_DISABLE_AUTO_UPLOAD: "true"
