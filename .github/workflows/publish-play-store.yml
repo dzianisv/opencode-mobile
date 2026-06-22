@@ -77,9 +77,11 @@ jobs:
 
       - name: Bump android.versionCode in app.json
         # Play Store rejects duplicate versionCodes, so derive a monotonic value
-        # from github.run_number. expo prebuild reads this into build.gradle.
+        # from github.run_number + offset. expo prebuild reads this into build.gradle.
+        # Offset 100 skips past historical collisions (run 31 collided with a
+        # manual upload at versionCode 31). Next run = run_number + 100.
         run: |
-          node -e "const f='app.json';const j=require('./'+f);j.expo.android=j.expo.android||{};j.expo.android.versionCode=${{ github.run_number }};require('fs').writeFileSync(f,JSON.stringify(j,null,2)+'\n')"
+          node -e "const f='app.json';const j=require('./'+f);j.expo.android=j.expo.android||{};j.expo.android.versionCode=${{ github.run_number }}+100;require('fs').writeFileSync(f,JSON.stringify(j,null,2)+'\n')"
           echo "versionCode now: $(node -p "require('./app.json').expo.android.versionCode")"
 
       - name: Purge stale generated sources
