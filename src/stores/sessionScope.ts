@@ -6,11 +6,21 @@
 // a freshly created session was invisible. Both call sites now derive their client
 // from this one function, so they cannot disagree again.
 //
+// Bug #32 ("recent sessions missing"): the previous rule scoped to the server's
+// home directory when no explicit directory was set. opencode-server resolves the
+// x-opencode-directory header to a project id by exact-match, NOT subtree prefix.
+// $HOME typically maps to the synthetic "global" project, which never contains
+// the user's real workspace sessions (those live under e.g. ~/workspace/foo, a
+// different project id). The list looked empty even when sessions existed.
+//
 // Rule: when the active connection pins an explicit directory, use the default
-// client (it is already scoped to that directory). Otherwise, if we know the
-// server's home directory, scope to it. If home is unknown, fall back to default.
+// client (it is already scoped to that directory). Otherwise, send no scope at
+// all so the server uses its own CWD — i.e. the project where opencode serve was
+// launched, which is the project the user actually works in. The `home` argument
+// is accepted for backward compatibility but intentionally ignored.
 
-export function sessionScopeDirectory(hasExplicitDirectory: boolean, home: string | null | undefined): string | null {
+export function sessionScopeDirectory(hasExplicitDirectory: boolean, _home?: string | null | undefined): string | null {
+  void _home
   if (hasExplicitDirectory) return null
-  return home ? home : null
+  return null
 }
