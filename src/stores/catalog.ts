@@ -1,6 +1,7 @@
 import { create } from "zustand"
 import { useConnections } from "./connections"
 import type { Agent, Command } from "../lib/sdk"
+import { chooseModelSelection } from "../lib/model-selection"
 
 export interface ProviderModel {
   id: string
@@ -92,19 +93,16 @@ export const useCatalog = create<CatalogState>((set, get) => ({
     const current = get().agent
     const agent = current && visible.some((a) => a.name === current) ? current : visible[0]?.name || "build"
 
-    // Default model: use default agent's model, or first connected provider's default model
+    // Default model: keep valid existing selection; otherwise prefer connected
+    // provider defaults, then first connected model; agent model is last fallback.
     const existing = get().model
-    const fallback = (() => {
-      const defaultAgent = visible[0]
-      if (defaultAgent?.model) return defaultAgent.model
-      for (const p of providers) {
-        const defaultModelID = defaults[p.id]
-        const match = defaultModelID ? p.models.find((m) => m.id === defaultModelID) : p.models[0]
-        if (match) return { providerID: p.id, modelID: match.id }
-      }
-      return null
-    })()
-    const model = existing || fallback
+    const defaultAgent = visible[0]
+    const model = chooseModelSelection({
+      providers,
+      defaults,
+      existing,
+      agentModel: defaultAgent?.model || null,
+    })
 
     set({ agents: visible, commands, providers, defaults, agent, model, loaded: true })
   },
