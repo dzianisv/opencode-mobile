@@ -9,6 +9,7 @@ export interface ProviderModel {
   reasoning: boolean
   attachment: boolean
   limit?: { context: number; output: number }
+  variants?: Record<string, { reasoningEffort?: string }>
 }
 
 export interface Provider {
@@ -31,12 +32,14 @@ interface CatalogState {
   // Current selections
   agent: string // agent name, e.g. "build"
   model: ModelSelection | null
+  variant: string | null // model variant for reasoning effort (e.g. "low", "medium", "high")
   loaded: boolean
 
   // Actions
   load: () => Promise<void>
   setAgent: (name: string) => void
   setModel: (selection: ModelSelection | null) => void
+  setVariant: (variant: string | null) => void
   cycleAgent: (direction?: 1 | -1) => void
 }
 
@@ -47,6 +50,7 @@ export const useCatalog = create<CatalogState>((set, get) => ({
   defaults: {},
   agent: "",
   model: null,
+  variant: null,
   loaded: false,
 
   load: async () => {
@@ -81,6 +85,7 @@ export const useCatalog = create<CatalogState>((set, get) => ({
                 reasoning: m.reasoning ?? false,
                 attachment: m.attachment ?? false,
                 limit: m.limit,
+                variants: m.variants,
               })),
           }))
           .filter((p) => p.models.length > 0)
@@ -114,7 +119,9 @@ export const useCatalog = create<CatalogState>((set, get) => ({
     set({ agent: name, model })
   },
 
-  setModel: (selection) => set({ model: selection }),
+  setModel: (selection) => set({ model: selection, variant: null }),
+
+  setVariant: (variant) => set({ variant }),
 
   cycleAgent: (direction = 1) => {
     const { agents, agent } = get()

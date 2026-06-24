@@ -26,6 +26,7 @@ import {
   StatusIndicator,
   SlashPopover,
   ModelPicker,
+  VariantPicker,
   ImageAttachments,
   SessionInfo,
   type SlashCommand,
@@ -78,6 +79,7 @@ export default function SessionScreen() {
 
   const flatListRef = useRef<FlatList>(null)
   const modelSheetRef = useRef<BottomSheet>(null)
+  const variantSheetRef = useRef<BottomSheet>(null)
   const [input, setInput] = useState("")
   const [attachments, setAttachments] = useState<Attachment[]>([])
   const [showInfo, setShowInfo] = useState(false)
@@ -115,6 +117,8 @@ export default function SessionScreen() {
   const agent = catalog.agent || ""
   const model = catalog.model
   const setModel = catalog.setModel
+  const variant = catalog.variant
+  const setVariant = catalog.setVariant
   const cycleAgent = catalog.cycleAgent
 
   // Permission & question state
@@ -338,7 +342,7 @@ export default function SessionScreen() {
     // Messages are queued server-side when the session is busy.
     // No need to abort - just send and it will be processed after current response.
     try {
-      await sendMessage(text, model || undefined, agent || undefined, files)
+      await sendMessage(text, model || undefined, agent || undefined, files, variant || undefined)
     } catch (err) {
       console.error("Send failed:", err)
       // Restore the user's text and attachments so their input isn't lost.
@@ -455,6 +459,14 @@ export default function SessionScreen() {
   const currentAgent = agents.find((a) => a.name === agent)
   const agentColor = currentAgent?.color || "#8b5cf6"
   const modelLabel = model?.modelID ? model.modelID.split("/").pop() || model.modelID : "default"
+
+  // Variants for current model (for reasoning effort picker)
+  const currentModelVariants = useMemo(() => {
+    if (!model) return undefined
+    const provider = providers.find((p) => p.id === model.providerID)
+    const found = provider?.models.find((m) => m.id === model.modelID)
+    return found?.variants
+  }, [model, providers])
 
   return (
     <>
@@ -611,6 +623,18 @@ export default function SessionScreen() {
               {modelLabel}
             </Text>
           </TouchableOpacity>
+
+          {currentModelVariants && Object.keys(currentModelVariants).length > 0 && (
+            <TouchableOpacity
+              style={[s.variantChip, isDark && s.variantChipDark, variant && s.variantChipActive]}
+              onPress={() => variantSheetRef.current?.expand()}
+            >
+              <Ionicons name="flash-outline" size={14} color={variant ? "#8b5cf6" : isDark ? "#888888" : "#666666"} />
+              <Text style={[s.variantLabel, isDark && s.metaDark, variant && s.variantLabelActive]} numberOfLines={1}>
+                {variant ? variant.charAt(0).toUpperCase() + variant.slice(1) : "Auto"}
+              </Text>
+            </TouchableOpacity>
+          )}
         </View>
 
         {/* Attachment preview */}
@@ -676,6 +700,15 @@ export default function SessionScreen() {
         selected={model}
         isDark={isDark}
         onSelect={handleModelSelect}
+      />
+
+      {/* Reasoning effort (variant) picker bottom sheet */}
+      <VariantPicker
+        sheetRef={variantSheetRef}
+        variants={currentModelVariants}
+        selected={variant}
+        isDark={isDark}
+        onSelect={setVariant}
       />
     </>
   )
@@ -769,6 +802,21 @@ const s = StyleSheet.create({
   },
   modelChipDark: { backgroundColor: "#1a1a1a" },
   modelLabel: { fontSize: 12, color: "#666666", maxWidth: 160 },
+
+  // Variant (reasoning effort) chip
+  variantChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: "#f5f5f5",
+    borderRadius: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
+  variantChipDark: { backgroundColor: "#1a1a1a" },
+  variantChipActive: { backgroundColor: "#f5f3ff" },
+  variantLabel: { fontSize: 12, color: "#666666" },
+  variantLabelActive: { color: "#8b5cf6" },
 
   // Input
   inputContainer: {

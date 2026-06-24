@@ -44,6 +44,7 @@ interface SessionsState {
     model?: { providerID: string; modelID: string },
     agent?: string,
     files?: Array<{ uri: string; mime: string; filename?: string; base64?: string }>,
+    variant?: string,
   ) => Promise<void>
   abortSession: () => Promise<void>
   refreshMessages: () => Promise<void>
@@ -213,7 +214,7 @@ export const useSessions = create<SessionsState>((set, get) => ({
     }
   },
 
-  sendMessage: async (text, model, agent, files) => {
+  sendMessage: async (text, model, agent, files, variant) => {
     const client = clientFor(get().currentSession?.directory)
     const session = get().currentSession
     if (!client || !session) {
@@ -277,7 +278,7 @@ export const useSessions = create<SessionsState>((set, get) => ({
       }
 
       // Fire and forget - SSE events will update messages/parts/status in real-time
-      client.session.prompt(session.id, { parts: promptParts, model, agent }).catch((err) => {
+      client.session.prompt(session.id, { parts: promptParts, model, agent, variant }).catch((err) => {
         console.error("Failed to send message:", err)
         // The user may have switched sessions while this send was in flight. Clear
         // the sending flag for the session we actually sent to (keyed by id, safe),
