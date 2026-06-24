@@ -1,8 +1,9 @@
-import { useCallback, useState, useRef } from "react"
+import { useCallback, useState, useRef, useEffect } from "react"
 import {
   View,
   Text,
   FlatList,
+  ScrollView,
   TouchableOpacity,
   StyleSheet,
   useColorScheme,
@@ -20,7 +21,7 @@ import { useSessions } from "../../src/stores/sessions"
 import { useConnections } from "../../src/stores/connections"
 import { useCatalog } from "../../src/stores/catalog"
 import type BottomSheet from "@gorhom/bottom-sheet"
-import type { Session } from "../../src/lib/sdk"
+import type { Session, Project } from "../../src/lib/sdk"
 import { DirectorySwitcher } from "../../src/components/chat"
 
 function formatTime(timestamp: number): string {
@@ -112,6 +113,7 @@ export default function SessionsScreen() {
   const [renaming, setRenaming] = useState<Session | null>(null)
   const [renameText, setRenameText] = useState("")
   const renamingInFlight = useRef(false)
+  const [serverProjects, setServerProjects] = useState<Project[]>([])
 
   const { sessions, isLoading, error, loadSessions, createSession, deleteSession } = useSessions()
   const {
@@ -128,6 +130,15 @@ export default function SessionsScreen() {
   const loadCatalog = useCatalog((s) => s.load)
   const dirSheetRef = useRef<BottomSheet>(null)
   const [refreshing, setRefreshing] = useState(false)
+
+  // Fetch server-known projects when the new session modal opens
+  useEffect(() => {
+    if (!showNewSession || !client) return
+    client.project
+      .list()
+      .then(setServerProjects)
+      .catch(() => setServerProjects([]))
+  }, [showNewSession, client])
 
   const handleSwitchDirectory = useCallback(
     async (dir?: string) => {
@@ -370,19 +381,106 @@ export default function SessionsScreen() {
               </TouchableOpacity>
             </View>
 
-            <View style={styles.modalBody}>
-              {/* Current directory */}
-              <Text style={[styles.modalLabel, isDark && styles.metaDark]}>Current Directory</Text>
-              <View style={[styles.modalDirBox, isDark && styles.modalDirBoxDark]}>
-                <Ionicons name="folder" size={20} color={isDark ? "#888888" : "#666666"} />
+            <ScrollView style={styles.modalScrollBody} keyboardShouldPersistTaps="handled">
+              {/* Current directory — tapping creates session immediately */}
+              <Text style={[styles.modalLabel, isDark && styles.metaDark]}>Current Project</Text>
+              <TouchableOpacity
+                style={[styles.modalDirBox, isDark && styles.modalDirBoxDark]}
+                onPress={() => onCreateInDirectory()}
+                disabled={isCreating}
+              >
+                <Ionicons name="folder" size={20} color={isDark ? "#8b5cf6" : "#6d28d9"} />
                 <Text style={[styles.modalDirText, isDark && styles.textDark]} numberOfLines={2}>
                   {currentProject?.path?.absolute || activeConnection?.directory || "Server default"}
                 </Text>
-              </View>
+                <Ionicons name="arrow-forward-circle" size={20} color={isDark ? "#8b5cf6" : "#6d28d9"} />
+              </TouchableOpacity>
 
-              {/* Custom directory input */}
+              {/* Recent projects */}
+              {recentDirectories.length > 0 && (
+                <>
+                  <Text style={[styles.modalLabel, isDark && styles.metaDark, { marginTop: 16 }]}>
+                    Recent Projects
+                  </Text>
+                  {recentDirectories.map((dir) => {
+                    const short = dir.split("/").filter(Boolean).pop() || dir
+                    const isCurrent =
+                      dir === (currentProject?.path?.absolute || activeConnection?.directory)
+                    return (
+                      <TouchableOpacity
+                        key={dir}
+                        style={[
+                          styles.projectRow,
+                          isDark && styles.projectRowDark,
+                          isCurrent && styles.projectRowActive,
+                        ]}
+                        onPress={() => onCreateInDirectory(dir)}
+                        disabled={isCreating}
+                      >
+                        <Ionicons
+                          name="folder-outline"
+                          size={18}
+                          color={isCurrent ? "#8b5cf6" : isDark ? "#888888" : "#666666"}
+                        />
+                        <View style={styles.projectRowContent}>
+                          <Text
+                            style={[
+                              styles.projectRowName,
+                              isDark && styles.textDark,
+                              isCurrent && styles.projectRowNameActive,
+                            ]}
+                            numberOfLines={1}
+                          >
+                            {short}
+                          </Text>
+                          <Text style={[styles.projectRowPath, isDark && styles.metaDark]} numberOfLines={1}>
+                            {dir}
+                          </Text>
+                        </View>
+                        {isCurrent && <Ionicons name="checkmark-circle" size={18} color="#8b5cf6" />}
+                      </TouchableOpacity>
+                    )
+                  })}
+                </>
+              )}
+
+              {/* Server-known projects (excluding current) */}
+              {serverProjects.filter((p) => p.path?.absolute !== currentProject?.path?.absolute).length > 0 && (
+                <>
+                  <Text style={[styles.modalLabel, isDark && styles.metaDark, { marginTop: 16 }]}>
+                    Server Projects
+                  </Text>
+                  {serverProjects
+                    .filter((p) => p.path?.absolute !== currentProject?.path?.absolute)
+                    .map((p) => {
+                      const short = p.name || p.path?.absolute?.split("/").filter(Boolean).pop() || p.id
+                      return (
+                        <TouchableOpacity
+                          key={p.id}
+                          style={[styles.projectRow, isDark && styles.projectRowDark]}
+                          onPress={() => onCreateInDirectory(p.path?.absolute)}
+                          disabled={isCreating}
+                        >
+                          <Ionicons name="code-slash-outline" size={18} color={isDark ? "#888888" : "#666666"} />
+                          <View style={styles.projectRowContent}>
+                            <Text style={[styles.projectRowName, isDark && styles.textDark]} numberOfLines={1}>
+                              {short}
+                            </Text>
+                            {p.path?.absolute && (
+                              <Text style={[styles.projectRowPath, isDark && styles.metaDark]} numberOfLines={1}>
+                                {p.path.absolute}
+                              </Text>
+                            )}
+                          </View>
+                        </TouchableOpacity>
+                      )
+                    })}
+                </>
+              )}
+
+              {/* Manual path input fallback */}
               <Text style={[styles.modalLabel, isDark && styles.metaDark, { marginTop: 16 }]}>
-                Or use a different folder
+                Enter Path Manually
               </Text>
               <TextInput
                 style={[styles.modalInput, isDark && styles.modalInputDark]}
@@ -419,7 +517,7 @@ export default function SessionsScreen() {
                   </TouchableOpacity>
                 </View>
               )}
-            </View>
+            </ScrollView>
 
             <View style={styles.modalActions}>
               {customDir.trim() ? (
@@ -729,6 +827,42 @@ const styles = StyleSheet.create({
   },
   modalBody: {
     marginBottom: 24,
+  },
+  modalScrollBody: {
+    maxHeight: 420,
+    marginBottom: 16,
+  },
+  projectRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 11,
+    borderRadius: 10,
+    backgroundColor: "#f5f5f5",
+    marginBottom: 6,
+  },
+  projectRowDark: {
+    backgroundColor: "#2a2a2a",
+  },
+  projectRowActive: {
+    backgroundColor: "#f5f3ff",
+  },
+  projectRowContent: {
+    flex: 1,
+  },
+  projectRowName: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#0a0a0a",
+  },
+  projectRowNameActive: {
+    color: "#8b5cf6",
+  },
+  projectRowPath: {
+    fontSize: 11,
+    color: "#999999",
+    marginTop: 1,
   },
   modalLabel: {
     fontSize: 13,
