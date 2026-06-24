@@ -74,7 +74,9 @@ export const useSessions = create<SessionsState>((set, get) => ({
 
   loadSessions: async () => {
     const connState = useConnections.getState()
-    const client = connState.client
+    // Use a directory-less client so the server returns sessions from ALL projects,
+    // not just the one matching the active connection's directory header.
+    const client = connState.clientForDirectory(undefined) || connState.client
     if (!client) {
       set({ error: "No active connection" })
       return
