@@ -1,0 +1,129 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --bg: #000000;
+    --fg: #F1ECEC;
+    --accent: #F1ECEC;
+    --accent-hover: #ffffff;
+    --muted: #8E8B8B;
+    --card: #0A0A0A;
+    --border: #1F1F1F;
+    --green: #03B000;
+  }
+
+  * {
+    box-sizing: border-box;
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    background-color: var(--bg);
+    color: var(--fg);
+    font-family: var(--font-geist-sans), system-ui, -apple-system, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+}
+
+@layer components {
+  .btn-primary {
+    @apply inline-flex items-center gap-2 px-6 py-3 rounded-lg font-semibold transition-all;
+    background-color: var(--fg);
+    color: var(--bg);
+  }
+  .btn-primary:hover {
+    background-color: #ffffff;
+    transform: translateY(-1px);
+  }
+
+  .btn-secondary {
+    @apply inline-flex items-center gap-2 px-6 py-3 rounded-lg font-semibold transition-all;
+    border: 1px solid var(--border);
+    color: var(--fg);
+  }
+  .btn-secondary:hover {
+    background-color: var(--card);
+    border-color: #333;
+  }
+
+  .card {
+    background-color: var(--card);
+    border: 1px solid var(--border);
+    @apply rounded-xl p-6;
+  }
+  .card:hover {
+    border-color: #333;
+  }
+
+  .prose-site h2 {
+    @apply text-2xl font-bold mt-10 mb-4;
+    color: var(--fg);
+    border-left: 4px solid var(--fg);
+    padding-left: 12px;
+  }
+
+  .prose-site h3 {
+    @apply text-xl font-semibold mt-8 mb-3;
+    color: var(--fg);
+  }
+
+  .prose-site p {
+    @apply mb-4 leading-relaxed;
+    color: var(--muted);
+  }
+
+  .prose-site ul {
+    @apply mb-4 ml-6 space-y-2;
+    color: var(--muted);
+  }
+
+  .prose-site ul li {
+    list-style-type: disc;
+  }
+
+  .prose-site a {
+    color: var(--fg);
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+
+  .prose-site a:hover {
+    opacity: 0.8;
+  }
+
+  .prose-site table {
+    @apply w-full text-sm mb-6;
+    border-collapse: collapse;
+  }
+
+  .prose-site th {
+    @apply px-4 py-2 text-left font-semibold;
+    background-color: var(--card);
+    border: 1px solid var(--border);
+    color: var(--fg);
+  }
+
+  .prose-site td {
+    @apply px-4 py-2 align-top;
+    border: 1px solid var(--border);
+    color: var(--muted);
+  }
+
+  .prose-site tr:nth-child(even) td {
+    background-color: rgba(10, 10, 10, 0.5);
+  }
+
+  /* Install command box */
+  .install-box {
+    @apply flex items-center gap-3 px-5 py-4 rounded-lg font-mono text-sm;
+    background-color: var(--card);
+    border: 1px solid var(--border);
+    color: var(--fg);
+  }
+}
