@@ -84,11 +84,8 @@ export const useSessions = create<SessionsState>((set, get) => ({
 
     try {
       set({ isLoading: true, error: null })
-      // List with the connection's default client and send no directory scope:
-      // opencode-server resolves the x-opencode-directory header to a project by
-      // exact match, and $HOME maps to the empty "global" project, which hides the
-      // user's real workspace sessions (bug #32). The default client already carries
-      // the connection's explicit directory when one is configured.
+      // A directory-less list includes sessions across projects. Each row carries
+      // its own directory into the session route so subsequent operations stay scoped.
       const sessions = await client.session.list({ roots: true, limit: 50 })
       set({ sessions, isLoading: false })
     } catch (error) {

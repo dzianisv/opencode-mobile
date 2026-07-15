@@ -48,7 +48,10 @@ function SessionItem({
   onDelete: () => void
 }) {
   const onPress = () => {
-    router.push(`/session/${session.id}`)
+    router.push({
+      pathname: `/session/[id]`,
+      params: { id: session.id, ...(session.directory ? { directory: session.directory } : {}) },
+    })
   }
 
   const onLongPress = () => {
