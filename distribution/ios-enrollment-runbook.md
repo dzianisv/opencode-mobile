@@ -110,10 +110,10 @@ While waiting for Apple's verification call and approval:
 
 - [x] Prepare App Store listing copy → `distribution/app-store-listing.md`
 - [x] Write CI workflow (draft) → `.github/workflows/publish-app-store.yml`
-- [ ] Create app icon 1024×1024 PNG
-- [ ] Capture iPhone screenshots (use iOS Simulator in Xcode on any Mac)
-- [ ] Capture iPad screenshots
-- [ ] Write/publish privacy policy at https://dzianisv.github.io/opencode-mobile/privacy/
+- [x] Create app icon 1024×1024 PNG
+- [ ] Replace placeholder iPhone screenshots with captures from the current iOS Simulator build
+- [ ] Replace placeholder iPad screenshots with captures from the current iOS Simulator build
+- [x] Write/publish privacy policy at https://dzianisv.github.io/opencode-mobile/privacy/
 - [ ] Set up EAS account at https://expo.dev/ (free tier, log in with Expo account)
 - [ ] Add iOS config patches to `app.json` (done in this PR)
 - [ ] Run `npx expo prebuild --platform ios` on a Mac to validate the Xcode project
@@ -127,8 +127,8 @@ While waiting for Apple's verification call and approval:
    - Platform: iOS
    - Name: `OpenCode`
    - Primary Language: English (U.S.)
-   - Bundle ID: `ai.opencode.mobile` — register this explicit App ID first at https://developer.apple.com/account/resources/identifiers/
-   - SKU: `ai.opencode.mobile` (can match bundle ID)
+   - Bundle ID: `cc.agentlabs.opencode` — register this explicit App ID first at https://developer.apple.com/account/resources/identifiers/
+   - SKU: `cc.agentlabs.opencode` (can match bundle ID)
 
 2. Configure App ID capabilities needed:
    - Push Notifications (for `expo-notifications`)
@@ -141,7 +141,15 @@ While waiting for Apple's verification call and approval:
    - Note: Key ID and Issuer ID
    - Base64-encode the .p8 and store in GitHub secret `APPLE_APP_STORE_CONNECT_API_KEY`
 
-4. Create an internal TestFlight group and add yourself as tester
+4. Run `eas init` once, then add the generated `extra.eas.projectId` UUID as the GitHub Actions repository variable `EAS_PROJECT_ID`.
+
+5. Configure the EAS `production` environment for optional crash reporting:
+   - `EXPO_PUBLIC_SENTRY_DSN`
+   - `SENTRY_AUTH_TOKEN` (secret visibility)
+   - `SENTRY_ORG`
+   - `SENTRY_PROJECT`
+
+6. Create an internal TestFlight group and add yourself as tester
 
 ---
 

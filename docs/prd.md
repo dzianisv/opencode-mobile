@@ -119,3 +119,76 @@ git push origin main --tags
 - Multi-user / shared sessions.
 - Voice input beyond what the OS dictation keyboard provides.
 - iPad / tablet-optimised layout (phone-first only; tablet works but is not designed for).
+
+## 8. Continuous Product Intelligence
+
+### Problem
+
+At 1,000 downloads, acquisition, reliability, feedback, and visual-conversion
+signals are fragmented across Sentry, GitHub, Google Play, and Vercel. The app
+has opted-in diagnostics but no daily operating loop that turns aggregate,
+privacy-safe evidence into a small, prioritized queue. The public Vercel site
+also deploys from an untracked Next.js working directory, so its screenshots
+cannot be traced to a reviewed source commit.
+
+### Scope
+
+- A daily GitHub Action, triggered only by `schedule` and maintainer
+  `workflow_dispatch`, that publishes an aggregate-only product-intelligence
+  report to the Actions summary and artifact.
+- Rollout starts with maintainer dispatch only. Enable the daily schedule after
+  the dedicated read-only Sentry token succeeds against production.
+- A material-signal issue upsert: create or update a GitHub issue only when a
+  defined threshold is crossed, never one issue per uneventful day.
+- A metric contract covering acquisition, activation, reliability, retention,
+  feedback, and visual conversion, with explicit data sources and gaps.
+- Sentry diagnostic payloads that match the consent copy: no server address,
+  port, URL, credential, code, prompt, session title, or directory leaves the
+  device.
+- Versioned Play screenshots, checksums, provenance, and intended website
+  placement in this repository.
+- A versioned Next.js source for the Vercel site, replacing its untracked
+  working copy before future visual changes.
+
+### Non-Goals
+
+- Automatic code changes, merges, releases, deployments, or Play Console edits
+  from a daily report.
+- Sending raw Sentry issue text, review body text, reviewer names, device
+  details, or user-generated content to a GitHub issue or Actions artifact.
+- Treating a download count as active-user, activation, or retention evidence.
+- Adding product-usage analytics without a separate explicit consent,
+  disclosure, and Data Safety review.
+
+### Metric Contract
+
+| Decision | Metric | Current source | Gap / next step |
+| --- | --- | --- | --- |
+| Is acquisition growing? | Play listing visitors, installs, uninstall rate, release APK downloads, repo views, stars | Play Console; GitHub Releases and Traffic APIs | Automate GitHub now; add read-only Play reporting only after access is verified. |
+| Do new users reach value? | Connection success, time to first connection, sessions loaded, first prompt, first response | Sentry records opted-in failures only | Design explicit opt-in aggregate activation measurement before implementation. |
+| Is app reliable? | Crash-free sessions, unresolved/new/regressed Sentry issues, error volume by release, connection classification, CUA pass rate | Sentry Release Health / Issues; GitHub Actions | Daily report initially aggregates Sentry Issues only; add Release Health after its aggregate query is verified. |
+| Do users return? | 7-day / 30-day returning active installations | None | Do not infer this. Evaluate a privacy-reviewed aggregate telemetry design. |
+| What should be fixed next? | Low-rating review themes, GitHub issue themes, issue age, CI failures | Android Publisher reviews script; GitHub Issues; Actions | Repair review ingestion and dedupe before enabling it. |
+| Does site convert? | Unique visitors, install/beta CTA clicks, screenshot engagement, listing conversion | Vercel Analytics; Play Console | Define aggregate event names and exports; do not fingerprint visitors. |
+
+### Acceptance Criteria
+
+- [ ] A manual or scheduled daily run creates or updates exactly one report for
+  its UTC day in its Actions summary/artifact, exposes source freshness, and
+  distinguishes unavailable data from zero.
+- [ ] The first report populates only GitHub Traffic, Releases, Issues, and
+  Actions plus Sentry Issues aggregates. Release Health, activation, retention,
+  Play, review-theme, and site-conversion rows appear as `deferred` with their
+  reason, never zero or blank.
+- [ ] Scheduled runs create a GitHub issue only for a documented material
+  threshold; otherwise they update no public issue and require no daily manual
+  review.
+- [ ] No Sentry payload of any kind - event, breadcrumb, tag, context,
+  transaction/span name, or `serverName` - contains a server host, port, URL,
+  credential, prompt, code, session title, or directory.
+- [ ] Seven full-resolution Play screenshots are versioned with source URL,
+  retrieval date, SHA-256, dimensions, and website placement.
+- [ ] `https://opencode.agentlabs.cc` serves the approved screenshots from
+  versioned source after its Vercel deployment.
+- [ ] Material signals become implementation issues only after a maintainer
+  reproduces them in the affected user channel.

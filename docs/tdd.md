@@ -182,3 +182,74 @@ A test for this would feed a basic-auth URL into a fake event and assert the scr
 - **No fallback UI for SSE disconnect.** Today the user sees the existing chat with a (small) banner; a more deliberate "Reconnecting…" affordance would help.
 - **Silent `.catch(() => null)` in stores.** Intentional today (these are non-critical fetches), but should be revisited once we have proper severity tiers for breadcrumbs.
 - **PRD analytics.** No usage analytics; only crash telemetry. A future opt-in product-analytics provider could close that loop without compromising the privacy posture.
+
+## 10. Continuous Product Intelligence
+
+```text
+Maintainer manual dispatch
+        |
+        v
+scripts/product-intelligence.mjs
+  | GitHub REST: releases, traffic, issues, Actions
+  | Sentry REST: aggregate unresolved/new issue health
+  | (future) Android Publisher: aggregate review and Play signals
+        |
+        v
+sanitized Markdown report + JSON evidence
+        |
+        v
+Actions summary + artifact per UTC day
+        |
+        v
+material threshold -> deduplicated GitHub issue -> reviewed PR
+```
+
+### Components
+
+| Component | Location | Purpose |
+| --- | --- | --- |
+| Product-intelligence workflow | `.github/workflows/product-intelligence.yml` | Starts with maintainer dispatch only. Enable its cron after the dedicated Sentry token passes a production run. Uses `actions: read`, `contents: read`, and `issues: write`. |
+| Collector | `scripts/product-intelligence.mjs` | Validates sources, collects aggregate signals, renders a sanitized report, and fails visibly when a source is unavailable. |
+| Material issue upsert | Workflow `actions/github-script` | Locates a stable signal fingerprint and creates or updates an issue only after a material threshold. |
+| Sentry privacy implementation | `src/lib/sentry.ts`, `src/lib/scrub.ts` | Separate P1 prerequisite: remove user-controlled server data from events, breadcrumbs, tags, contexts, and span names before an event leaves device. |
+| Screenshot source of truth | `distribution/reference-screenshots/play-v1/manifest.json` | Records Play asset provenance, checksum, dimensions, and page placement. |
+| Vercel website | `website/` | Versioned Next.js source deployed to existing `opencode-mobile-site` project. |
+
+### Data and Privacy Boundaries
+
+- The initial collector contains numeric aggregates only. It must not publish
+  Sentry issue titles, exception text, culprits, request URL, device metadata,
+  raw review content, author names, or user-generated text.
+- The material-issue upsert independently reconstructs its body from an
+  allowlisted UTC date and allowlisted signal names. It rejects malformed
+  report data and never uses collector-provided Markdown, URLs, or Sentry
+  response fields.
+- A missing credential or failed request is reported as unavailable and exits
+  non-zero; it must never become a success-shaped zero.
+- The first report supports only GitHub and Sentry aggregates. Every other
+  metric-contract row is rendered as `deferred` with its source/access reason.
+- The first delivery introduces no new analytics SDK or user identifier.
+- Sentry remains explicitly opt-in. The consent UI, Settings UI, privacy
+  policy, and runtime scrubber must agree on what leaves the device.
+- Future activation and retention metrics require a separate product decision
+  that updates consent language and Play Data Safety before code ships.
+- The `SENTRY_PRODUCT_INTELLIGENCE_TOKEN` repository secret is a read-only,
+  single-project Sentry token with only `project:read`, `event:read`, and
+  `org:read` scopes; it is distinct from release-upload credentials. Any
+  future Android Publisher credential is read-only and limited to
+  reporting/reviews.
+
+### Rollout
+
+1. Provision the dedicated read-only Sentry repository secret, then manually
+   run the daily workflow against production credentials and verify a
+   sanitized Actions summary and artifact for its UTC date.
+2. Enable the cron, then observe one scheduled run and verify it creates a new UTC-day artifact but
+   no public issue unless a documented material threshold is crossed.
+   Back-to-back manual and scheduled runs must update at most one open
+   material-signal issue.
+3. Merge the Sentry privacy boundary before exposing Sentry detail links.
+4. Import and manifest Play screenshots, deploy versioned web source, and
+   verify every screenshot loads at the public domain.
+5. Enable Android Publisher review/Play data collection only after
+   least-privilege credentials and real-data validation are complete.

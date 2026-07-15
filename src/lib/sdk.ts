@@ -232,7 +232,10 @@ export function createClient(config: ClientConfig) {
               try {
                 yield JSON.parse(data)
               } catch (err) {
-                console.warn("[SSE] Failed to parse event:", data.slice(0, 200), err)
+                console.warn("[SSE] Failed to parse event", {
+                  length: data.length,
+                  error: err instanceof Error ? err.message : String(err),
+                })
               }
             }
           }

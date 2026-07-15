@@ -21,6 +21,7 @@ import {
 } from "../../src/lib/notifications"
 import type { Category } from "../../src/lib/notifications"
 import { hasTelemetryConsent, setTelemetryConsent } from "../../src/lib/telemetry"
+import { PRIVACY_POLICY_URL } from "../../src/lib/links"
 
 function SettingRow({
   icon,
@@ -73,14 +74,26 @@ export default function SettingsScreen() {
   const { settings, hasBiometrics, updateSettings, lock } = useAuth()
   const { notifications, setNotification } = useSettings()
   const [osGranted, setOsGranted] = useState<boolean | null>(null)
+  const [telemetryUpdating, setTelemetryUpdating] = useState(false)
 
   // Telemetry consent: hasTelemetryConsent() returns null (unknown), true, or false.
   // We initialise local state from in-memory value; updates call setTelemetryConsent().
   const [crashReporting, setCrashReporting] = useState<boolean>(hasTelemetryConsent() ?? false)
 
   const handleCrashReportingToggle = useCallback(async (value: boolean) => {
-    setCrashReporting(value)
-    await setTelemetryConsent(value)
+    setTelemetryUpdating(true)
+    try {
+      await setTelemetryConsent(value)
+      setCrashReporting(value)
+    } catch {
+      setCrashReporting(hasTelemetryConsent() ?? false)
+      Alert.alert(
+        "Privacy Setting Not Saved",
+        "Crash reporting is off for this session, but your choice could not be saved. Please try again.",
+      )
+    } finally {
+      setTelemetryUpdating(false)
+    }
   }, [])
 
   // Check OS permission state on first toggle attempt
@@ -193,6 +206,7 @@ export default function SettingsScreen() {
             <Switch
               value={crashReporting}
               onValueChange={handleCrashReportingToggle}
+              disabled={telemetryUpdating}
               trackColor={{ false: "#767577", true: "#22c55e" }}
             />
           }
@@ -202,7 +216,7 @@ export default function SettingsScreen() {
           label="Privacy Policy"
           description="What data we collect and how"
           isDark={isDark}
-          onPress={() => Linking.openURL("https://agentlabs.cc/opencode/privacy")}
+          onPress={() => Linking.openURL(PRIVACY_POLICY_URL)}
           right={<Ionicons name="open-outline" size={20} color={isDark ? "#666666" : "#999999"} />}
         />
       </SettingSection>

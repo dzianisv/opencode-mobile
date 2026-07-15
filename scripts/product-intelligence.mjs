@@ -1,0 +1,249 @@
+#!/usr/bin/env node
+
+import { mkdir, writeFile } from "node:fs/promises"
+import { dirname } from "node:path"
+
+const DAY = 24 * 60 * 60 * 1000
+const WEEK = 7 * DAY
+const GITHUB_API = "https://api.github.com"
+const SENTRY_API = "https://sentry.io/api/0"
+
+function args(values) {
+  const result = {}
+  for (let index = 0; index < values.length; index += 2) {
+    const key = values[index]
+    const value = values[index + 1]
+    if (!key?.startsWith("--") || !value) throw new Error(`Expected --name value, received ${key ?? "<none>"}`)
+    result[key.slice(2)] = value
+  }
+  return result
+}
+
+function unavailable(reason) {
+  return { status: "unavailable", reason }
+}
+
+function available(data) {
+  return { status: "available", data }
+}
+
+async function request(source, url, headers) {
+  try {
+    const response = await fetch(url, { headers })
+    if (!response.ok) return unavailable(`${source} returned HTTP ${response.status}`)
+    return available(await response.json())
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    return unavailable(`${source} request failed: ${message}`)
+  }
+}
+
+function githubHeaders(token) {
+  return {
+    Accept: "application/vnd.github+json",
+    Authorization: `Bearer ${token}`,
+    "User-Agent": "opencode-mobile-product-intelligence",
+    "X-GitHub-Api-Version": "2022-11-28",
+  }
+}
+
+function sum(values, key) {
+  return values.reduce((total, value) => total + Number(value[key] ?? 0), 0)
+}
+
+function recent(values, key, since) {
+  return values.filter((value) => Date.parse(value[key] ?? "") >= since)
+}
+
+async function collectGithub(token, repo, now) {
+  if (!token) return unavailable("GITHUB_TOKEN is not set")
+  const headers = githubHeaders(token)
+  const base = `${GITHUB_API}/repos/${repo}`
+  const issueQuery = encodeURIComponent(`repo:${repo} is:issue is:open`)
+  const [repository, releases, issues, workflows, views, clones] = await Promise.all([
+    request("GitHub repository", base, headers),
+    request("GitHub releases", `${base}/releases?per_page=100`, headers),
+    request("GitHub issue count", `${GITHUB_API}/search/issues?q=${issueQuery}`, headers),
+    request("GitHub workflow runs", `${base}/actions/runs?per_page=100`, headers),
+    request("GitHub traffic views", `${base}/traffic/views`, headers),
+    request("GitHub traffic clones", `${base}/traffic/clones`, headers),
+  ])
+
+  const required = [repository, releases, issues, workflows]
+  const failed = required.find((source) => source.status !== "available")
+  if (failed) return unavailable(failed.reason)
+
+  const releaseDownloads = releases.data.reduce(
+    (total, release) => total + sum(release.assets ?? [], "download_count"),
+    0,
+  )
+  const issueCount = Number(issues.data.total_count ?? 0)
+  const runs = workflows.data.workflow_runs ?? []
+  const failedWorkflowRuns7d = recent(runs, "created_at", now - WEEK).filter((run) => {
+    const path = String(run.path ?? "")
+    return run.conclusion === "failure" && path !== ".github/workflows/product-intelligence.yml"
+  }).length
+
+  return available({
+    stars: Number(repository.data.stargazers_count ?? 0),
+    forks: Number(repository.data.forks_count ?? 0),
+    openIssues: issueCount,
+    releaseDownloads,
+    failedWorkflowRuns7d,
+    traffic: {
+      views:
+        views.status === "available"
+          ? {
+              count: Number(views.data.count ?? 0),
+              uniques: Number(views.data.uniques ?? 0),
+            }
+          : unavailable(views.reason),
+      clones:
+        clones.status === "available"
+          ? {
+              count: Number(clones.data.count ?? 0),
+              uniques: Number(clones.data.uniques ?? 0),
+            }
+          : unavailable(clones.reason),
+    },
+  })
+}
+
+async function collectSentry(token, organization, project, now) {
+  if (!token || !organization || !project) {
+    return unavailable("SENTRY_AUTH_TOKEN, SENTRY_ORG, or SENTRY_PROJECT is not set")
+  }
+  const url = new URL(`${SENTRY_API}/projects/${organization}/${project}/issues/`)
+  url.searchParams.set("query", "is:unresolved")
+  url.searchParams.set("statsPeriod", "14d")
+  url.searchParams.set("sort", "date")
+  url.searchParams.set("limit", "100")
+  const response = await request("Sentry issues", url, {
+    Accept: "application/json",
+    Authorization: `Bearer ${token}`,
+    "User-Agent": "opencode-mobile-product-intelligence",
+  })
+  if (response.status !== "available") return response
+
+  const issues = response.data
+  const newIssues24h = recent(issues, "firstSeen", now - DAY).length
+  const newIssues = recent(issues, "firstSeen", now - WEEK)
+  return available({
+    unresolvedIssues: issues.length,
+    newIssues24h,
+    newIssues7d: newIssues.length,
+    eventCount: sum(issues, "count"),
+  })
+}
+
+function sourceLine(name, source) {
+  if (source.status === "available") return `| ${name} | available | current run |`
+  return `| ${name} | unavailable | ${source.reason} |`
+}
+
+function metric(value) {
+  return Number.isFinite(value) ? String(value) : "unavailable"
+}
+
+function trafficMetric(value) {
+  if (value?.status === "unavailable") return `unavailable (${value.reason})`
+  return `${metric(value.count)} total / ${metric(value.uniques)} unique`
+}
+
+function render(report) {
+  const github = report.github.status === "available" ? report.github.data : null
+  const sentry = report.sentry.status === "available" ? report.sentry.data : null
+  const state = report.material ? "material signal detected" : "no material signal detected"
+  const lines = [
+    `# Daily Product Intelligence - ${report.date}`,
+    "",
+    `**Status:** ${state}`,
+    "",
+    "## Source freshness",
+    "",
+    "| Source | Status | Detail |",
+    "| --- | --- | --- |",
+    sourceLine("GitHub", report.github),
+    sourceLine("Sentry", report.sentry),
+    "",
+    "## Current aggregate signals",
+    "",
+    "| Metric | Value |",
+    "| --- | --- |",
+    `| GitHub stars | ${github ? metric(github.stars) : "unavailable"} |`,
+    `| GitHub forks | ${github ? metric(github.forks) : "unavailable"} |`,
+    `| Open GitHub issues | ${github ? metric(github.openIssues) : "unavailable"} |`,
+    `| GitHub release asset downloads | ${github ? metric(github.releaseDownloads) : "unavailable"} |`,
+    `| GitHub repository views (14-day window) | ${github ? trafficMetric(github.traffic.views) : "unavailable"} |`,
+    `| GitHub repository clones (14-day window) | ${github ? trafficMetric(github.traffic.clones) : "unavailable"} |`,
+    `| Failed GitHub workflow runs (7 days) | ${github ? metric(github.failedWorkflowRuns7d) : "unavailable"} |`,
+    `| Sentry unresolved issues returned (14-day query, max 100) | ${sentry ? metric(sentry.unresolvedIssues) : "unavailable"} |`,
+    `| Sentry newly seen issues returned (24 hours, max 100) | ${sentry ? metric(sentry.newIssues24h) : "unavailable"} |`,
+    `| Sentry newly seen issues returned (7 days, max 100) | ${sentry ? metric(sentry.newIssues7d) : "unavailable"} |`,
+    `| Sentry events across returned unresolved issues | ${sentry ? metric(sentry.eventCount) : "unavailable"} |`,
+    "",
+    "## Deferred metrics",
+    "",
+    "| Metric | Status | Reason |",
+    "| --- | --- | --- |",
+    "| Sentry release health | deferred | Requires a verified aggregate release-health query contract. |",
+    "| Play acquisition and uninstall metrics | deferred | Requires a verified least-privilege reporting source. |",
+    "| Play review themes | deferred | Review ingestion needs privacy-safe dedupe and redaction. |",
+    "| Activation funnel | deferred | Requires explicit product-usage consent and disclosure review. |",
+    "| Retention | deferred | No consent-safe active-install measurement is implemented. |",
+    "| Website conversion | deferred | Vercel Analytics export contract is not implemented. |",
+    "",
+    "## Triage rule",
+    "",
+    "A single deduplicated implementation issue is created only when at least one Sentry issue is newly seen in 24 hours or two or more non-monitor GitHub workflow runs failed in seven days. This report intentionally contains no raw diagnostic, review, request, or user-generated content.",
+  ]
+  return `${lines.join("\n")}\n`
+}
+
+async function write(path, contents) {
+  if (!path) return
+  await mkdir(dirname(path), { recursive: true })
+  await writeFile(path, contents)
+}
+
+async function main() {
+  const options = args(process.argv.slice(2))
+  const now = Date.now()
+  const date = new Date(now).toISOString().slice(0, 10)
+  const repo = process.env.GITHUB_REPOSITORY ?? "dzianisv/opencode-mobile"
+  const [github, sentry] = await Promise.all([
+    collectGithub(process.env.GITHUB_TOKEN, repo, now),
+    collectSentry(process.env.SENTRY_AUTH_TOKEN, process.env.SENTRY_ORG, process.env.SENTRY_PROJECT, now),
+  ])
+  const githubData = github.status === "available" ? github.data : null
+  const sentryData = sentry.status === "available" ? sentry.data : null
+  const signals = []
+  if (sentryData?.newIssues24h >= 1) signals.push("new-sentry-issue")
+  if (githubData?.failedWorkflowRuns7d >= 2) signals.push("repeated-workflow-failure")
+
+  const report = {
+    date,
+    generatedAt: new Date(now).toISOString(),
+    repo,
+    github,
+    sentry,
+    material: signals.length > 0,
+    signals,
+  }
+  const markdown = render(report)
+
+  await write(options.report, markdown)
+  await write(options.json, `${JSON.stringify(report, null, 2)}\n`)
+  if (process.env.GITHUB_STEP_SUMMARY) await write(process.env.GITHUB_STEP_SUMMARY, markdown)
+
+  console.log(`Product intelligence report written for ${date}.`)
+  if (github.status !== "available" || sentry.status !== "available") {
+    process.exitCode = 1
+  }
+}
+
+main().catch((error) => {
+  const message = error instanceof Error ? error.message : String(error)
+  console.error(`Product intelligence failed: ${message}`)
+  process.exitCode = 1
+})

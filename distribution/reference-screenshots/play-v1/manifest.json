@@ -1,0 +1,80 @@
+{
+  "schemaVersion": 1,
+  "source": {
+    "platform": "Google Play",
+    "listing": "https://play.google.com/store/apps/details?id=cc.agentlabs.opencode&hl=en_US",
+    "packageName": "cc.agentlabs.opencode",
+    "retrievedAt": "2026-07-14",
+    "ownership": "OpenCode Mobile listing assets"
+  },
+  "assetPolicy": {
+    "purpose": "Canonical reference assets for the OpenCode Mobile website and future store-listing updates.",
+    "doNotModify": "Do not crop, add marketing copy, or otherwise alter these files in place. Create a separately named derivative for a channel-specific composition.",
+    "websiteSource": "Copy selected originals into website/public/screenshots/ during the website deployment change."
+  },
+  "screenshots": [
+    {
+      "file": "01.png",
+      "sourceUrl": "https://play-lh.googleusercontent.com/0TndhVWCZHGC0UpZNEWBJfhAsRI1NPeg5aevMqdTTEmCQ1zE-HPwMVt0eGxxW2ljPAhGynebJ346MKP2JYAf9YU",
+      "sha256": "9c2c1648458d52e9fdc6f9b45777d0fbf20f07fa3369e7aa747b708c4c7a5102",
+      "width": 1280,
+      "height": 2560,
+      "feature": "Model and settings selection",
+      "websitePlacement": "gallery-07"
+    },
+    {
+      "file": "02.png",
+      "sourceUrl": "https://play-lh.googleusercontent.com/l9Q1182qqZIJ6fSoXUMmlctaDMAt6RJbgZYVUA4akx2Fd7UKQ5R8MH0jbWGFI0_RVf-vBQMiTTixrTANWJKWpw",
+      "sha256": "7928699bd4ea3c64d22bce60d05854d09699bf74b23f8390e62ed900fdf0d1e8",
+      "width": 1280,
+      "height": 2560,
+      "feature": "Live tool activity",
+      "websitePlacement": "gallery-04"
+    },
+    {
+      "file": "03.png",
+      "sourceUrl": "https://play-lh.googleusercontent.com/m1EkbhW1W17NNt1wyMOl7pGpdRgzwbULsxkrZ-KVuVlppTnYfN6dmXWmIoy2a8obp3uY6yg3LCuDN5_obHopTiQ",
+      "sha256": "8987a963d708563f5ff2c0f1c127d852bcbd3759cd9eef2b462cee4d0d8e8658",
+      "width": 1280,
+      "height": 2560,
+      "feature": "Streaming task conversation",
+      "websitePlacement": "hero-02"
+    },
+    {
+      "file": "04.png",
+      "sourceUrl": "https://play-lh.googleusercontent.com/n3CtQbxCaV9V715VC9Dk5LYqP-ufQr2TA9Jsm-iKowTgN562_SWX663a_FpS1iGhAIFJ1QCSRAz5jtEinuosig",
+      "sha256": "d7af61652e9a1521457e87c54c1702a1318e811201a46c40af9b59b85e09e2a2",
+      "width": 1280,
+      "height": 2560,
+      "feature": "Connection setup",
+      "websitePlacement": "hero-01"
+    },
+    {
+      "file": "05.png",
+      "sourceUrl": "https://play-lh.googleusercontent.com/nkYKYJzFD3Q3hVHpsUUhbd6ICirWLUYMcuxTK3Tg_QiCA3YPI_8PZiepI98BY9gddaWzF3xBZEDHmEo15dfyBQ",
+      "sha256": "6acbbd87f4f48e5cf53deddd562c2099f8bab892bbd8f0bb00aac24e6f63ed85",
+      "width": 1280,
+      "height": 2560,
+      "feature": "Session list",
+      "websitePlacement": "gallery-02"
+    },
+    {
+      "file": "06.png",
+      "sourceUrl": "https://play-lh.googleusercontent.com/npsXfCkwCWEqJ9o56ZCENBTTrvefgnA54fGQLc6L1USc6wp9oFsfC_m_orBZ_hsZsE7pUuCDl51QSvkLy7w7m8c",
+      "sha256": "4d68454a602be5546085ceea7f261aadb332973721bde3123d01304dc95d1651",
+      "width": 1280,
+      "height": 2560,
+      "feature": "Agent writes code",
+      "websitePlacement": "gallery-05"
+    },
+    {
+      "file": "07.png",
+      "sourceUrl": "https://play-lh.googleusercontent.com/zXUoTydFFH3U-Hc1hemnXFaxluRrWdDuRweatkuc5zRQQH1f806lN7ZY_go23OMxs5E5-7rD5JOZHlI-M9ACcQ",
+      "sha256": "02be91c4ab35e5ab30f7e310ea5bcf98e0485b14b7d3bbe7f161a38e1642c427",
+      "width": 1280,
+      "height": 2560,
+      "feature": "Completed coding task",
+      "websitePlacement": "gallery-06"
+    }
+  ]
+}

@@ -1,0 +1,126 @@
+name: Daily Product Intelligence
+
+on:
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: read
+  issues: write
+
+concurrency:
+  group: product-intelligence-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+
+      - name: Collect aggregate product signals
+        id: collect
+        continue-on-error: true
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_PRODUCT_INTELLIGENCE_TOKEN }}
+          SENTRY_ORG: ${{ secrets.SENTRY_ORG }}
+          SENTRY_PROJECT: ${{ secrets.SENTRY_PROJECT }}
+        run: |
+          node scripts/product-intelligence.mjs \
+            --report "$RUNNER_TEMP/product-intelligence.md" \
+            --json "$RUNNER_TEMP/product-intelligence.json"
+
+      - name: Create material-signal issue
+        if: always()
+        uses: actions/github-script@v8
+        env:
+          REPORT_PATH: ${{ runner.temp }}/product-intelligence.json
+        with:
+          script: |
+            const fs = require("fs")
+
+            if (!fs.existsSync(process.env.REPORT_PATH)) {
+              core.setFailed("Product intelligence collector produced no report.")
+              return
+            }
+
+            const report = JSON.parse(fs.readFileSync(process.env.REPORT_PATH, "utf8"))
+            const allowedSignals = new Set([
+              "new-sentry-issue",
+              "repeated-workflow-failure",
+            ])
+            const validDate = typeof report.date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(report.date)
+            const validSignals = Array.isArray(report.signals) &&
+              report.signals.length > 0 &&
+              report.signals.every((signal) => allowedSignals.has(signal))
+
+            if (!report.material) {
+              core.info("No material signal. No GitHub issue created.")
+              return
+            }
+            if (!validDate || !validSignals) {
+              core.setFailed("Collector report failed public issue allowlist validation.")
+              return
+            }
+
+            const issues = await github.paginate(github.rest.issues.listForRepo, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: "open",
+              per_page: 100,
+            })
+            const title = "Product intelligence: material signal"
+            const marker = `<!-- product-intelligence:${report.date}:${[...report.signals].sort().join(",")} -->`
+            const body = [
+              marker,
+              "",
+              "## Material aggregate signal",
+              "",
+              `The daily product-intelligence run detected: ${[...report.signals].sort().join(", ")}.`,
+              "",
+              "This issue intentionally contains no raw diagnostic, review, request, or user-generated content. Review the sanitized Actions artifact and reproduce the behavior in the affected user channel before implementing a fix.",
+            ].join("\n")
+            const existing = issues.find((issue) => issue.title === title)
+
+            if (existing) {
+              await github.rest.issues.update({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: existing.number,
+                title,
+                body,
+              })
+              core.info(`Updated #${existing.number}.`)
+              return
+            }
+
+            const { data: issue } = await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title,
+              body,
+              labels: ["P1"],
+            })
+            core.info(`Created #${issue.number}.`)
+
+      - name: Upload sanitized report
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: product-intelligence-${{ github.run_id }}
+          path: |
+            ${{ runner.temp }}/product-intelligence.md
+            ${{ runner.temp }}/product-intelligence.json
+          if-no-files-found: error
+
+      - name: Fail when a required source is unavailable
+        if: steps.collect.outcome == 'failure'
+        run: |
+          echo "::error::A required product-intelligence source was unavailable. See the report summary for the exact source and error."
+          exit 1

@@ -20,13 +20,14 @@
  */
 
 import * as SecureStore from "expo-secure-store"
-import { initSentry, sentryEnabled } from "./sentry"
+import { disableSentry, initSentry, sentryEnabled } from "./sentry"
 
 const CONSENT_KEY = "opencode_telemetry_consent"
 
 export type ConsentState = "granted" | "denied" | "unknown"
 
 let _resolved: boolean | null = null // null = unknown, true = granted, false = denied
+let transition = Promise.resolve()
 
 /**
  * Load persisted consent from SecureStore.
@@ -47,9 +48,8 @@ export async function loadTelemetryConsent(): Promise<ConsentState> {
     _resolved = null
     return "unknown"
   } catch {
-    // SecureStore unavailable — don't clobber a previously resolved in-memory state.
-    // Return unknown so the caller can surface the modal.
-    return "unknown"
+    _resolved = false
+    return "denied"
   }
 }
 
@@ -67,14 +67,26 @@ export function hasTelemetryConsent(): boolean | null {
  * Persist the user's consent decision and, if granted and Sentry is not yet
  * running, initialise it immediately.
  */
-export async function setTelemetryConsent(granted: boolean): Promise<void> {
-  _resolved = granted
-  try {
-    await SecureStore.setItemAsync(CONSENT_KEY, granted ? "granted" : "denied")
-  } catch {
-    // Best-effort persist — in-memory state is still correct for this session.
+export function setTelemetryConsent(granted: boolean): Promise<void> {
+  const next = transition.then(() => applyTelemetryConsent(granted))
+  transition = next.catch(() => undefined)
+  return next
+}
+
+async function applyTelemetryConsent(granted: boolean): Promise<void> {
+  if (granted) {
+    await SecureStore.setItemAsync(CONSENT_KEY, "granted")
+    _resolved = true
+    if (!sentryEnabled()) initSentry()
+    return
   }
-  if (granted && !sentryEnabled()) {
-    initSentry()
+
+  _resolved = false
+  await disableSentry()
+  try {
+    await SecureStore.setItemAsync(CONSENT_KEY, "denied")
+  } catch (error) {
+    await SecureStore.deleteItemAsync(CONSENT_KEY)
+    throw error
   }
 }

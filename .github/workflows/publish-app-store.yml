@@ -1,45 +1,63 @@
-# STATUS: Validated structure — awaiting Apple Developer Program enrollment approval.
-# Once enrollment is approved, complete these steps and this workflow is production-ready:
+# Publish OpenCode for iOS to TestFlight with EAS Build + EAS Submit.
 #
-# REMAINING GAPS (must complete before first run):
-#   1. Update eas.json: replace REPLACE_WITH_APP_STORE_CONNECT_APP_ID and REPLACE_WITH_APPLE_TEAM_ID
-#      (see eas.json.README.md for exact click paths in App Store Connect)
-#   2. Add GitHub secrets (Settings > Secrets and variables > Actions):
-#        EAS_TOKEN                           Expo access token (expo.dev > Account > Access Tokens)
-#        APPLE_APP_STORE_CONNECT_API_KEY_ID  Key ID from App Store Connect > Users & Access > Integrations > App Store Connect API
-#        APPLE_APP_STORE_CONNECT_ISSUER_ID   Issuer ID from same page
-#        APPLE_APP_STORE_CONNECT_API_KEY     base64-encoded .p8 file (download at key creation — one time only)
-#   3. Run `eas login` locally and `eas build:configure` on first run to let EAS set up signing
-#   4. Manually upload first build to App Store Connect (required once to create the app record)
+# This workflow FAILS FAST (non-zero exit) instead of "succeeding by skipping":
+# a release with missing credentials or unfilled identifiers is a hard error, so a
+# green run always means a real build was produced and submitted.
 #
-# OPTIONAL secrets (crash reporting):
-#   EXPO_PUBLIC_SENTRY_DSN   SENTRY_AUTH_TOKEN   SENTRY_ORG   SENTRY_PROJECT
+# ── HUMAN GATE (one-time, after Apple Developer Program enrollment) ──────────────
+# Complete ALL of the following before releasing. Do NOT invent any of these IDs.
 #
-# Build strategy: EAS Build (Expo Application Services)
-# - No Mac runner needed; Expo hosts macOS workers with managed certificates.
-# - Cost: free tier (30 builds/month); upgrade to $19/month for unlimited/priority queue.
-# - See distribution/ios-enrollment-runbook.md for full enrollment steps.
-# - See eas.json.README.md for placeholder fill-in instructions.
-# - Alternative (self-hosted Mac runner): see commented section at bottom of this file.
+# 1. Link the app to an Expo project and add its UUID as the GitHub Actions
+#    repository variable EAS_PROJECT_ID (see eas.json.README.md), then fill and
+#    commit the eas.json placeholders:
+#      submit.production.ios.ascAppId     REPLACE_WITH_APP_STORE_CONNECT_APP_ID  → numeric App Store Connect App ID
+#      submit.production.ios.appleTeamId  REPLACE_WITH_APPLE_TEAM_ID             → 10-char Apple Team ID
+#
+# 2. Add GitHub Actions secrets (Settings → Secrets and variables → Actions):
+#      EXPO_TOKEN                            Expo access token (expo.dev → Account settings → Access tokens)
+#      APPLE_APP_STORE_CONNECT_API_KEY_ID    ASC API Key ID     (App Store Connect → Users and Access → Integrations → App Store Connect API)
+#      APPLE_APP_STORE_CONNECT_ISSUER_ID     ASC API Issuer ID  (same page)
+#      APPLE_APP_STORE_CONNECT_API_KEY       base64 of the .p8 key file: `base64 -i AuthKey_XXXX.p8` (downloadable once)
+#
+# 3. Bootstrap iOS signing credentials on EAS once (creates the distribution cert +
+#    provisioning profile so CI never needs to prompt):
+#      eas login && eas build --platform ios --profile production
+#
+# Optional crash reporting belongs in the EAS `production` environment because the
+# iOS bundle is built on a remote EAS worker. Configure EXPO_PUBLIC_SENTRY_DSN,
+# SENTRY_AUTH_TOKEN, SENTRY_ORG, and SENTRY_PROJECT in Expo before releasing.
+#
+# Build number is managed remotely by EAS (eas.json: cli.appVersionSource=remote,
+# build.production.ios.autoIncrement=buildNumber). The workflow only injects the
+# EAS project linkage into its temporary runner copy of app.json.
 
 name: Publish to App Store (TestFlight)
 
 on:
+  # One release ⇒ one build. Triggering only on `release: published` avoids the
+  # duplicate build that a combined release+tag trigger would create.
   release:
     types: [published]
-  push:
-    tags: ["v*"]
   workflow_dispatch:
 
-jobs:
-  publish-ios:
-    runs-on: ubuntu-latest
-    env:
-      EXPO_PUBLIC_SENTRY_DSN: ${{ secrets.EXPO_PUBLIC_SENTRY_DSN }}
-      SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
-      SENTRY_ORG: ${{ secrets.SENTRY_ORG }}
-      SENTRY_PROJECT: ${{ secrets.SENTRY_PROJECT }}
+# Serialize runs per release so a re-trigger cannot start a duplicate concurrent
+# build/submit. cancel-in-progress:false never kills an in-flight submission.
+concurrency:
+  group: publish-app-store-${{ github.event.release.tag_name || github.ref_name }}
+  cancel-in-progress: false
 
+permissions:
+  contents: read
+
+jobs:
+  testflight:
+    name: EAS Build and submit to TestFlight
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      EAS_CLI_VERSION: "21.0.0"
+      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+      EAS_PROJECT_ID: ${{ vars.EAS_PROJECT_ID }}
     steps:
       - uses: actions/checkout@v6
 
@@ -48,144 +66,167 @@ jobs:
           node-version: 20
           cache: npm
 
-      - name: Check Apple prerequisites
-        id: check-apple
-        run: |
-          if [[ -n "${{ secrets.EAS_TOKEN }}" ]]; then
-            echo "proceed=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "proceed=false" >> "$GITHUB_OUTPUT"
-            echo "::warning::Apple Developer enrollment pending — EAS_TOKEN not set. Skipping iOS build."
-          fi
-
-      # Install EAS CLI globally. Pin to a recent stable version.
-      - name: Install EAS CLI
-        if: steps.check-apple.outputs.proceed == 'true'
-        run: npm install -g eas-cli@13
-
-      - name: Install dependencies
-        if: steps.check-apple.outputs.proceed == 'true'
-        run: npm install --legacy-peer-deps
-
-      # Bump ios.buildNumber to match github.run_number (monotonically increasing).
-      # App Store Connect rejects duplicate build numbers for the same version string.
-      - name: Bump ios.buildNumber in app.json
-        if: steps.check-apple.outputs.proceed == 'true'
-        run: |
-          node -e "
-            const f = 'app.json';
-            const j = require('./' + f);
-            j.expo.ios = j.expo.ios || {};
-            j.expo.ios.buildNumber = String(${{ github.run_number }});
-            require('fs').writeFileSync(f, JSON.stringify(j, null, 2) + '\n');
-          "
-          echo "buildNumber now: $(node -p "require('./app.json').expo.ios.buildNumber")"
-
-      # EAS Build: builds the IPA in Expo's cloud (macOS workers managed by Expo).
-      # --non-interactive: no prompts, suitable for CI.
-      # --platform ios: iOS only (Android is handled by publish-play-store.yml).
-      # --profile production: uses the "production" profile in eas.json (created below if missing).
-      - name: Build IPA via EAS
-        if: steps.check-apple.outputs.proceed == 'true'
+      - name: Preflight — verify credentials and identifiers (fail fast)
         env:
-          EXPO_TOKEN: ${{ secrets.EAS_TOKEN }}
-          APPLE_APP_STORE_CONNECT_API_KEY_ID: ${{ secrets.APPLE_APP_STORE_CONNECT_API_KEY_ID }}
-          APPLE_APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APPLE_APP_STORE_CONNECT_ISSUER_ID }}
-          APPLE_APP_STORE_CONNECT_API_KEY: ${{ secrets.APPLE_APP_STORE_CONNECT_API_KEY }}
+          ASC_KEY_ID: ${{ secrets.APPLE_APP_STORE_CONNECT_API_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.APPLE_APP_STORE_CONNECT_ISSUER_ID }}
+          ASC_KEY_B64: ${{ secrets.APPLE_APP_STORE_CONNECT_API_KEY }}
         run: |
+          set -euo pipefail
+          fail=0
+          need() {
+            if [ -z "${2:-}" ]; then
+              echo "::error::Missing required secret: $1"
+              fail=1
+            fi
+          }
+          need "EXPO_TOKEN" "${EXPO_TOKEN:-}"
+          need "APPLE_APP_STORE_CONNECT_API_KEY_ID" "${ASC_KEY_ID:-}"
+          need "APPLE_APP_STORE_CONNECT_ISSUER_ID" "${ASC_ISSUER_ID:-}"
+          need "APPLE_APP_STORE_CONNECT_API_KEY" "${ASC_KEY_B64:-}"
+          if [ -z "${EAS_PROJECT_ID:-}" ]; then
+            echo "::error::Missing required repository variable: EAS_PROJECT_ID"
+            fail=1
+          elif ! printf '%s' "$EAS_PROJECT_ID" | grep -Eq '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'; then
+            echo "::error::EAS_PROJECT_ID must be an Expo project UUID"
+            fail=1
+          fi
+          asc_app_id=$(node -p "require('./eas.json').submit.production.ios.ascAppId || ''")
+          team_id=$(node -p "require('./eas.json').submit.production.ios.appleTeamId || ''")
+          case "$asc_app_id" in
+            ""|REPLACE_*) echo "::error::eas.json submit.production.ios.ascAppId is unset or still a placeholder"; fail=1 ;;
+            *[!0-9]*) echo "::error::eas.json submit.production.ios.ascAppId must contain only digits"; fail=1 ;;
+          esac
+          case "$team_id" in
+            ""|REPLACE_*) echo "::error::eas.json submit.production.ios.appleTeamId is unset or still a placeholder"; fail=1 ;;
+          esac
+          if ! printf '%s' "$team_id" | grep -Eq '^[A-Z0-9]{10}$'; then
+            echo "::error::eas.json submit.production.ios.appleTeamId must be a 10-character Apple Team ID"
+            fail=1
+          fi
+          if [ -n "${ASC_KEY_ID:-}" ] && ! printf '%s' "$ASC_KEY_ID" | grep -Eq '^[A-Z0-9]{10}$'; then
+            echo "::error::APPLE_APP_STORE_CONNECT_API_KEY_ID must be a 10-character key ID"
+            fail=1
+          fi
+          if [ -n "${ASC_ISSUER_ID:-}" ] && ! printf '%s' "$ASC_ISSUER_ID" | grep -Eq '^[0-9a-fA-F-]{36}$'; then
+            echo "::error::APPLE_APP_STORE_CONNECT_ISSUER_ID must be a UUID"
+            fail=1
+          fi
+          if [ "$fail" -ne 0 ]; then
+            echo "::error::BLOCKED: complete the one-time human-gated setup in this workflow's header (GitHub secrets + eas.json identifiers) before releasing. No build was started."
+            exit 1
+          fi
+          echo "Preflight OK — all credentials and identifiers present."
+
+      - name: Install EAS CLI (exact pin)
+        run: npm install -g eas-cli@"$EAS_CLI_VERSION"
+
+      - name: Install dependencies (deterministic)
+        run: npm ci --legacy-peer-deps
+
+      - name: Configure EAS project linkage
+        run: |
+          set -euo pipefail
+          node -e "
+            const fs = require('fs');
+            const j = require('./app.json');
+            j.expo.extra = { ...j.expo.extra, eas: { ...j.expo.extra?.eas, projectId: process.env.EAS_PROJECT_ID } };
+            fs.writeFileSync('app.json', JSON.stringify(j, null, 2) + '\n');
+          "
+          test "$(node -p "require('./app.json').expo.extra.eas.projectId")" = "$EAS_PROJECT_ID"
+          echo "Linked build to Expo project $EAS_PROJECT_ID."
+
+      - name: Configure App Store Connect API key
+        env:
+          ASC_KEY_ID: ${{ secrets.APPLE_APP_STORE_CONNECT_API_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.APPLE_APP_STORE_CONNECT_ISSUER_ID }}
+          ASC_KEY_B64: ${{ secrets.APPLE_APP_STORE_CONNECT_API_KEY }}
+        run: |
+          set -euo pipefail
+          key_path="$RUNNER_TEMP/asc_api_key.p8"
+          printf '%s' "$ASC_KEY_B64" | base64 -d > "$key_path"
+          if ! head -n1 "$key_path" | grep -q "BEGIN PRIVATE KEY"; then
+            echo "::error::APPLE_APP_STORE_CONNECT_API_KEY did not base64-decode to a valid .p8 private key."
+            exit 1
+          fi
+          chmod 600 "$key_path"
+          export ASC_KEY_PATH="$key_path"
+          # Expose ASC credentials to EAS Build for non-interactive signing management.
+          {
+            echo "EXPO_ASC_API_KEY_PATH=$key_path"
+            echo "EXPO_ASC_KEY_ID=$ASC_KEY_ID"
+            echo "EXPO_ASC_ISSUER_ID=$ASC_ISSUER_ID"
+            echo "EXPO_APPLE_TEAM_ID=$(node -p "require('./eas.json').submit.production.ios.appleTeamId")"
+            echo "EXPO_APPLE_TEAM_TYPE=COMPANY_OR_ORGANIZATION"
+          } >> "$GITHUB_ENV"
+          # EAS Submit reads the ASC key only from the eas.json submit profile (all three
+          # fields required). Inject them here so no real key IDs are committed to the repo.
+          node -e "
+            const fs = require('fs');
+            const j = require('./eas.json');
+            j.submit.production.ios.ascApiKeyPath = process.env.ASC_KEY_PATH;
+            j.submit.production.ios.ascApiKeyId = process.env.ASC_KEY_ID;
+            j.submit.production.ios.ascApiKeyIssuerId = process.env.ASC_ISSUER_ID;
+            fs.writeFileSync('eas.json', JSON.stringify(j, null, 2) + '\n');
+          "
+          echo "ASC API key configured for EAS Build and EAS Submit."
+
+      - name: EAS Build (iOS, wait for completion)
+        id: build
+        run: |
+          set -uo pipefail
+          set +e
           eas build \
             --platform ios \
             --profile production \
             --non-interactive \
-            --no-wait \
-            --json \
-            | tee eas-build-output.json
-          BUILD_ID=$(cat eas-build-output.json | node -e "const d=require('fs').readFileSync('/dev/stdin','utf8');console.log(JSON.parse(d).id)")
-          echo "EAS_BUILD_ID=$BUILD_ID" >> $GITHUB_ENV
-          echo "Build ID: $BUILD_ID"
+            --json > eas-build-output.json
+          rc=$?
+          set -e
+          if [ "$rc" -ne 0 ]; then
+            echo "::error::eas build failed (exit $rc). See the eas-ios-build-metadata artifact."
+            exit "$rc"
+          fi
+          # `eas build --json` prints a JSON ARRAY of completed builds. Select the exact
+          # iOS build id deterministically — never rely on an ambiguous "latest".
+          build_id=$(node -e "
+            const a = JSON.parse(require('fs').readFileSync('eas-build-output.json', 'utf8'));
+            if (!Array.isArray(a)) { console.error('Expected a JSON array from eas build --json'); process.exit(1); }
+            const ios = a.filter((b) => String(b.platform).toUpperCase() === 'IOS');
+            if (ios.length !== 1) { console.error('Expected exactly one iOS build, got ' + ios.length); process.exit(1); }
+            const b = ios[0];
+            if (b.status && String(b.status).toUpperCase() !== 'FINISHED') { console.error('iOS build did not finish: ' + b.status); process.exit(1); }
+            if (!b.id) { console.error('Build object has no id'); process.exit(1); }
+            process.stdout.write(b.id);
+          ")
+          echo "build_id=$build_id" >> "$GITHUB_OUTPUT"
+          echo "Selected EAS iOS build id: $build_id"
 
-      # Wait for the EAS build to complete (iOS builds typically take 15–25 minutes).
-      - name: Wait for EAS build
-        if: steps.check-apple.outputs.proceed == 'true'
-        env:
-          EXPO_TOKEN: ${{ secrets.EAS_TOKEN }}
-        run: |
-          echo "Waiting for build $EAS_BUILD_ID to complete..."
-          eas build:view "$EAS_BUILD_ID" --json --wait
-          echo "Build complete."
+      - name: Upload EAS build metadata
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: eas-ios-build-metadata
+          path: eas-build-output.json
+          retention-days: 30
+          if-no-files-found: ignore
 
-      # Submit to TestFlight via EAS Submit. Uses the same App Store Connect API key.
-      # --latest: picks the most recent finished build for this app + platform.
-      - name: Submit to TestFlight via EAS Submit
-        if: steps.check-apple.outputs.proceed == 'true'
-        env:
-          EXPO_TOKEN: ${{ secrets.EAS_TOKEN }}
-          APPLE_APP_STORE_CONNECT_API_KEY_ID: ${{ secrets.APPLE_APP_STORE_CONNECT_API_KEY_ID }}
-          APPLE_APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APPLE_APP_STORE_CONNECT_ISSUER_ID }}
-          APPLE_APP_STORE_CONNECT_API_KEY: ${{ secrets.APPLE_APP_STORE_CONNECT_API_KEY }}
+      - name: Submit exact build to TestFlight
         run: |
+          set -euo pipefail
           eas submit \
             --platform ios \
-            --id "$EAS_BUILD_ID" \
+            --profile production \
+            --id "${{ steps.build.outputs.build_id }}" \
             --non-interactive
 
-      # Upload release notes to TestFlight (what's new text for testers).
-      # NOTE: EAS Submit does not yet support whatsNew natively; use fastlane pilot
-      # or App Store Connect API directly if per-build release notes are needed.
-      - name: Upload TestFlight release notes (informational)
-        if: steps.check-apple.outputs.proceed == 'true'
+      - name: TestFlight release notes (informational)
+        if: always()
         run: |
-          echo "TestFlight release notes for this build:"
-          cat distribution/whatsnew-ios/release-notes-en-US.txt
-
-# ---------------------------------------------------------------------------
-# ALTERNATIVE: Self-hosted Mac runner (macbook13-pro at 100.68.120.26)
-# ---------------------------------------------------------------------------
-# To use the Mac mini instead of EAS Build:
-# 1. SSH to macbook13-pro and set up GitHub self-hosted runner:
-#    https://docs.github.com/en/actions/hosting-your-own-runners/managing-self-hosted-runners/adding-self-hosted-runners
-# 2. Change "runs-on: ubuntu-latest" above to "runs-on: self-hosted"
-#    and add label "macos" for clarity.
-# 3. Replace the EAS Build + Submit steps with:
-#
-#  - name: Install CocoaPods
-#    run: sudo gem install cocoapods
-#
-#  - name: Expo prebuild (iOS)
-#    run: npx expo prebuild --platform ios --no-install
-#
-#  - name: Install CocoaPods dependencies
-#    working-directory: ios
-#    run: pod install
-#
-#  - name: Build IPA
-#    run: |
-#      xcodebuild -workspace ios/opencodemobile.xcworkspace \
-#        -scheme opencodemobile \
-#        -sdk iphoneos \
-#        -configuration Release \
-#        -archivePath $RUNNER_TEMP/opencodemobile.xcarchive \
-#        archive \
-#        CODE_SIGN_STYLE=Manual \
-#        DEVELOPMENT_TEAM=${{ secrets.APPLE_TEAM_ID }} \
-#        CODE_SIGN_IDENTITY="Apple Distribution" \
-#        PROVISIONING_PROFILE_SPECIFIER="${{ secrets.IOS_PROVISIONING_PROFILE_NAME }}"
-#
-#  - name: Export IPA
-#    run: |
-#      xcodebuild -exportArchive \
-#        -archivePath $RUNNER_TEMP/opencodemobile.xcarchive \
-#        -exportOptionsPlist ios/ExportOptions.plist \
-#        -exportPath $RUNNER_TEMP/export
-#
-#  - name: Upload to TestFlight (xcrun altool / notarytool)
-#    run: |
-#      xcrun altool --upload-app \
-#        -f "$RUNNER_TEMP/export/opencodemobile.ipa" \
-#        --type ios \
-#        --apiKey "${{ secrets.APPLE_APP_STORE_CONNECT_API_KEY_ID }}" \
-#        --apiIssuer "${{ secrets.APPLE_APP_STORE_CONNECT_ISSUER_ID }}"
-#
-# Self-hosted runner cost: $0 compute (your hardware), but requires maintaining
-# a macOS machine with Xcode, certificates, and provisioning profiles.
-# EAS Build is strongly recommended for the first release.
+          notes="distribution/whatsnew-ios/release-notes-en-US.txt"
+          if [ -f "$notes" ]; then
+            echo "TestFlight 'What to Test' notes for this release:"
+            cat "$notes"
+          else
+            echo "No release notes file found at $notes"
+          fi

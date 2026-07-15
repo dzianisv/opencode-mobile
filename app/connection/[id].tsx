@@ -98,7 +98,7 @@ export default function EditConnectionScreen() {
       url.trim(),
       username.trim() && password ? { username: username.trim(), password } : undefined,
     )
-    captureDiagnostic(report, result.error ? new Error(result.error) : undefined)
+    captureDiagnostic(report)
     setIsTesting(false)
 
     Alert.alert("Connection Failed", `${report.summary}\n\n(${result.error || "no detail"})`, [
