@@ -81,7 +81,7 @@ async function collectGithub(token, repo, now) {
   const runs = workflows.data.workflow_runs ?? []
   const failedWorkflowRuns7d = recent(runs, "created_at", now - WEEK).filter((run) => {
     const path = String(run.path ?? "")
-    return run.conclusion === "failure" && !path.startsWith(".github/workflows/product-intelligence.yml@")
+    return run.conclusion === "failure" && path !== ".github/workflows/product-intelligence.yml"
   }).length
 
   return available({

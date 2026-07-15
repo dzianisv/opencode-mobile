@@ -186,7 +186,7 @@ A test for this would feed a basic-auth URL into a fake event and assert the scr
 ## 10. Continuous Product Intelligence
 
 ```text
-GitHub schedule / manual dispatch
+Maintainer manual dispatch
         |
         v
 scripts/product-intelligence.mjs
@@ -208,7 +208,7 @@ material threshold -> deduplicated GitHub issue -> reviewed PR
 
 | Component | Location | Purpose |
 | --- | --- | --- |
-| Scheduled workflow | `.github/workflows/product-intelligence.yml` | Runs only on schedule or maintainer dispatch with `actions: read`, `contents: read`, and `issues: write`. |
+| Product-intelligence workflow | `.github/workflows/product-intelligence.yml` | Starts with maintainer dispatch only. Enable its cron after the dedicated Sentry token passes a production run. Uses `actions: read`, `contents: read`, and `issues: write`. |
 | Collector | `scripts/product-intelligence.mjs` | Validates sources, collects aggregate signals, renders a sanitized report, and fails visibly when a source is unavailable. |
 | Material issue upsert | Workflow `actions/github-script` | Locates a stable signal fingerprint and creates or updates an issue only after a material threshold. |
 | Sentry privacy implementation | `src/lib/sentry.ts`, `src/lib/scrub.ts` | Separate P1 prerequisite: remove user-controlled server data from events, breadcrumbs, tags, contexts, and span names before an event leaves device. |
@@ -244,7 +244,7 @@ material threshold -> deduplicated GitHub issue -> reviewed PR
 1. Provision the dedicated read-only Sentry repository secret, then manually
    run the daily workflow against production credentials and verify a
    sanitized Actions summary and artifact for its UTC date.
-2. Observe one scheduled run and verify it creates a new UTC-day artifact but
+2. Enable the cron, then observe one scheduled run and verify it creates a new UTC-day artifact but
    no public issue unless a documented material threshold is crossed.
    Back-to-back manual and scheduled runs must update at most one open
    material-signal issue.

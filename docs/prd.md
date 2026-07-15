@@ -136,6 +136,8 @@ cannot be traced to a reviewed source commit.
 - A daily GitHub Action, triggered only by `schedule` and maintainer
   `workflow_dispatch`, that publishes an aggregate-only product-intelligence
   report to the Actions summary and artifact.
+- Rollout starts with maintainer dispatch only. Enable the daily schedule after
+  the dedicated read-only Sentry token succeeds against production.
 - A material-signal issue upsert: create or update a GitHub issue only when a
   defined threshold is crossed, never one issue per uneventful day.
 - A metric contract covering acquisition, activation, reliability, retention,
