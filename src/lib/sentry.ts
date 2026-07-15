@@ -13,17 +13,18 @@ import * as Sentry from "@sentry/react-native"
 import appJson from "../../app.json"
 import { log } from "./logbuffer"
 import type { DiagnosticReport } from "./diagnostics"
-import { scrubUrl, scrubString, scrubObject } from "./scrub"
 
 const DSN = process.env.EXPO_PUBLIC_SENTRY_DSN
 const APP_VERSION = (appJson as { expo?: { version?: string } }).expo?.version ?? "unknown"
 
 let enabled = false
+let handlersInstalled = false
 
 export function initSentry() {
+  if (enabled) return
   if (!DSN) {
     log.info("sentry", "no DSN configured — telemetry disabled")
-    installGlobalHandlers(false)
+    installGlobalHandlers()
     return
   }
   try {
@@ -49,10 +50,12 @@ export function initSentry() {
         return scrubEvent(event)
       },
       beforeBreadcrumb(crumb) {
+        // Console output can contain malformed server payloads, prompts, or code.
+        if (crumb.category === "console") return null
         if (crumb.data && typeof crumb.data === "object") {
-          crumb.data = scrubObject(crumb.data as Record<string, unknown>)
+          crumb.data = redactObject(crumb.data as Record<string, unknown>)
         }
-        if (typeof crumb.message === "string") crumb.message = scrubString(crumb.message)
+        if (typeof crumb.message === "string") crumb.message = redactString(crumb.message)
         return crumb
       },
     })
@@ -62,7 +65,14 @@ export function initSentry() {
   } catch (e) {
     log.warn("sentry", "init failed", String(e))
   }
-  installGlobalHandlers(enabled)
+  installGlobalHandlers()
+}
+
+export async function disableSentry() {
+  if (!enabled) return
+  enabled = false
+  await Sentry.close()
+  log.info("sentry", "disabled by user")
 }
 
 // Install belt-and-braces global handlers. The Sentry RN SDK already wires
@@ -72,7 +82,10 @@ export function initSentry() {
 //     shared diagnostic report) even when Sentry is disabled.
 //   * Telemetry-disabled builds still leave a breadcrumb that something blew
 //     up, which is invaluable when triaging a user-shared report offline.
-function installGlobalHandlers(sentryEnabled: boolean) {
+function installGlobalHandlers() {
+  if (handlersInstalled) return
+  handlersInstalled = true
+
   type GlobalErrorUtils = {
     getGlobalHandler?: () => (err: unknown, isFatal?: boolean) => void
     setGlobalHandler?: (handler: (err: unknown, isFatal?: boolean) => void) => void
@@ -83,7 +96,7 @@ function installGlobalHandlers(sentryEnabled: boolean) {
     errorUtils.setGlobalHandler((err: unknown, isFatal?: boolean) => {
       const error = toError(err)
       log.error("crash", isFatal ? "FATAL" : "non-fatal", error.message, error.stack ?? "")
-      if (sentryEnabled) {
+      if (enabled) {
         Sentry.captureException(error, (scope) => {
           scope.setLevel(isFatal ? "fatal" : "error")
           scope.setTag("crash.source", "js-global")
@@ -104,7 +117,7 @@ function installGlobalHandlers(sentryEnabled: boolean) {
   g.onunhandledrejection = (event) => {
     const error = toError(event?.reason)
     log.error("crash", "unhandled-rejection", error.message, error.stack ?? "")
-    if (sentryEnabled) {
+    if (enabled) {
       Sentry.captureException(error, (scope) => {
         scope.setLevel("error")
         scope.setTag("crash.source", "promise-rejection")
@@ -130,22 +143,61 @@ function toError(value: unknown): Error {
 export { scrubUrl } from "./scrub"
 
 function scrubEvent<T extends Sentry.Event>(event: T): T {
-  if (event.request?.url) event.request.url = scrubUrl(event.request.url)
-  if (event.message) event.message = scrubString(event.message)
+  if (event.request?.url) event.request.url = "<redacted-url>"
+  if (event.message) event.message = redactString(event.message)
   if (event.exception?.values) {
     for (const ex of event.exception.values) {
-      if (ex.value) ex.value = scrubString(ex.value)
+      if (ex.value) ex.value = redactString(ex.value)
     }
   }
   if (event.breadcrumbs) {
+    event.breadcrumbs = event.breadcrumbs.filter((crumb) => crumb.category !== "console")
     for (const crumb of event.breadcrumbs) {
-      if (typeof crumb.message === "string") crumb.message = scrubString(crumb.message)
+      if (typeof crumb.message === "string") crumb.message = redactString(crumb.message)
       if (crumb.data && typeof crumb.data === "object") {
-        crumb.data = scrubObject(crumb.data as Record<string, unknown>)
+        crumb.data = redactObject(crumb.data as Record<string, unknown>)
       }
     }
   }
   return event
+}
+
+function redactString(value: string): string {
+  return value.replace(/https?:\/\/[^\s)\]}"']+/gi, "<redacted-url>")
+}
+
+function redactObject(value: Record<string, unknown>): Record<string, unknown> {
+  const redacted: Record<string, unknown> = {}
+  for (const [key, item] of Object.entries(value)) {
+    if (
+      /^(?:id|.*Id|.*ID|url|host|hostname|port|address|server|serverUrl|target|endpoint|authorization|auth|token|password|secret|apiKey|username|cookie)$/i.test(
+        key,
+      )
+    ) {
+      redacted[key] = "<redacted>"
+      continue
+    }
+    if (typeof item === "string") {
+      redacted[key] = redactString(item)
+      continue
+    }
+    if (Array.isArray(item)) {
+      redacted[key] = item.map((entry) =>
+        typeof entry === "string"
+          ? redactString(entry)
+          : entry && typeof entry === "object"
+            ? redactObject(entry as Record<string, unknown>)
+            : entry,
+      )
+      continue
+    }
+    if (item && typeof item === "object") {
+      redacted[key] = redactObject(item as Record<string, unknown>)
+      continue
+    }
+    redacted[key] = item
+  }
+  return redacted
 }
 
 // --- Helpers exposed to the rest of the app ------------------------------
@@ -183,18 +235,14 @@ export function captureException(
   })
 }
 
-export function captureDiagnostic(report: DiagnosticReport, rawError?: unknown) {
+export function captureDiagnostic(report: DiagnosticReport) {
   log.info("sentry", "capture", report.classification, enabled ? "(uploading)" : "(local only)")
   if (!enabled) return
   Sentry.withScope((scope) => {
     scope.setTag("connect.classification", report.classification)
     scope.setTag("connect.scheme", report.scheme ?? "n/a")
     scope.setContext("connection", {
-      url: scrubUrl(report.url),
-      host: report.host,
-      port: report.port,
-      isHostname: report.isHostname,
-      summary: report.summary,
+      targetType: report.isHostname ? "hostname" : "ip-address",
     })
     scope.setContext("probes", {
       attempts: report.attempts.map((a) => ({
@@ -202,13 +250,10 @@ export function captureDiagnostic(report: DiagnosticReport, rawError?: unknown) 
         ok: a.ok,
         status: a.status,
         durationMs: a.durationMs,
-        error: a.error,
-        cause: a.errorCause,
       })),
     })
     scope.setContext("device", report.device)
-    const err = rawError instanceof Error ? rawError : new Error(`connect ${report.classification}: ${report.summary}`)
-    Sentry.captureException(err)
+    Sentry.captureException(new Error(`connect ${report.classification}`))
   })
 }
 
