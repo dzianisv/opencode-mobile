@@ -55,7 +55,7 @@ URL scrubbing: before any event is sent to Sentry, our code strips all server UR
 Crash reporting is **opt-in and off by default**. On first launch you will see a consent prompt. You can change this at any time:
 
 - Open the app → **Settings** → **Privacy** → **Crash reporting** toggle.
-- When the toggle is off, Sentry is never initialised and no data leaves your device.
+- If you decline, Sentry is never initialised. If you turn reporting off later, the active SDK is closed and no new events are captured.
 
 ---
 

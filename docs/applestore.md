@@ -1,29 +1,33 @@
 # Apple App Store — opencode-mobile
 
-Operational doc for shipping `ai.opencode.mobile` to Apple App Store under VIBE TECHNOLOGIES, LLC.
+Operational doc for shipping `cc.agentlabs.opencode` to Apple App Store under VIBE TECHNOLOGIES, LLC.
 
 For full company facts (D-U-N-S, address, governor) see `~/.agents/skills/vibetechnologies-llc/SKILL.md`.
 
 ---
 
-## Account state (as of 2026-05-24)
+## Account state
+
+The Apple account state below was last recorded on 2026-05-24. Re-verify it in the
+Apple Developer portal before running the release workflow; this Linux runner has no
+Apple or EAS credentials and cannot confirm enrollment status.
 
 | Field | Value |
 |---|---|
 | Apple ID email | `support@agentlabs.cc` (per decision 2026-05-24) |
-| Apple Developer Program | ❌ **not enrolled — user signing up now** |
+| Apple Developer Program | ⚠️ Last recorded as not enrolled; verify current status |
 | D-U-N-S (for org enrollment) | 142059652 |
-| Enrollment fee | $99/year (not yet paid) |
-| Identity verification call | ⏸ pending after enrollment submitted (Apple calls within 2-7 business days) |
-| App Store Connect record | ⏸ created after enrollment |
-| TestFlight | ⏸ available after enrollment |
-| App Store production | ⏸ after TestFlight + Apple review |
+| Enrollment fee | $99/year |
+| Identity verification call | ⚠️ Verify current status |
+| App Store Connect record | ⚠️ No app ID is configured in `eas.json` |
+| TestFlight | ⏸ No verified build yet |
+| App Store production | ⏸ After TestFlight + Apple review |
 
 ### Bundle identity
 
 | Field | Value |
 |---|---|
-| Bundle identifier | `ai.opencode.mobile` (same as Android — same brand) |
+| Bundle identifier | `cc.agentlabs.opencode` (same as Android) |
 | Apple Team ID | ⏸ assigned at enrollment |
 | App Store Connect App ID | ⏸ assigned on first app creation |
 
@@ -57,14 +61,14 @@ Because the answer is "No", no ERN (Encryption Registration Number) is required 
 ## What's already done
 
 1. ✅ iOS section of `app.json` patched:
-   - `ios.buildNumber`: "1" (CI auto-bumps)
+   - `ios.buildNumber`: "1" (initial value; EAS manages production build numbers remotely)
    - `ios.entitlements.aps-environment`: "production" (push notifications)
    - `ios.infoPlist.NSAppTransportSecurity.NSAllowsArbitraryLoads`: true (required — connects to user self-hosted opencode servers over HTTP on LAN)
-   - Usage strings: NSFaceIDUsageDescription, NSSpeechRecognitionUsageDescription, NSMicrophoneUsageDescription, NSPhotoLibraryUsageDescription, NSCameraUsageDescription
+   - Usage strings: NSFaceIDUsageDescription, NSSpeechRecognitionUsageDescription, NSMicrophoneUsageDescription, NSPhotoLibraryUsageDescription, NSCameraUsageDescription, NSLocalNetworkUsageDescription
    - Plugin registrations completed for `expo-notifications`, `expo-image-picker`, `expo-speech-recognition` (were missing — would have caused native iOS setup to silently skip)
 2. ✅ EAS Build config: `eas.json` with development/preview/production profiles (2 placeholders for App ID + Team ID)
 3. ✅ Build strategy chosen: **EAS Build** (Expo cloud, free tier 30 builds/mo, managed certs, EAS Submit handles TestFlight upload)
-4. ✅ CI workflow draft: `.github/workflows/publish-app-store.yml` (DRAFT — needs Apple secrets before enabling)
+4. ✅ CI workflows: `.github/workflows/ios-ci.yml` validates unsigned Simulator builds; `.github/workflows/publish-app-store.yml` fails fast until Apple/EAS setup is complete
 5. ✅ Listing copy drafted: `distribution/app-store-listing.md`
 6. ✅ Enrollment runbook: `distribution/ios-enrollment-runbook.md` (pre-filled with all VIBE TECHNOLOGIES, LLC fields)
 7. ✅ Release notes scaffold: `distribution/whatsnew-ios/release-notes-en-US.txt`
@@ -78,28 +82,28 @@ Because the answer is "No", no ERN (Encryption Registration Number) is required 
 | 1 | Sign in / create Apple ID for `support@agentlabs.cc` w/ 2FA | User | 🔴 user action required |
 | 2 | Enroll in Apple Developer Program ($99) | User | 🔴 user action required |
 | 3 | Pass Apple verification call | User | 🔴 user action required |
-| 4 | App icon — 1024×1024 PNG, opaque (no alpha) | ✅ Done | `assets/icon-appstore.png` (flattened from Android-produced `assets/icon.png`) |
-| 5 | iPhone screenshots 6.7" (1290×2796) + 6.5" (1242×2688) | ✅ Done | `distribution/app-store-graphics/iphone-67/{01,02,03}.png` + `iphone-65/` — 3 mockup screens: connection, chat, diff |
-| 6 | iPad screenshots 12.9" (2048×2732) | ✅ Done | `distribution/app-store-graphics/ipad-129/{01,02}.png` — 2 mockup screens |
+| 4 | App icon — 1024×1024 PNG, opaque (no alpha) | ✅ Done | `assets/icon.png` is RGB with no alpha channel |
+| 5 | iPhone screenshots 6.7" (1290×2796) + 6.5" (1242×2688) | Mac | 🔴 Placeholder mockups exist; recapture the current app in Simulator |
+| 6 | iPad screenshots 12.9" (2048×2732) | Mac | 🔴 Placeholder mockups exist; recapture the current app in Simulator |
 | 7 | Privacy policy — live at https://dzianisv.github.io/opencode-mobile/privacy/ | ✅ done | Live & verified (HTTP 200) on gh-pages. Content handled by Android agent (`distribution/privacy-policy.{md,html}`). iOS-specific ATT / nutrition label addendum written in `distribution/app-store-listing.md`. |
 | 8 | Privacy nutrition label (App Tracking + Data Collection) | ✅ Done | Updated in `distribution/app-store-listing.md` — ATT explicitly noted (not used), Sentry opt-in status documented |
 | 9 | Export compliance | ✅ Done | `ITSAppUsesNonExemptEncryption: false` added to `app.json`. Answers + rationale in this doc (see Export Compliance section above) and `distribution/app-store-listing.md`. |
 | 10 | ATS justification in App Review notes | ✅ Done | Full justification text in `distribution/app-store-listing.md` under "App Review Notes — ATS Justification" |
 | 11 | Reviewer test instructions | ✅ Done | Updated with correct command (`opencode serve --hostname 0.0.0.0`) in `distribution/app-store-listing.md` |
-| 12 | GitHub secrets: `EAS_TOKEN`, `APPLE_APP_STORE_CONNECT_API_KEY_ID`, `APPLE_APP_STORE_CONNECT_ISSUER_ID`, `APPLE_APP_STORE_CONNECT_API_KEY` (base64 .p8) | User | 🟡 post-enrollment — see `.github/workflows/publish-app-store.yml` header |
+| 12 | GitHub variable `EAS_PROJECT_ID`; secrets: `EXPO_TOKEN`, `APPLE_APP_STORE_CONNECT_API_KEY_ID`, `APPLE_APP_STORE_CONNECT_ISSUER_ID`, `APPLE_APP_STORE_CONNECT_API_KEY` (base64 .p8) | User | 🟡 post-enrollment — run `eas init`, then see `.github/workflows/publish-app-store.yml` |
 | 13 | Update `eas.json` placeholders: `ascAppId` + `appleTeamId` | User | 🟡 post-enrollment — see `eas.json.README.md` for click paths |
-| 14 | CI workflow validated | ✅ Done | `.github/workflows/publish-app-store.yml` structure verified; comment header updated with remaining gaps |
+| 14 | CI workflow validated | CI | 🟡 Linux checks pass; PR must prove the macOS Simulator build |
 | 15 | TestFlight release notes | ✅ Done | `distribution/whatsnew-ios/release-notes-en-US.txt` — polished, 1658 chars (limit 4000) |
 
 ---
 
 ## Publishing process (after enrollment + assets ready)
 
-1. (manual) Sign in to App Store Connect, create app with bundle id `ai.opencode.mobile`.
+1. (manual) Sign in to App Store Connect, create app with bundle id `cc.agentlabs.opencode`.
 2. (manual) Generate App Store Connect API key (App Manager role) → download `.p8` → base64 encode → add as GitHub secret.
 3. (manual) Update `eas.json` placeholders (Team ID, ASC App ID).
-4. (manual) `eas login` + `eas build:configure` for first-time setup (managed signing).
-5. (automated) `git tag v0.2.x && git push --tags` → CI calls EAS Build → EAS Submit → IPA lands in TestFlight.
+4. (manual) `eas login` + `eas init` + `eas build:configure`; add the generated project UUID as repository variable `EAS_PROJECT_ID`.
+5. (automated) Publish a GitHub Release for the version tag → CI calls EAS Build → EAS Submit → IPA lands in TestFlight.
 6. (manual, first time) Add internal testers in App Store Connect → distribute via TestFlight.
 7. (manual) After internal testing OK → submit for App Store review (production).
 8. Apple review typically 24-48h. 90% of submissions reviewed within 24h.
@@ -138,7 +142,8 @@ Upgrade to EAS $19/mo only if free-tier queue (10-30 min wait) becomes a problem
 
 - `app.json` — iOS config (patched 2026-05-24)
 - `eas.json` — EAS build profiles (2 placeholders)
-- `.github/workflows/publish-app-store.yml` — DRAFT CI
+- `.github/workflows/ios-ci.yml` — PR/main unsigned iOS Simulator build gate
+- `.github/workflows/publish-app-store.yml` — fail-fast TestFlight release CI
 - `distribution/app-store-listing.md` — listing copy + answers
 - `distribution/ios-enrollment-runbook.md` — enrollment runbook
 - `distribution/whatsnew-ios/release-notes-en-US.txt` — release notes

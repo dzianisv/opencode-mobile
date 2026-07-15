@@ -100,7 +100,7 @@ export default function AddConnectionScreen() {
         serverUrl,
         username.trim() && password ? { username: username.trim(), password } : undefined,
       )
-      captureDiagnostic(report, result.error ? new Error(result.error) : undefined)
+      captureDiagnostic(report)
       setIsConnecting(false)
       Alert.alert(
         "Connection Failed",

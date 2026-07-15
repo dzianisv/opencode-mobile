@@ -741,7 +741,7 @@ def run_onboarding_showcase(
     model: str = "gpt-5.4",
     include_ui_xml: bool = False,
     verbose: bool = True,
-    max_steps_per_phase: int = 20,
+    max_steps_per_phase: int = 25,
 ) -> dict:
     """Execute the full first-run onboarding journey.
 
@@ -782,6 +782,7 @@ def run_onboarding_showcase(
     # -----------------------------------------------------------------------
     # Phase 1-2: Open app, configure server connection
     # -----------------------------------------------------------------------
+    host_only = opencode_url.replace("http://", "").replace(":4096", "")
     ok = _run(
         "connect",
         goal=(
@@ -789,12 +790,14 @@ def run_onboarding_showcase(
             "The screen shows either a connection screen (first launch) or an empty connections list. "
             "Your goal: add a new connection to the opencode server and verify it is saved. "
             "Step 1: Look for an 'Add Connection', '+', or 'New Connection' button and tap it. "
-            f"Step 2: In the URL / Host field type '{opencode_url}'. "
-            "Step 3: Leave username and password blank. "
-            "Step 4: Tap 'Save', 'Connect', or 'Done' to save the connection. "
-            "Step 5: IMPORTANT — after saving, you must see the connection appear in the connections list "
-            f"(showing the URL '{opencode_url}' or a name derived from it). "
-            "If you are back on the connections list and can see the saved connection entry, report done. "
+            f"Step 2: In the 'IP Address' field type '{host_only}'. Do NOT include http:// or the port — just the IP. "
+            "Step 3: The 'Port' field should already show 4096. Leave it as is. "
+            "Step 4: Leave username and password blank. "
+            "Step 5: Scroll down if needed and tap the 'Connect' button (a large dark button with a flash icon). "
+            "Step 6: Wait up to 5 seconds for the connection to save and return to the connections list. "
+            "IMPORTANT — after saving, the connection entry MUST appear in the connections list. "
+            f"The entry will show a name like 'My Server' (the URL may be too small to read). "
+            "If you are back on the connections list and see ANY connection entry, report done. "
             "If the form is still showing or the list is empty, the save did not work — try again."
         ),
         max_steps=max_steps_per_phase,
@@ -810,8 +813,10 @@ def run_onboarding_showcase(
     if precreated_title:
         session_list_goal = (
             "The connection has been saved. "
-            "Now tap on the saved connection entry to connect to the server. "
-            "Wait up to 10 seconds for the session list screen to appear. "
+            "Tap on the saved connection entry to make it active. "
+            "CRITICAL: Tapping a connection does NOT navigate away — the app stays on the Connections tab. "
+            "After tapping, look at the bottom tab bar and tap the 'Sessions' tab (a chat bubble icon). "
+            f"Wait up to 10 seconds for the session list screen to appear. "
             f"IMPORTANT: A session titled '{precreated_title}' was already created on the server "
             "before this test started — it MUST appear in the list after connecting. "
             "Report SUCCESS only if you can see at least one session entry in the list. "
@@ -822,7 +827,9 @@ def run_onboarding_showcase(
         # Server offline at pre-create time; fall back to just checking screen appears.
         session_list_goal = (
             "The connection has been saved. "
-            "Now tap on the saved connection entry to connect to the server. "
+            "Tap on the saved connection entry to make it active. "
+            "CRITICAL: Tapping a connection does NOT navigate away — the app stays on the Connections tab. "
+            "After tapping, look at the bottom tab bar and tap the 'Sessions' tab (a chat bubble icon). "
             "Wait up to 10 seconds for the session list screen to appear. "
             "Report done when you can see the session list screen."
         )
@@ -896,9 +903,11 @@ def run_onboarding_showcase(
             "Do NOT press back (it navigates away). "
             "Tap the send/arrow button (bottom-right) to submit. "
             "After sending, wait and watch — opencode will show tool calls and file writes as it works. "
+            "CRITICAL: Do NOT tap anywhere on the screen after tapping send. "
+            "Any tap will navigate away from the session and break the connection. "
             "Wait up to 90 seconds total for the session to go idle/complete "
             "(no new activity for at least 5 seconds, or a completion indicator appears). "
-            "Re-check every 15 seconds by looking at the screen. "
+            "Re-check every 15 seconds by looking at the screen — do NOT tap, just look. "
             "Report done when opencode appears to have finished (idle, no spinners, last message is a summary or file was created). "
             "Report fail only if there is a clear unrecoverable error."
         ),
@@ -1770,7 +1779,7 @@ Examples:
 
     # Model / verbosity
     parser.add_argument("--model", default="gpt-4o", help="Vision model deployment name.")
-    parser.add_argument("--max-steps", type=int, default=20, help="Max LLM steps per phase (showcase) or total (legacy).")
+    parser.add_argument("--max-steps", type=int, default=25, help="Max LLM steps per phase (showcase) or total (legacy).")
     parser.add_argument("--include-xml", action="store_true", help="Include UI hierarchy XML in LLM context (more accurate, more tokens).")
     parser.add_argument("--quiet", action="store_true")
 

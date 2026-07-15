@@ -220,28 +220,27 @@ These same secrets are set as GitHub Actions secrets on `dzianisv/opencode-mobil
 
 **Do NOT store secrets in `.env` files committed to the repo.** `.env` is gitignored — local copy only.
 
-## Chrome DevTools (Browser Automation)
+## VibeBrowser CLI (Browser Automation)
 
-The project uses `@vibebrowser/chrome-devtools-mcp` from `github.com/dzianisv/chrome-devtools-mcp`. It runs an MCP server over HTTP/SSE, allowing multiple agents to connect remotely.
+Use `@vibebrowser/cli` against the authenticated remote browser relay. Do not
+register or use the retired `chrome-devtools` MCP server in Copilot.
 
-**No `--remote-debugging-port` needed.** The daemon discovers Chrome via `--autoConnect` (reads `DevToolsActivePort` file). Port is discovered automatically.
+Keep the relay URL outside the repository:
 
-**Driving an authenticated session:** The daemon connects to your *real* Chrome profile (authenticated). To act on a logged-in page, use `list_pages` → `select_page` on the existing tab. Do **not** pass `isolatedContext` to `new_page` — that opens a cookieless context that cannot see your login. (Verified: the MCP code already uses `browser.defaultBrowserContext()`; logged-out sessions come from misuse, a profile/`--user-data-dir` mismatch, or Google's anti-automation block — not a tool bug.)
-
-**Local Copilot CLI config** (in `.github/copilot-mcp.json` or IDE MCP settings):
-```json
-{
-  "chrome-devtools": {
-    "type": "remote",
-    "url": "http://localhost:9333/mcp",
-    "enabled": true
-  }
-}
+```bash
+export VIBEBROWSER_REMOTE_URL='wss://relay.api.vibebrowser.app/<session-id>'
+npx -y @vibebrowser/cli@0.2.12 \
+  --remote "$VIBEBROWSER_REMOTE_URL" --json status
 ```
 
-**Starting the daemon:**
+List tabs first, then pass `--page-id` on every command so automation does not
+switch or disturb the user's active tab:
+
 ```bash
-chrome-devtools start --autoConnect --port 9333
+npx -y @vibebrowser/cli@0.2.12 \
+  --remote "$VIBEBROWSER_REMOTE_URL" --json tabs
+npx -y @vibebrowser/cli@0.2.12 \
+  --remote "$VIBEBROWSER_REMOTE_URL" --page-id <id> --json snapshot
 ```
 
 ## GitHub Auth

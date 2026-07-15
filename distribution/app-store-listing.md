@@ -171,7 +171,7 @@ OpenCode Mobile does NOT collect any of the following:
 - Browsing history, search history
 - Sensitive info
 - User content (code, prompts, AI responses are not sent to our servers)
-- Identifiers (User ID, Device ID — Sentry uses an installation-scoped anonymous ID, see below)
+- User ID (the app has no accounts or user identity)
 
 ### Data Linked to You: None
 
@@ -179,13 +179,14 @@ OpenCode Mobile does NOT collect any of the following:
 
 | Data Type | Category | Purpose | Optional? |
 |---|---|---|---|
-| Crash Data | Diagnostics | App functionality | No — always on (see note) |
-| Performance Data | Diagnostics | App functionality | No — always on (see note) |
-| Other Diagnostic Data | Diagnostics | App functionality | No |
+| Crash Data | Diagnostics | App functionality | Yes — explicit opt-in |
+| Performance Data | Diagnostics | App functionality | Yes — explicit opt-in |
+| Other Diagnostic Data | Diagnostics | App functionality | Yes — explicit opt-in |
+| Device ID | Identifiers | App functionality | Yes — Sentry installation ID with explicit opt-in |
 
 **Explanation**: Sentry crash reporting sends device model, OS version, app version, and stack traces. Sentry assigns an anonymous installation ID (not linked to any Apple ID or personal information). No user-generated content (code, prompts, responses) is ever sent.
 
-**Sentry opt-in status**: As of v0.2.3, Sentry is **always on** when a DSN is configured. If you add a settings toggle for Sentry consent (planned), change Optional? to "Yes" and add a note that users who decline are in the "Data Not Collected" category. In App Store Connect, once opt-in is implemented, this section can be removed or marked optional.
+**Sentry opt-in status**: Crash reporting is off by default. The first-launch consent prompt and Settings → Privacy toggle control it. Declining does not initialize Sentry; turning it off later closes the active SDK and stops new event capture.
 
 **"Are you or your third-party partners using this data to track users?"**: No
 
@@ -276,36 +277,28 @@ All icons and screenshots must be provided before submitting for review.
 
 The 1024×1024 icon must NOT have rounded corners (Apple applies them). No transparency.
 
-Current status: `assets/icon.json` is a placeholder — **real PNG required before submission**.
+Current status: **Ready.** `assets/icon.png` is 1024×1024.
 
 ### iPhone Screenshots (REQUIRED)
 
 Minimum 1 screenshot per device class. Recommended: 3–5 showing key flows.
 
-| Device | Resolution | Size name in App Store Connect |
-|---|---|---|
-| iPhone 6.7" (iPhone 16 Pro Max / 15 Plus) | 1320×2868 or 1290×2796 | 6.7" Super Retina XDR Display |
-| iPhone 6.5" (iPhone 14 Plus / 11 Pro Max) | 1242×2688 | 6.5" Super Retina XDR Display |
-| iPhone 5.5" (iPhone 8 Plus) | 1242×2208 | 5.5" Retina HD Display |
+| Device | Resolution | Size name in App Store Connect | Status |
+|---|---|---|---|
+| iPhone 6.7" (iPhone 16 Pro Max / 15 Plus) | 1320×2868 or 1290×2796 | 6.7" Super Retina XDR Display | Placeholder set exists; recapture from current iOS build |
+| iPhone 6.5" (iPhone 14 Plus / 11 Pro Max) | 1242×2688 | 6.5" Super Retina XDR Display | Placeholder set exists; recapture from current iOS build |
+| iPhone 5.5" (iPhone 8 Plus) | 1242×2208 | 5.5" Retina HD Display | Optional |
 
 Note: As of 2024, Apple only requires 6.7" and 6.5" for new submissions. 5.5" is optional but recommended for coverage.
-
-Suggested screenshot subjects:
-1. Connection setup screen (add server URL)
-2. Active chat session — streaming AI response
-3. File diff view — seeing a code change
-4. Tool approval dialog
-5. Session list / multi-session view
-6. Biometric unlock (if possible to screenshot without triggering auth)
 
 ### iPad Screenshots (REQUIRED for Universal apps)
 
 Since `supportsTablet: true`, iPad screenshots are required.
 
-| Device | Resolution | Size name in App Store Connect |
-|---|---|---|
-| iPad 12.9" (iPad Pro 6th gen) | 2048×2732 | 12.9" iPad Pro (6th gen) |
-| iPad 11" (iPad Pro M4) | 1668×2388 | 11" iPad Pro (M4) |
+| Device | Resolution | Size name in App Store Connect | Status |
+|---|---|---|---|
+| iPad 12.9" (iPad Pro 6th gen) | 2048×2732 | 12.9" iPad Pro (6th gen) | Placeholder set exists; recapture from current iOS build |
+| iPad 11" (iPad Pro M4) | 1668×2388 | 11" iPad Pro (M4) | Optional |
 
 Minimum 1 per device class required. iPad screenshots can be the same content as iPhone.
 
@@ -335,11 +328,11 @@ To use: you need opencode running somewhere accessible (local Wi-Fi, Tailscale, 
 ## Pending Before First Submission
 
 - [ ] Apple Developer Program enrollment approved (D-U-N-S 142059652, VIBE TECHNOLOGIES LLC)
-- [ ] App Store Connect app record created (bundle ID: ai.opencode.mobile)
-- [ ] App icon 1024×1024 PNG (no alpha, no rounded corners)
-- [ ] iPhone screenshots (6.7" minimum; 6.5" strongly recommended)
-- [ ] iPad screenshots (12.9" minimum)
-- [ ] Privacy policy live at https://dzianisv.github.io/opencode-mobile/privacy/
+- [ ] App Store Connect app record created (bundle ID: cc.agentlabs.opencode)
+- [x] App icon 1024×1024 PNG (no alpha, no rounded corners)
+- [ ] Capture current iPhone screenshots (6.7" minimum; 6.5" strongly recommended)
+- [ ] Capture current iPad screenshots (12.9" minimum)
+- [x] Privacy policy live at https://dzianisv.github.io/opencode-mobile/privacy/
 - [ ] App Store Connect API key created (for CI — Key ID, Issuer ID, .p8 file)
 - [ ] Apple Distribution certificate + provisioning profile (or use EAS managed signing)
 - [ ] Export compliance answered (No to custom encryption)

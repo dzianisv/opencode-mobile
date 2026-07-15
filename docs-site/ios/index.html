@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>OpenCode for iOS / iPhone — Is There an App? (Honest Answer)</title>
-<meta name="description" content="Is there an OpenCode app for iOS or iPhone? Honestly: not yet. Here's the current Android app, why iOS isn't available, the roadmap, and how to follow for updates." />
+<title>OpenCode for iOS / iPhone — TestFlight Work in Progress</title>
+<meta name="description" content="OpenCode Mobile for iPhone and iPad is in active development. Follow the native build, CI, and TestFlight launch work while Android remains available today." />
 <meta name="keywords" content="opencode ios, opencode iphone, opencode ipad, opencode ios app, AI coding agent iphone, opencode for apple" />
 <meta name="theme-color" content="#3b82f6" />
 <link rel="canonical" href="https://dzianisv.github.io/opencode-mobile/ios/" />
@@ -13,15 +13,15 @@
 <!-- Open Graph -->
 <meta property="og:type" content="article" />
 <meta property="og:site_name" content="OpenCode Mobile" />
-<meta property="og:title" content="OpenCode for iOS / iPhone — Is There an App? (Honest Answer)" />
-<meta property="og:description" content="Is there an OpenCode app for iOS or iPhone? Honestly, not yet. Here's the current Android app, why iOS isn't available, the roadmap, and how to follow for updates." />
+<meta property="og:title" content="OpenCode for iOS / iPhone — TestFlight Work in Progress" />
+<meta property="og:description" content="The native iPhone and iPad build is being prepared now. Follow the CI and TestFlight launch work." />
 <meta property="og:url" content="https://dzianisv.github.io/opencode-mobile/ios/" />
 <meta property="og:image" content="https://dzianisv.github.io/opencode-mobile/og.png" />
 
 <!-- Twitter -->
 <meta name="twitter:card" content="summary_large_image" />
-<meta name="twitter:title" content="OpenCode for iOS / iPhone — Is There an App? (Honest Answer)" />
-<meta name="twitter:description" content="Is there an OpenCode app for iOS or iPhone? Honestly, not yet. Here's the Android app, why, and the roadmap." />
+<meta name="twitter:title" content="OpenCode for iOS / iPhone — TestFlight Work in Progress" />
+<meta name="twitter:description" content="The native iPhone and iPad build is being prepared now. Follow the CI and TestFlight launch work." />
 <meta name="twitter:image" content="https://dzianisv.github.io/opencode-mobile/og.png" />
 
 <!-- Structured data: Breadcrumb -->
@@ -45,22 +45,22 @@
     {
       "@type": "Question",
       "name": "Is there an OpenCode app for iOS or iPhone?",
-      "acceptedAnswer": { "@type": "Answer", "text": "Not yet. OpenCode Mobile is currently Android only. There is no iOS, iPhone, or iPadOS build, and none is published on the App Store. The only official mobile app today is the Android client." }
+      "acceptedAnswer": { "@type": "Answer", "text": "Not for download yet. The shared React Native app is configured for iPhone and iPad, and native build plus TestFlight automation is in active development. No iOS build is published on TestFlight or the App Store today." }
     },
     {
       "@type": "Question",
-      "name": "Why is there no OpenCode iOS app?",
-      "acceptedAnswer": { "@type": "Answer", "text": "It is a small, volunteer-driven open-source project. Building started on Android, and an iOS release also needs a paid Apple Developer account plus App Store review. The team would rather ship one platform well than two poorly. An iOS port is possible but not yet committed." }
+      "name": "What remains before the OpenCode iOS beta?",
+      "acceptedAnswer": { "@type": "Answer", "text": "The generated native project and CI must pass on macOS, then Apple Developer and App Store Connect credentials must be configured so the first build can be submitted to TestFlight." }
     },
     {
       "@type": "Question",
       "name": "Can I use OpenCode on my iPhone right now in any way?",
-      "acceptedAnswer": { "@type": "Answer", "text": "There is no native iOS client. Because opencode runs as a server you control, you can reach its web interface from a mobile browser on iOS, but it is not optimized for phones. For a proper mobile experience today, the Android app is the supported option." }
+      "acceptedAnswer": { "@type": "Answer", "text": "There is no downloadable native iOS build yet. Because opencode runs as a server you control, you can reach its web interface from a mobile browser on iOS, but it is not optimized for phones. Android remains the supported native option until TestFlight opens." }
     },
     {
       "@type": "Question",
       "name": "How will I know when an iOS app is available?",
-      "acceptedAnswer": { "@type": "Answer", "text": "Watch or star the project on GitHub. Releases and any iOS news are announced there. You can also open or upvote a feature request to signal demand." }
+      "acceptedAnswer": { "@type": "Answer", "text": "Follow GitHub issue 65 for the implementation checklist, CI status, and TestFlight milestone. Releases will be announced from the repository." }
     }
   ]
 }
@@ -168,15 +168,15 @@ footer a{margin:0 8px}
 <section>
   <div class="wrap">
     <h1>OpenCode for iOS / iPhone</h1>
-    <p class="lead"><strong>The honest answer: there isn't an iOS app yet.</strong> OpenCode Mobile is currently <strong>Android only</strong> — there is no iPhone or iPad build, and nothing on the App Store. If you landed here hoping for an iOS download, we'd rather tell you straight than waste your time.</p>
-    <p>Here's the full picture: what exists today, why iOS isn't available yet, what your options are right now, and how to be the first to know if that changes.</p>
+    <p class="lead"><strong>The iOS build is now in active development.</strong> OpenCode Mobile is configured for iPhone and iPad, with native build and TestFlight CI work underway. It is <strong>not downloadable yet</strong> and nothing is published on the App Store.</p>
+    <p>This page tracks what is already complete, what still needs macOS and Apple access, and where to follow the launch.</p>
   </div>
 </section>
 
 <section id="today">
   <div class="wrap">
     <h2>What exists today</h2>
-    <p><a href="../">OpenCode Mobile</a> is a free, open-source (MIT) Android client for the <a href="https://github.com/sst/opencode">opencode</a> AI coding agent. It's live now — v0.4.3 — installable via F-Droid or a direct APK. It connects your phone to an opencode server you run yourself, so your code and AI provider keys stay on your own machine, with no telemetry by default.</p>
+    <p><a href="../">OpenCode Mobile</a> is a free, open-source (MIT) client for the <a href="https://github.com/sst/opencode">opencode</a> AI coding agent. Android is installable today through F-Droid or a direct APK. The same React Native product is now configured for iOS with bundle ID <code>cc.agentlabs.opencode</code>, an App Store icon and metadata, local-network permission, and automated build work.</p>
     <div class="note">
       <p><strong>If you have an Android phone</strong> (or a spare one), it works today. See the <a href="../guide/">setup guide</a> or learn <a href="../opencode-on-phone/">how to use opencode on your phone</a>.</p>
     </div>
@@ -185,13 +185,13 @@ footer a{margin:0 8px}
 
 <section id="why">
   <div class="wrap">
-    <h2>Why there's no iOS app (yet)</h2>
+    <h2>What remains before TestFlight</h2>
     <ul class="tips">
-      <li><strong>It's a small, volunteer open-source project.</strong> Development started on Android, and maintaining a quality second platform is real, ongoing work.</li>
-      <li><strong>iOS has extra overhead.</strong> Shipping to iPhone needs a paid Apple Developer account and App Store review — a higher bar than Android's open distribution (F-Droid, direct APK).</li>
-      <li><strong>Focus beats half-finished.</strong> The goal is to do one platform well rather than ship two mediocre apps. An iOS port is technically feasible but not yet committed.</li>
+      <li><strong>Native macOS verification.</strong> The generated Xcode project must build and launch in iPhone and iPad Simulators, then the critical connection and chat flow must be exercised.</li>
+      <li><strong>Apple configuration.</strong> The Apple Developer membership, App Store Connect app record, team ID, and API credentials must be active.</li>
+      <li><strong>TestFlight proof.</strong> Release CI must build and submit the exact signed archive, and the build must appear for internal testers before we call iOS available.</li>
     </ul>
-    <p class="muted">No vaporware promises here. If an iOS build happens, it'll be announced on GitHub — not pre-sold on a landing page.</p>
+    <p class="muted">The public checklist and implementation live in <a href="https://github.com/dzianisv/opencode-mobile/issues/65">GitHub issue #65</a>. Availability will be claimed only after a real TestFlight install is verified.</p>
   </div>
 </section>
 
@@ -201,19 +201,19 @@ footer a{margin:0 8px}
     <ul class="tips">
       <li><strong>Use an Android device.</strong> Even an inexpensive or spare Android phone runs the full app today.</li>
       <li><strong>Use the opencode web/desktop interface.</strong> Since opencode runs as a server you control, you can reach it from a desktop or — unoptimized — from a mobile browser. It isn't a phone-native experience, but it works.</li>
-      <li><strong>Register your interest.</strong> Open or upvote a feature request on GitHub so the demand for iOS is visible.</li>
+      <li><strong>Follow the build.</strong> Track <a href="https://github.com/dzianisv/opencode-mobile/issues/65">issue #65</a> for native build, CI, and TestFlight progress.</li>
     </ul>
   </div>
 </section>
 
 <section id="roadmap">
   <div class="wrap">
-    <h2>Roadmap &amp; how to follow</h2>
-    <p>There's no committed iOS release date. The most reliable way to hear about it — and every other release — is straight from the repo:</p>
+    <h2>Launch progress &amp; how to follow</h2>
+    <p>Implementation is committed; a release date is not. The remaining Mac and Apple-gated work is tracked in public:</p>
     <div class="cta">
       <a class="btn btn-primary" href="https://github.com/dzianisv/opencode-mobile">Star / watch on GitHub</a>
       <a class="btn" href="https://github.com/dzianisv/opencode-mobile/releases">View releases</a>
-      <a class="btn" href="https://github.com/dzianisv/opencode-mobile/issues">Request iOS support</a>
+      <a class="btn" href="https://github.com/dzianisv/opencode-mobile/issues/65">Follow iOS implementation</a>
     </div>
     <p class="muted" style="margin-top:14px">Watching the repo notifies you of new releases, including any future iOS news.</p>
   </div>
@@ -224,15 +224,15 @@ footer a{margin:0 8px}
     <h2>Frequently asked questions</h2>
     <details>
       <summary>Is there an OpenCode app for iOS or iPhone?</summary>
-      <p>Not yet. OpenCode Mobile is Android only. There is no iOS, iPhone, or iPadOS build, and none on the App Store.</p>
+      <p>Not for download yet. The iPhone and iPad build is in active development, but there is no verified TestFlight or App Store release today.</p>
     </details>
     <details>
       <summary>Can I use OpenCode on my iPhone at all right now?</summary>
-      <p>There's no native iOS client. Because opencode runs as a server you control, you can open its web interface from a mobile browser, but it isn't optimized for phones. For a proper mobile experience, the Android app is the supported option.</p>
+      <p>There's no downloadable native iOS build yet. Because opencode runs as a server you control, you can open its web interface from a mobile browser, but it isn't optimized for phones. Android remains the supported native option until TestFlight opens.</p>
     </details>
     <details>
-      <summary>Will an iOS app ever come?</summary>
-      <p>Possibly. It's technically feasible but not committed. Demand on GitHub helps; any news will be announced there.</p>
+      <summary>Is the iOS app committed?</summary>
+      <p>Yes. Native build, CI, and TestFlight work is active in <a href="https://github.com/dzianisv/opencode-mobile/issues/65">issue #65</a>. The launch still depends on macOS verification and Apple credentials.</p>
     </details>
     <details>
       <summary>Is the Android app free and private?</summary>

@@ -7,6 +7,7 @@
 
 import { View, Text, TouchableOpacity, StyleSheet, useColorScheme, Modal, Linking } from "react-native"
 import { Ionicons } from "@expo/vector-icons"
+import { PRIVACY_POLICY_URL } from "../lib/links"
 
 interface Props {
   visible: boolean
@@ -45,9 +46,7 @@ export function TelemetryConsentModal({ visible, onAllow, onDecline }: Props) {
           </View>
 
           {/* Privacy policy link */}
-          <TouchableOpacity
-            onPress={() => Linking.openURL("https://agentlabs.cc/opencode/privacy")}
-          >
+          <TouchableOpacity onPress={() => Linking.openURL(PRIVACY_POLICY_URL)}>
             <Text style={styles.privacyLink}>Read our full privacy policy</Text>
           </TouchableOpacity>
 

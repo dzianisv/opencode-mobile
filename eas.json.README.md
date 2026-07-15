@@ -62,20 +62,23 @@ Alternatively, in App Store Connect:
 
 | Field | Value | Notes |
 |---|---|---|
-| `appleId` | `appstore@agentlabs.cc` | The Apple ID used for App Store Connect login — update if different |
+| `appleId` | `support@agentlabs.cc` | The Apple ID used for App Store Connect login — update if different |
 | `distribution` (production ios) | `store` | Correct for App Store / TestFlight submissions |
 | `buildType` (production android) | `app-bundle` | Correct for Play Store AAB submissions |
-| `autoIncrement` | `false` | Build number is bumped by the CI workflow (github.run_number), not EAS |
-| `cli.version` | `>= 13.0.0` | Requires EAS CLI 13 or later; CI installs `eas-cli@13` |
+| `autoIncrement` | `buildNumber` | EAS increments the iOS build number remotely for every production build |
+| `appVersionSource` | `remote` | EAS is the source of truth for store build numbers |
+| `cli.version` | `>= 21.0.0` | CI installs the exact supported release, `eas-cli@21.0.0` |
 
 ---
 
 ## After filling in the placeholders
 
-1. Commit the updated `eas.json` to the repo.
-2. Add the GitHub Actions secrets (see `.github/workflows/publish-app-store.yml` header for the exact list).
-3. Tag a release: `git tag v0.2.3 && git push --tags`
-4. The CI workflow will build the IPA via EAS and submit it to TestFlight automatically.
+1. Run `eas init` once to create/link the Expo project.
+2. Copy the generated `extra.eas.projectId` UUID and add it as the GitHub Actions repository variable `EAS_PROJECT_ID`. The release workflow injects it into `app.json` only on the runner.
+3. Commit the updated `eas.json` to the repo.
+4. Add the `EXPO_TOKEN` and App Store Connect API GitHub Actions secrets (see `.github/workflows/publish-app-store.yml` for the exact list).
+5. Publish a GitHub Release for the version tag (or manually dispatch the App Store workflow).
+6. The release event triggers CI to build the IPA via EAS and submit that exact build to TestFlight.
 
 ---
 
