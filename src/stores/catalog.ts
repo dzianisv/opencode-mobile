@@ -24,6 +24,10 @@ interface ModelSelection {
   modelID: string
 }
 
+function sameModel(left: ModelSelection | null, right: ModelSelection | null) {
+  return left?.providerID === right?.providerID && left?.modelID === right?.modelID
+}
+
 interface CatalogState {
   agents: Agent[]
   commands: Command[]
@@ -109,17 +113,34 @@ export const useCatalog = create<CatalogState>((set, get) => ({
       agentModel: defaultAgent?.model || null,
     })
 
-    set({ agents: visible, commands, providers, defaults, agent, model, loaded: true })
+    set((state) => ({
+      agents: visible,
+      commands,
+      providers,
+      defaults,
+      agent,
+      model,
+      variant: sameModel(state.model, model) ? state.variant : null,
+      loaded: true,
+    }))
   },
 
   setAgent: (name) => {
     const match = get().agents.find((a) => a.name === name)
     if (!match) return
     const model = match.model || get().model
-    set({ agent: name, model })
+    set((state) => ({
+      agent: name,
+      model,
+      variant: sameModel(state.model, model) ? state.variant : null,
+    }))
   },
 
-  setModel: (selection) => set({ model: selection, variant: null }),
+  setModel: (selection) =>
+    set((state) => ({
+      model: selection,
+      variant: sameModel(state.model, selection) ? state.variant : null,
+    })),
 
   setVariant: (variant) => set({ variant }),
 
