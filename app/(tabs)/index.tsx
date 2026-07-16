@@ -78,7 +78,10 @@ function SessionItem({
         <View style={styles.sessionMetaRow}>
           <Text style={[styles.sessionMeta, isDark && styles.metaDark]}>
             {formatTime(session.time.updated)}
-            {session.summary && ` · ${session.summary.files} files`}
+            {/* summary is always present but files defaults to 0 until the
+                server populates it — only show the count when it's meaningful,
+                matching the SessionInfo panel's `summary.files > 0` guard (#55) */}
+            {session.summary && session.summary.files > 0 && ` · ${session.summary.files} files`}
           </Text>
           {shortDir && (
             <View style={styles.sessionDirBadge}>
