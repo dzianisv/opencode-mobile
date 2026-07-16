@@ -483,7 +483,11 @@ export default function SessionScreen() {
 
       <KeyboardAvoidingView
         style={[s.container, isDark && s.containerDark]}
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        // "height" fights the native android:windowSoftInputMode="adjustResize"
+        // already set in AndroidManifest.xml, which causes the keyboard to
+        // overlap the text input instead of pushing it up (#53). Let the
+        // native resize handle it on Android.
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
         keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 0}
       >
         {/* Session info pulldown */}
