@@ -1,4 +1,4 @@
-import { useCallback, useState, useRef, useEffect } from "react"
+import { useCallback, useMemo, useState, useRef, useEffect } from "react"
 import {
   View,
   Text,
@@ -23,6 +23,8 @@ import { useCatalog } from "../../src/stores/catalog"
 import type BottomSheet from "@gorhom/bottom-sheet"
 import type { Session, Project } from "../../src/lib/sdk"
 import { DirectorySwitcher, DirectoryBrowserSheet } from "../../src/components/chat"
+import { groupByDirectory } from "../../src/lib/session-grouping"
+import { nameOf } from "../../src/lib/path-utils"
 
 function formatTime(timestamp: number): string {
   const date = new Date(timestamp)
@@ -99,6 +101,42 @@ function SessionItem({
   )
 }
 
+// Flattened list row — either a collapsible group header or a session.
+// A single flat array keeps FlatList's refresh/empty-state handling as-is
+// instead of switching to SectionList.
+type ListRow =
+  | { type: "header"; directory: string; shortName: string; count: number; collapsed: boolean }
+  | { type: "session"; session: Session }
+
+function GroupHeader({
+  row,
+  isDark,
+  onToggle,
+}: {
+  row: { directory: string; shortName: string; count: number; collapsed: boolean }
+  isDark: boolean
+  onToggle: () => void
+}) {
+  return (
+    <TouchableOpacity
+      style={[styles.groupHeader, isDark && styles.groupHeaderDark]}
+      onPress={onToggle}
+      activeOpacity={0.7}
+    >
+      <Ionicons name="folder-outline" size={16} color={isDark ? "#8b5cf6" : "#6d28d9"} />
+      <Text style={[styles.groupHeaderText, isDark && styles.textDark]} numberOfLines={1}>
+        {row.shortName}
+      </Text>
+      <Text style={[styles.groupHeaderCount, isDark && styles.metaDark]}>{row.count}</Text>
+      <Ionicons
+        name={row.collapsed ? "chevron-forward" : "chevron-down"}
+        size={16}
+        color={isDark ? "#666666" : "#999999"}
+      />
+    </TouchableOpacity>
+  )
+}
+
 // Get short directory name (last folder or project name)
 function getShortPath(
   project: { path?: { cwd?: string; root?: string; absolute?: string }; name?: string } | null | undefined,
@@ -141,6 +179,42 @@ export default function SessionsScreen() {
   // session, or to switch the active connection's directory.
   const [browseMode, setBrowseMode] = useState<"create" | "switch">("create")
   const [refreshing, setRefreshing] = useState(false)
+  // Directories collapsed in the grouped session list. Empty by default —
+  // all groups start expanded (#67).
+  const [collapsedDirs, setCollapsedDirs] = useState<Set<string>>(new Set())
+
+  const toggleGroup = useCallback((directory: string) => {
+    setCollapsedDirs((prev) => {
+      const next = new Set(prev)
+      if (next.has(directory)) next.delete(directory)
+      else next.add(directory)
+      return next
+    })
+  }, [])
+
+  // Flatten sessions into header+item rows. Skip headers entirely when
+  // everything lives in one directory — a lone header adds noise, not clarity.
+  const rows = useMemo<ListRow[]>(() => {
+    const groups = groupByDirectory(sessions)
+    if (groups.length <= 1) {
+      return sessions.map((session) => ({ type: "session", session }))
+    }
+    const out: ListRow[] = []
+    for (const group of groups) {
+      const collapsed = collapsedDirs.has(group.directory)
+      out.push({
+        type: "header",
+        directory: group.directory,
+        shortName: nameOf(group.directory) || group.directory,
+        count: group.items.length,
+        collapsed,
+      })
+      if (!collapsed) {
+        for (const session of group.items) out.push({ type: "session", session })
+      }
+    }
+    return out
+  }, [sessions, collapsedDirs])
 
   // Fetch server-known projects when the new session modal opens
   useEffect(() => {
@@ -384,16 +458,20 @@ export default function SessionsScreen() {
       )}
 
       <FlatList
-        data={sessions}
-        keyExtractor={(item) => item.id}
-        renderItem={({ item }) => (
-          <SessionItem
-            session={item}
-            isDark={isDark}
-            onRename={() => handleRename(item)}
-            onDelete={() => handleDelete(item)}
-          />
-        )}
+        data={rows}
+        keyExtractor={(row) => (row.type === "header" ? `dir:${row.directory}` : row.session.id)}
+        renderItem={({ item: row }) =>
+          row.type === "header" ? (
+            <GroupHeader row={row} isDark={isDark} onToggle={() => toggleGroup(row.directory)} />
+          ) : (
+            <SessionItem
+              session={row.session}
+              isDark={isDark}
+              onRename={() => handleRename(row.session)}
+              onDelete={() => handleDelete(row.session)}
+            />
+          )
+        }
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={isDark ? "#ffffff" : "#0a0a0a"} />
         }
@@ -752,6 +830,30 @@ const styles = StyleSheet.create({
   errorText: {
     color: "#dc2626",
     fontSize: 14,
+  },
+  groupHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    backgroundColor: "#f5f5f5",
+    borderBottomWidth: 1,
+    borderBottomColor: "#e5e5e5",
+  },
+  groupHeaderDark: {
+    backgroundColor: "#151515",
+    borderBottomColor: "#1a1a1a",
+  },
+  groupHeaderText: {
+    flex: 1,
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#0a0a0a",
+  },
+  groupHeaderCount: {
+    fontSize: 12,
+    color: "#666666",
   },
   sessionItem: {
     flexDirection: "row",
