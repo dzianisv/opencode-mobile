@@ -12,6 +12,16 @@ name: Activation - negative path (connect-time 401 must surface a visible error)
 # "Connection Failed" with the underlying error text — this is the CURRENT,
 # already-correct behavior we are locking in with this test.
 #
+# The alert body interpolates testConnection()'s caught error message
+# (src/stores/connections.ts), which for a 401 is sdk.ts's
+# `apiErrorFor(401, ...)` text — see src/lib/api-error.test.ts for the exact
+# shape, it always includes the mock's `{"error":"Unauthorized",...}` body.
+# (Note: probeConnection's own summary line is separately misclassified as
+# "connection actually works now" for any non-throwing fetch regardless of
+# HTTP status — a real diagnostics-classify.ts bug, out of scope here — so
+# this flow deliberately asserts on the testConnection error text, not the
+# probe summary.)
+#
 # Known gap (see report): Advanced-mode "Save Connection" (handleAdvancedSave)
 # does NOT call testConnection() at all — it saves the connection and
 # navigates back regardless of server reachability, so a 401 there is
@@ -55,7 +65,7 @@ name: Activation - negative path (connect-time 401 must surface a visible error)
 - assertVisible:
     text: "Connection Failed"
 - assertVisible:
-    text: "401"
+    text: "Unauthorized"
 - takeScreenshot: negative-S4_visible_error_alert
 
 # The connection must NOT have been silently saved: dismiss the alert and
