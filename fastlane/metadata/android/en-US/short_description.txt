@@ -1,1 +1,1 @@
-Remote control for opencode serve. Stream AI coding sessions from your phone.
+AI coding agent in your pocket. Stream, diff, approve — free & open source.

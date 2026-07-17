@@ -54,7 +54,7 @@ WHO IT'S FOR
 
 WHAT IT IS NOT
 
-• Not an AI model — you bring your own opencode server (which connects to Claude, GPT-4, Gemini, or local models via your API keys)
+• Not an AI model — you bring your own opencode server (which connects to Claude, GPT, Gemini, or local models via your API keys)
 • Not a code editor — pairs with your existing IDE and terminal workflow
 • Not a subscription service — the app is free and open source
 

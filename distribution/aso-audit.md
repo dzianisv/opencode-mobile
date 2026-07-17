@@ -134,7 +134,7 @@ OpenCode Mobile is a thin client for the opencode CLI (github.com/sst/opencode).
 • Open-source contributors who want a free, MIT-licensed alternative to proprietary AI coding apps
 
 <b>WHAT IT IS NOT</b>
-• Not a standalone AI model — you bring your own opencode server (which connects to Claude, GPT-4, Gemini, or local LLMs via your API keys)
+• Not a standalone AI model — you bring your own opencode server (which connects to Claude, GPT, Gemini, or local LLMs via your API keys)
 • Not a code editor — it pairs with your existing IDE and terminal workflow
 • Not a subscription app — free, open-source, MIT licensed, no ads, no telemetry you did not opt into
 

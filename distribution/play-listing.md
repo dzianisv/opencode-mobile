@@ -19,53 +19,68 @@ OpenCode: AI Coding Agent
 ### Short description (max 80 chars)
 
 ```
-AI coding agent on your phone. Control opencode sessions, free & open source.
+AI coding agent in your pocket. Stream, diff, approve — free & open source.
 ```
-(77/80 chars)
+(75/80 chars)
 
 > Note: type a literal `&` in Play Console — not `&amp;`.
-> Supersedes: `Drive your self-hosted AI coding agent from your phone.` (55/80 chars).
+> Supersedes: `AI coding agent on your phone. Control opencode sessions, free & open source.` (77/80 chars) — action verbs ("Stream, diff, approve") map directly to the three headline features instead of a generic "control" claim.
 
 ### Full description (max 4000 chars)
 
 ```
-OpenCode Mobile is the AI coding agent companion for developers who self-host opencode. Connect your Android phone to your opencode server and run AI-powered coding sessions from anywhere — review file diffs, approve tool calls, and guide Claude, GPT, or Gemini in real time.
+OpenCode Mobile is the AI coding agent companion for developers who self-host opencode. Connect your Android phone to your opencode server and run AI-powered coding sessions from anywhere — review file diffs, approve tool calls, and guide Claude, GPT, Gemini, or any other model you configure, in real time.
 
 <b>WHAT IT DOES</b>
-OpenCode Mobile is a thin client for the opencode CLI (github.com/sst/opencode). It speaks the opencode HTTP + SSE API so every AI coding session running on your workstation or server is accessible from your phone. All AI model calls go through your own server — your API keys, your code, your infrastructure.
+OpenCode Mobile is a thin client for the opencode CLI (github.com/sst/opencode). It speaks the opencode HTTP + SSE API, so every AI coding session on your workstation or server is instantly reachable from your phone. All AI model calls go through your own server — your API keys, your code, your infrastructure. Nothing passes through our servers.
 
-<b>KEY FEATURES</b>
-• Real-time streaming chat — watch your AI coding agent think and respond token by token
-• File diff viewer — see every code change the agent proposes before you approve it
-• Tool call approval — review and approve file writes, shell commands, and other actions
-• Multi-session management — start, resume, and switch between coding sessions
-• Multiple connection types — local Wi-Fi, Cloudflare Tunnel, ngrok, Tailscale, or opencode Cloud (coming soon)
-• Biometric unlock — fingerprint / Face ID keeps your sessions private
+<b>CORE FEATURES</b>
+• Real-time streaming chat — watch your AI coding agent think and respond token by token, just like a desktop terminal
+• File diff viewer — see every code change the agent proposes before you approve it; no surprise rewrites
+• Tool-call approval — review and approve or reject file writes, shell commands, and other agent actions from your phone
+• Multi-session management — start, resume, and switch between coding sessions without losing context
+• Browsable directory picker — jump into any project folder on your server without typing a path
+• Reasoning-effort control — tune how hard the model thinks per session, right from your phone
+• Biometric unlock — fingerprint or face unlock keeps your sessions private on shared or lost devices
+
+<b>CONNECTION OPTIONS</b>
+Connect any way that works for your setup:
+• Local Wi-Fi — zero config when phone and dev machine are on the same network
+• Tailscale — connect securely across networks without opening ports; ideal for remote work
+• Cloudflare Tunnel — public HTTPS endpoint for your opencode server in minutes
+• ngrok — quick ad-hoc tunnels for demos or one-off remote sessions
+• opencode Cloud — managed hosting coming soon
 
 <b>WHO IT'S FOR</b>
 • Developers running opencode on their workstation who want to check in from their phone
-• Engineers away from their desk who want to review or guide long-running AI coding jobs
-• Teams who self-host AI developer tools and want a polished mobile interface
+• Engineers away from their desk who want to review or steer long-running AI coding jobs
+• Teams self-hosting AI developer tools who want a polished mobile interface
 • Open-source contributors who want a free, MIT-licensed alternative to proprietary AI coding apps
 
 <b>WHAT IT IS NOT</b>
-• Not a standalone AI model — you bring your own opencode server (which connects to Claude, GPT-4, Gemini, or local LLMs via your API keys)
+• Not a standalone AI model — you bring your own opencode server, which can connect to Claude, GPT, Gemini, local LLMs, or any other model via your own API keys
 • Not a code editor — it pairs with your existing IDE and terminal workflow
 • Not a subscription app — free, open-source, MIT licensed, no ads, no telemetry you did not opt into
 
-<b>SELF-HOSTED AI CODING</b>
-Install opencode on any machine: npm install -g opencode-ai, then run opencode serve. Enter the server URL in the app. That's it — your AI coding agent is now on your phone.
+<b>GETTING STARTED</b>
+Install opencode on any machine:
+  npm install -g opencode-ai
+  opencode serve
+
+Then open the app, tap Connect, paste your server URL, and you're in. Your AI coding agent is now on your phone.
 
 <b>OPEN SOURCE</b>
-OpenCode Mobile is MIT licensed. Source code, issue tracker, and community discussion at github.com/dzianisv/opencode-mobile. Contributions welcome.
+OpenCode Mobile is MIT licensed. Source code, issue tracker, and community at github.com/dzianisv/opencode-mobile. Contributions welcome.
 
 <b>PRIVACY</b>
-OpenCode Mobile does not collect your code, prompts, or AI responses. All traffic goes directly from the app to YOUR opencode server — never through our infrastructure. We use Sentry for crash diagnostics only (no PII, no message content, opt-in available).
+OpenCode Mobile does not collect your code, prompts, or AI responses. All traffic goes directly from the app to YOUR opencode server — never through our infrastructure. Optional Sentry crash reporting collects only device model, OS version, and stack traces (no message content).
 
 Support: support@agentlabs.cc
 Issues: github.com/dzianisv/opencode-mobile/issues
 ```
-(2600/4000 chars)
+(3410/4000 chars)
+
+> Supersedes the prior draft, which named a dated model ("GPT-4") and was missing the directory picker and reasoning-effort features shipped since. Model references are now version-free by design ("Claude, GPT, Gemini, or any other model") so this copy doesn't go stale again as model names change.
 
 ---
 
@@ -130,13 +145,13 @@ Issues: github.com/dzianisv/opencode-mobile/issues
 | 10-inch tablet screenshots | optional | ❌ missing | Recommended |
 | Promo video | YouTube URL, optional | ⏸ skip for first release | Low ROI for dev-tool audience |
 
-**Recommended screenshot order:**
-1. Connection setup — "Connect to your opencode server"
-2. Active streaming chat session — AI agent responding token by token
-3. File diff viewer — code change before approval
-4. Tool call approval dialog
-5. Session list / multi-session view
-6. Biometric unlock screen
+**Recommended screenshot order (with captions for the Play Console "Add captions" field):**
+1. Connection setup — "Connect to your opencode server — Wi-Fi, Tailscale, or tunnel"
+2. Active streaming chat session — "Watch your AI coding agent think in real time, token by token"
+3. File diff viewer — "Review every file change before it lands — approve or reject"
+4. Tool call approval dialog — "Stay in control: approve shell commands and file writes from your phone"
+5. Session list / multi-session view — "Manage multiple AI coding sessions — resume any job from anywhere"
+6. Biometric unlock screen — "Fingerprint or face unlock keeps your sessions private"
 
 ---
 

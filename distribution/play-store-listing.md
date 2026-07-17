@@ -4,6 +4,8 @@
 **Generated:** 2026-06-20
 **Based on:** app v0.4+, ASO audit findings from aso-audit.md
 
+> **Superseded:** this draft was never merged back into the canonical listing doc. `distribution/play-listing.md` is the file actually used to fill Play Console (see `distribution/strategy.md`) and now carries the up-to-date, ASO-polished, model-agnostic copy (including this doc's connection-options section and screenshot captions). This file is kept for historical rationale only — do not copy-paste from here; it also still named a dated model ("GPT-4") until this note was added.
+
 ---
 
 ## 1. App Title (max 50 chars)
@@ -36,7 +38,7 @@ AI coding agent in your pocket. Stream, diff, approve — free & open source.
 ## 3. Full Description (max 4000 chars)
 
 ```
-OpenCode Mobile is the AI coding agent companion built for developers who self-host opencode. Connect your Android phone to your opencode server and run AI-powered coding sessions from anywhere — watch diffs land, approve tool calls, and guide Claude, GPT-4, or Gemini in real time.
+OpenCode Mobile is the AI coding agent companion built for developers who self-host opencode. Connect your Android phone to your opencode server and run AI-powered coding sessions from anywhere — watch diffs land, approve tool calls, and guide Claude, GPT, Gemini, or any other model you configure in real time.
 
 <b>WHAT IT DOES</b>
 OpenCode Mobile is a thin client for the opencode CLI (github.com/sst/opencode). It speaks the opencode HTTP + SSE API, so every AI coding session on your workstation or server is instantly reachable from your phone. All AI model calls go through your own server — your API keys, your code, your infrastructure. Nothing passes through our servers.
@@ -63,7 +65,7 @@ Connect any way that works for your setup:
 • Open-source contributors who want a free, MIT-licensed alternative to proprietary AI coding apps
 
 <b>WHAT IT IS NOT</b>
-• Not a standalone AI model — you bring your own opencode server (which connects to Claude, GPT-4, Gemini, or local LLMs via your API keys)
+• Not a standalone AI model — you bring your own opencode server (which connects to Claude, GPT, Gemini, or local LLMs via your API keys)
 • Not a code editor — it pairs with your existing IDE and terminal workflow
 • Not a subscription app — free, open-source, MIT licensed, no ads, no telemetry you did not opt into
 
