@@ -30,6 +30,8 @@ jobs:
 
       - name: Triage Play Store reviews
         env:
-          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+          # Repo secret is named PLAY_STORE_SERVICE_ACCOUNT_JSON (see docs/playstore.md);
+          # mapped here to the env var name the script expects.
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.PLAY_STORE_SERVICE_ACCOUNT_JSON }}
           GH_TOKEN: ${{ secrets.GH_TOKEN || secrets.GITHUB_TOKEN }}
         run: python scripts/triage-reviews.py

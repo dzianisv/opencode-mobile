@@ -31,7 +31,10 @@ jobs:
         continue-on-error: true
         env:
           GITHUB_TOKEN: ${{ github.token }}
-          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_PRODUCT_INTELLIGENCE_TOKEN }}
+          # SENTRY_PRODUCT_INTELLIGENCE_TOKEN is a dedicated read-only token and is
+          # preferred if/when it exists; falls back to the general-purpose
+          # SENTRY_AUTH_TOKEN so the daily cron doesn't silently no-op (#60).
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_PRODUCT_INTELLIGENCE_TOKEN || secrets.SENTRY_AUTH_TOKEN }}
           SENTRY_ORG: ${{ secrets.SENTRY_ORG }}
           SENTRY_PROJECT: ${{ secrets.SENTRY_PROJECT }}
         run: |

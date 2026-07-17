@@ -97,6 +97,27 @@ After 14 days on Closed testing with 12+ active testers → promote to Productio
 
 ---
 
+## Acquisition metrics — trusted source
+
+There is currently no verified, least-privilege source wired up for Play
+Store acquisition/uninstall metrics (installs, uninstalls, store listing
+conversion). `scripts/product-intelligence.mjs` explicitly lists this as a
+**deferred** metric until a proper reporting contract exists — do not treat
+ad-hoc Play Console screenshots or manual exports as a trusted feed for
+automated reporting.
+
+Until that's implemented, the Play Console UI
+(https://play.google.com/console/u/2/developers/8842655543970815326) is the
+only source of truth for acquisition numbers, checked manually. Review
+volume/rating triage (a related but separate signal) is automated via
+`.github/workflows/triage-reviews.yml` + `scripts/triage-reviews.py`, which
+reads reviews through the Android Publisher API using the
+`PLAY_STORE_SERVICE_ACCOUNT_JSON` GitHub secret (see "Linked GCP resources"
+above) — this is the trusted source for review-based signals, not any
+scraped or manually copied review text.
+
+---
+
 ## Sibling channels: F-Droid + IzzyOnDroid
 
 OpenCode Mobile is also distributed via F-Droid (mainline) and IzzyOnDroid —
