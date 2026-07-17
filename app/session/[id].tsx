@@ -93,6 +93,8 @@ export default function SessionScreen() {
     sendMessage,
     abortSession,
     loadOlderMessages,
+    revertToMessage,
+    unrevertSession,
   } = useSessions()
 
   // Derive sending state for this specific session
@@ -152,17 +154,51 @@ export default function SessionScreen() {
     return [...custom, ...BUILTIN_COMMANDS]
   }, [serverCommands])
 
+  // While a revert is pending, the reverted message and everything after it
+  // still exist server-side (cleanup only runs on the next prompt/unrevert)
+  // — hide them client-side so editing feels immediate. Message IDs are
+  // lexicographically sortable, same comparison the TUI uses.
+  const revertMessageID = currentSession?.revert?.messageID
+
   // Inverted FlatList: data is reversed (newest first) so newest renders at bottom
   const messageData = useMemo(
     () =>
       (messages || [])
+        .filter((msg) => !revertMessageID || msg.id < revertMessageID)
         .map((msg) => ({
           message: msg,
           parts: (parts && parts[msg.id]) || [],
         }))
         .reverse(),
-    [messages, parts],
+    [messages, parts, revertMessageID],
   )
+
+  // Stable across renders (reads fresh state via getState() rather than
+  // closing over props) so MessageBubble's custom memo comparator can bail
+  // safely without risking a stale handler.
+  const handleMessageLongPress = useCallback((messageID: string) => {
+    Alert.alert("Message actions", undefined, [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Edit message",
+        onPress: async () => {
+          const result = await useSessions.getState().revertToMessage(messageID)
+          if (!result.ok) {
+            if (result.reason === "unsupported") {
+              Alert.alert(
+                "Not supported",
+                "Editing sent messages needs a newer opencode server. Please update the server and try again.",
+              )
+            } else {
+              Alert.alert("Edit failed", "Could not revert to this message. Please try again.")
+            }
+            return
+          }
+          setInput(result.text)
+        },
+      },
+    ])
+  }, [])
 
   const scrollToBottom = useCallback((animated = true) => {
     flatListRef.current?.scrollToOffset({ offset: 0, animated })
@@ -516,6 +552,17 @@ export default function SessionScreen() {
           </View>
         )}
 
+        {/* Pending revert (from "Edit message") — offer a way back before it's
+            cleaned up by the next prompt. */}
+        {revertMessageID && (
+          <View style={[s.banner, s.bannerRevert]}>
+            <Text style={s.bannerText}>Message reverted — resend to confirm</Text>
+            <TouchableOpacity onPress={() => unrevertSession()} hitSlop={8}>
+              <Text style={s.bannerAction}>Undo</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
         {isLoading ? (
           <View style={s.loading}>
             <ActivityIndicator size="large" color={isDark ? "#ffffff" : "#0a0a0a"} />
@@ -527,7 +574,14 @@ export default function SessionScreen() {
               data={messageData}
               inverted
               keyExtractor={(item) => item.message.id}
-              renderItem={({ item }) => <MessageBubble message={item.message} parts={item.parts} isDark={isDark} />}
+              renderItem={({ item }) => (
+                <MessageBubble
+                  message={item.message}
+                  parts={item.parts}
+                  isDark={isDark}
+                  onLongPress={handleMessageLongPress}
+                />
+              )}
               contentContainerStyle={s.messageList}
               onScroll={handleScroll}
               scrollEventThrottle={100}
@@ -862,4 +916,12 @@ const s = StyleSheet.create({
   bannerReconnecting: { backgroundColor: "#92400e" },
   bannerConnected: { backgroundColor: "#065f46" },
   bannerText: { color: "#ffffff", fontSize: 13, fontWeight: "500" },
+
+  // Pending revert (edit message) banner
+  bannerRevert: {
+    backgroundColor: "#1e3a8a",
+    flexDirection: "row",
+    justifyContent: "space-between",
+  },
+  bannerAction: { color: "#93c5fd", fontSize: 13, fontWeight: "700" },
 })

@@ -35,6 +35,13 @@ export interface Session {
     deletions: number
     files: number
   }
+  // Present while a message (and everything after it) is pending revert —
+  // the server keeps the underlying messages until the next prompt/summarize
+  // call runs cleanup (or the revert is undone via session.unrevert).
+  revert?: {
+    messageID: string
+    partID?: string
+  }
 }
 
 export interface Message {
@@ -163,6 +170,18 @@ export interface HealthResponse {
 
 const REQUEST_TIMEOUT_MS = 30_000
 
+// Thrown by request() on a non-2xx response. Carries the HTTP status so
+// callers can distinguish e.g. 404 (older server, endpoint missing) from
+// other failures without parsing the message string.
+export class ApiError extends Error {
+  status: number
+  constructor(status: number, body: string) {
+    super(`API Error: ${status} - ${body}`)
+    this.name = "ApiError"
+    this.status = status
+  }
+}
+
 function createHeaders(config: ClientConfig): HeadersInit {
   return buildRequestHeaders(config)
 }
@@ -177,7 +196,7 @@ async function request<T>(config: ClientConfig, path: string, options: RequestIn
 
   if (!response.ok) {
     const error = await response.text()
-    throw new Error(`API Error: ${response.status} - ${error}`)
+    throw new ApiError(response.status, error)
   }
 
   return response.json()
@@ -365,6 +384,20 @@ export function createClient(config: ClientConfig) {
         const qs = messageID ? `?messageID=${messageID}` : ""
         return request<unknown[]>(config, `/session/${sessionID}/diff${qs}`)
       },
+
+      // Marks messageID (and everything after it) as pending revert. The
+      // underlying messages aren't deleted until the next prompt runs
+      // cleanup, or the revert is undone with unrevert() below.
+      revert: (sessionID: string, messageID: string, partID?: string) =>
+        request<Session>(config, `/session/${sessionID}/revert`, {
+          method: "POST",
+          body: JSON.stringify(partID ? { messageID, partID } : { messageID }),
+        }),
+
+      unrevert: (sessionID: string) =>
+        request<Session>(config, `/session/${sessionID}/unrevert`, {
+          method: "POST",
+        }),
     },
 
     permission: {
