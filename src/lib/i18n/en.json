@@ -29,8 +29,8 @@
     },
     "privacy": {
       "crashReporting": {
-        "label": "Crash Reporting",
-        "description": "Share anonymous crash reports via Sentry to help improve OpenCode. No code or prompts are included."
+        "label": "Crash Reports & Usage Analytics",
+        "description": "Share anonymous crash reports (Sentry) and usage analytics (PostHog) to help improve OpenCode. Diagnostic reports you share are also delivered to our support inbox. No code or prompts are included."
       },
       "privacyPolicy": {
         "label": "Privacy Policy",

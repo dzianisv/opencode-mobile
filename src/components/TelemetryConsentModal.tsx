@@ -1,5 +1,9 @@
 /**
- * First-launch consent modal for Sentry crash reporting.
+ * First-launch consent modal for crash reporting AND activation analytics.
+ *
+ * A single "Allow" decision gates both Sentry (crash reports) and PostHog
+ * (anonymous usage analytics) — see src/lib/telemetry.ts. There is no
+ * separate toggle for analytics, so this modal must disclose both.
  *
  * Shows once when the user hasn't yet made a consent decision.
  * Matches the app's existing Settings screen visual conventions.
@@ -33,15 +37,21 @@ export function TelemetryConsentModal({ visible, onAllow, onDecline }: Props) {
 
           {/* Body */}
           <Text style={[styles.body, isDark && styles.bodyDark]}>
-            Share anonymous crash reports to help us find and fix bugs faster. Diagnostic reports
-            you share are also delivered to our support inbox. No code, prompts, or server
-            addresses are ever included.
+            Share anonymous crash reports and usage analytics to help us find and fix bugs
+            faster. Diagnostic reports you share are also delivered to our support inbox. No
+            code, prompts, or server addresses are ever included.
           </Text>
 
           {/* Detail bullets */}
           <View style={styles.bullets}>
             <BulletRow icon="checkmark-circle" text="Device model, OS version, app version" isDark={isDark} positive />
             <BulletRow icon="checkmark-circle" text="Stack traces of crashes (no variable values)" isDark={isDark} positive />
+            <BulletRow
+              icon="checkmark-circle"
+              text="Anonymous usage events (app opened, connection attempts, messages sent) — sent to PostHog EU"
+              isDark={isDark}
+              positive
+            />
             <BulletRow icon="close-circle" text="Your code, prompts, or chat messages" isDark={isDark} positive={false} />
             <BulletRow icon="close-circle" text="Server URLs or authentication tokens" isDark={isDark} positive={false} />
           </View>
@@ -56,7 +66,7 @@ export function TelemetryConsentModal({ visible, onAllow, onDecline }: Props) {
             <TouchableOpacity
               style={[styles.btn, styles.btnDecline, isDark && styles.btnDeclineDark]}
               onPress={onDecline}
-              accessibilityLabel="No thanks, decline crash reporting"
+              accessibilityLabel="No thanks, decline crash reporting and analytics"
               testID="telemetry-decline-button"
             >
               <Text style={[styles.btnDeclineText, isDark && styles.btnDeclineTextDark]}>No thanks</Text>
@@ -64,7 +74,7 @@ export function TelemetryConsentModal({ visible, onAllow, onDecline }: Props) {
             <TouchableOpacity
               style={[styles.btn, styles.btnAllow]}
               onPress={onAllow}
-              accessibilityLabel="Allow anonymous crash reports"
+              accessibilityLabel="Allow anonymous crash reports and usage analytics"
               testID="telemetry-allow-button"
             >
               <Text style={styles.btnAllowText}>Allow</Text>

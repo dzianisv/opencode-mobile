@@ -4,7 +4,7 @@
 **Operator:** VIBE TECHNOLOGIES, LLC
 **App:** OpenCode Mobile (`cc.agentlabs.opencode`)
 
-> **Summary:** OpenCode Mobile does not collect your code, prompts, AI responses, server URLs, or any chat content. All AI traffic goes directly from the app to your own opencode server. We use Sentry only for anonymous crash diagnostics, and only with your consent.
+> **Summary:** OpenCode Mobile does not collect your code, prompts, AI responses, server URLs, or any chat content. All AI traffic goes directly from the app to your own opencode server. With your consent, we use Sentry for anonymous crash diagnostics, PostHog for anonymous usage analytics, and — only when you tap "Share Report" — deliver a scrubbed copy of that diagnostic report to our support inbox.
 
 ---
 
@@ -48,34 +48,78 @@ With your explicit consent (shown at first launch), we collect anonymous crash d
 
 URL scrubbing: before any event is sent to Sentry, our code strips all server URLs, authentication tokens, and query parameters. No server hostname or port number ever leaves your device via Sentry.
 
+## 3a. Data We Do Collect (Usage Analytics)
+
+With the same explicit consent (there is a single opt-in covering both crash reporting and analytics), we collect a small set of anonymous usage events via **PostHog** to understand whether new users successfully connect to their server and start using the app (an "activation funnel").
+
+Events collected, with their only properties:
+
+| Event | When it fires | Properties |
+|---|---|---|
+| `app_opened` | Once per app session, after consent | `is_first_open` (true/false) |
+| `connection_form_submitted` | You tap Connect/Save with a server URL entered | `mode` ("quick" or "advanced") |
+| `connection_attempted` | A connection test starts | `source` ("onboarding" or "edit_test") |
+| `connection_succeeded` | The connection test succeeds | `source` |
+| `connection_failed` | The connection test fails | `source`, `error_class` (a coarse category such as "timeout" or "unauthorized" — never the raw error text) |
+| `message_sent` | You send a message to an agent session | — |
+| `response_received` | An agent response finishes | — |
+
+What analytics events **never** contain: your server URL, hostname, IP address, or port; prompts, messages, or AI responses; code or file contents; tokens or credentials; raw error messages. Connection failures are reduced to a fixed list of coarse categories before being sent.
+
+Analytics data is sent to PostHog's **EU region** (`eu.i.posthog.com`) and is identified only by a random, app-generated anonymous ID — not linked to your name, email, or any account.
+
+If you decline consent, no analytics is initialised and nothing is sent. If you revoke consent later, analytics stops immediately and any events still buffered on the device are discarded, not uploaded.
+
+---
+
+## 3b. Data We Do Collect (Shared Support Reports)
+
+When a connection fails or the app crashes, you can tap **Share Report** to open your device's normal share sheet with a diagnostic report. If you have granted the same consent that covers crash reporting and analytics, a copy of that report is *also* delivered directly to our support inbox, hosted on our own **Chatwoot** instance (`support.agentlabs.cc`) — this is infrastructure we operate ourselves, not a third-party SaaS vendor.
+
+| Data type | What is included | What is NOT included |
+|---|---|---|
+| Diagnostic summary | Connection classification (e.g. "server unreachable"), probe results, timing | — |
+| Device info | Device model, OS version, app version | Serial number, IMEI, advertising ID |
+| Recent app logs | Recent internal log lines (screen names, function-level breadcrumbs) | Message bodies, prompts, AI responses |
+| Your server address | — | Never included — every URL and every hostname/IP the app probed this session is redacted before the report leaves your device |
+
+A random, per-install identifier (stored locally via secure device storage) links follow-up reports from the same install into the same support conversation so we can reply to an ongoing issue. This identifier is not linked to your name, email, or account — we only learn contact details if you volunteer them in your own reply.
+
+Sharing a report is always a manual, explicit action — it is never sent automatically or in the background. It is only delivered to the support inbox if you have granted consent; if you decline or revoke consent, tapping **Share Report** still opens your device's normal share sheet, but nothing reaches our support inbox.
+
 ---
 
 ## 4. Consent and Control
 
-Crash reporting is **opt-in and off by default**. On first launch you will see a consent prompt. You can change this at any time:
+Crash reporting, usage analytics, and support-inbox delivery of shared reports are all **opt-in and off by default**, controlled by a single consent decision. On first launch you will see a consent prompt. You can change this at any time:
 
-- Open the app → **Settings** → **Privacy** → **Crash reporting** toggle.
-- If you decline, Sentry is never initialised. If you turn reporting off later, the active SDK is closed and no new events are captured.
+- Open the app → **Settings** → **Privacy** → **Crash Reports & Usage Analytics** toggle.
+- If you decline, neither Sentry nor PostHog is ever initialised, and shared reports are never delivered to our support inbox (only your device's normal share sheet is used). If you turn the toggle off later, both SDKs are shut down, no new events are captured, analytics events still buffered on the device are dropped without being sent, and future shared reports stop reaching the support inbox.
 
 ---
 
 ## 5. Third-Party Services
 
-We use one third-party service for diagnostics:
+We use two third-party services, both consent-gated:
 
 - **Sentry** — crash and error monitoring.
   - Privacy policy: https://sentry.io/privacy/
   - Data is sent to Sentry's US-based servers and retained for approximately 90 days per Sentry's default data-retention policy.
+- **PostHog** — anonymous usage analytics (the activation-funnel events listed in section 3a).
+  - Privacy policy: https://posthog.com/privacy
+  - Data is sent to PostHog's EU-region servers (`eu.i.posthog.com`).
 
-We use no advertising networks, analytics platforms, social SDKs, or any other third-party data collection services. The app contains no ads and no ad SDKs.
+We use no advertising networks, social SDKs, or any other third-party data collection services. The app contains no ads and no ad SDKs.
+
+We also operate our own **Chatwoot** support-inbox instance (`support.agentlabs.cc`, described in section 3b) to receive diagnostic reports you explicitly choose to share. Unlike Sentry and PostHog, this is infrastructure we run ourselves rather than a third-party vendor, but data sent to it still leaves your device and is retained by us as described below.
 
 ---
 
 ## 6. Data Retention
 
-Crash reports sent to Sentry are retained for approximately 90 days, after which they are automatically deleted per Sentry's retention defaults.
+Crash reports sent to Sentry are retained for approximately 90 days, after which they are automatically deleted per Sentry's retention defaults. Usage analytics events sent to PostHog are retained per PostHog's standard retention policy. Shared support reports delivered to our Chatwoot inbox are retained until the associated support conversation is resolved and periodically purged thereafter; email support@agentlabs.cc to request earlier deletion of a specific report.
 
-We do not operate our own servers that store your data; there is no VIBE TECHNOLOGIES back end involved in normal app usage.
+Beyond that support inbox, we do not operate our own servers that store your data; there is no other VIBE TECHNOLOGIES back end involved in normal app usage.
 
 ---
 
@@ -83,8 +127,8 @@ We do not operate our own servers that store your data; there is no VIBE TECHNOL
 
 You have the right to:
 
-- **Opt out** — disable crash reporting at any time in Settings → Privacy.
-- **Request deletion** — email support@agentlabs.cc with subject "Data deletion request" and we will request deletion of any crash events associated with your device from Sentry.
+- **Opt out** — disable crash reporting, usage analytics, and support-inbox delivery of shared reports at any time in Settings → Privacy.
+- **Request deletion** — email support@agentlabs.cc with subject "Data deletion request" and we will request deletion of any crash events (Sentry), analytics events (PostHog), and shared support-report conversations (Chatwoot) associated with your device.
 - **Access** — request a summary of what diagnostic data (if any) we hold about your device by emailing the same address.
 
 Residents of the EU/EEA/UK may exercise rights under GDPR/UK GDPR. California residents may exercise rights under the CCPA.
@@ -99,7 +143,7 @@ OpenCode Mobile is a developer tool intended for users aged 18 and over. We do n
 
 ## 9. Security
 
-All diagnostic data is transmitted over HTTPS (TLS 1.2+) to Sentry. We do not transmit any data over unencrypted connections.
+All diagnostic and analytics data — including shared support reports — is transmitted over HTTPS (TLS 1.2+) to Sentry, PostHog, and our Chatwoot support inbox. We do not transmit any data over unencrypted connections.
 
 ---
 
@@ -151,14 +195,14 @@ The following table maps our data practices to Apple's official App Privacy cate
 | Browsing History | Any | No | N/A | No |
 | Search History | Any | No | N/A | No |
 | Identifiers | User ID | No | N/A | No |
-| Identifiers | Device ID | Yes (Sentry anonymous ID) | No — not linked to Apple ID or personal info | No |
+| Identifiers | Device ID | Yes (Sentry / PostHog anonymous IDs) | No — not linked to Apple ID or personal info | No |
 | Purchases | Any | No | N/A | No |
-| Usage Data | Product interaction | No | N/A | No |
+| Usage Data | Product interaction | Yes (PostHog activation events, with consent) | No | No |
 | Diagnostics | Crash Data | Yes (Sentry, with consent) | No | No |
 | Diagnostics | Performance Data | Yes (Sentry, with consent) | No | No |
-| Diagnostics | Other Diagnostic Data | No | N/A | No |
+| Diagnostics | Other Diagnostic Data | Yes (shared support reports delivered to our Chatwoot inbox, only when the user taps "Share Report" with consent) | No | No |
 
 **Summary for App Store Connect App Privacy section**:
 - Data Linked to You: **None**
-- Data Not Linked to You: **Crash Data, Performance Data** (Sentry diagnostics, when user consents)
+- Data Not Linked to You: **Crash Data, Performance Data** (Sentry diagnostics, when user consents), **Product Interaction** (PostHog activation events, when user consents), **Other Diagnostic Data** (shared support reports via Chatwoot, when user consents)
 - Tracking: **No**

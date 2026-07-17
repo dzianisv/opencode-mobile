@@ -5,11 +5,11 @@ import path from 'path'
 export const metadata: Metadata = {
   title: 'Privacy Policy',
   description:
-    'OpenCode Mobile privacy policy. We do not collect your code, prompts, or AI responses. Crash diagnostics via Sentry are opt-in only.',
+    'OpenCode Mobile privacy policy. We do not collect your code, prompts, or AI responses. Crash diagnostics (Sentry), usage analytics (PostHog), and shared support reports (Chatwoot) are opt-in only.',
   alternates: { canonical: 'https://opencode.agentlabs.cc/privacy' },
   openGraph: {
     title: 'Privacy Policy | OpenCode Mobile',
-    description: 'OpenCode Mobile privacy policy — minimal data collection, opt-in crash reporting.',
+    description: 'OpenCode Mobile privacy policy — minimal data collection, opt-in crash reporting and analytics.',
     url: 'https://opencode.agentlabs.cc/privacy',
   },
 }

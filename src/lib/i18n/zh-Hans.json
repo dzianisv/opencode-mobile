@@ -29,8 +29,8 @@
     },
     "privacy": {
       "crashReporting": {
-        "label": "崩溃报告",
-        "description": "通过 Sentry 分享匿名崩溃报告，帮助改进 OpenCode。报告不包含代码或提示词内容。"
+        "label": "崩溃报告与使用分析",
+        "description": "分享匿名崩溃报告（Sentry）和使用分析（PostHog），帮助改进 OpenCode。您分享的诊断报告也会发送至我们的支持收件箱。不包含代码或提示词内容。"
       },
       "privacyPolicy": {
         "label": "隐私政策",

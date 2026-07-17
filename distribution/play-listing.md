@@ -73,12 +73,12 @@ Then open the app, tap Connect, paste your server URL, and you're in. Your AI co
 OpenCode Mobile is MIT licensed. Source code, issue tracker, and community at github.com/dzianisv/opencode-mobile. Contributions welcome.
 
 <b>PRIVACY</b>
-OpenCode Mobile does not collect your code, prompts, or AI responses. All traffic goes directly from the app to YOUR opencode server — never through our infrastructure. Optional Sentry crash reporting collects only device model, OS version, and stack traces (no message content).
+OpenCode Mobile does not collect your code, prompts, or AI responses. All traffic goes directly from the app to YOUR opencode server — never through our infrastructure. With your opt-in consent we use Sentry for crash diagnostics and PostHog for anonymous usage analytics (no PII, no message content, off by default). Diagnostic reports you share are also delivered to our support inbox.
 
 Support: support@agentlabs.cc
 Issues: github.com/dzianisv/opencode-mobile/issues
 ```
-(3366/4000 chars)
+(3474/4000 chars)
 
 > Supersedes the prior draft, which named a dated model ("GPT-4") and was missing the directory picker and reasoning-effort features shipped since. Model references are now version-free by design ("Claude, GPT, Gemini, or any other model") so this copy doesn't go stale again as model names change.
 
@@ -162,10 +162,10 @@ Issues: github.com/dzianisv/opencode-mobile/issues
 Suggested path: `https://dzianisv.github.io/opencode-mobile/privacy/`
 
 Privacy policy must cover:
-- What data is collected (Sentry crash diagnostics: device model, OS version, stack trace; no user content)
-- How data is used (debugging crashes only)
-- Third-party SDKs (Sentry — link to https://sentry.io/privacy/)
-- Data retention (Sentry default 90 days)
+- What data is collected (Sentry crash diagnostics: device model, OS version, stack trace; PostHog usage analytics: activation-funnel events with coarse properties; Chatwoot shared support reports: scrubbed diagnostic reports sent only when the user taps "Share Report"; no user content in any of them)
+- How data is used (debugging crashes; measuring whether new users successfully connect/activate; responding to user-initiated support reports)
+- Third-party SDKs (Sentry — https://sentry.io/privacy/; PostHog — https://posthog.com/privacy) and our own self-hosted Chatwoot support inbox (support.agentlabs.cc — not a third-party vendor)
+- Data retention (Sentry default 90 days; PostHog standard retention; Chatwoot support conversations retained until resolved, then periodically purged)
 - User rights (delete request via email, contact us)
 - Contact: support@agentlabs.cc
 
@@ -176,20 +176,47 @@ Operator: VIBE TECHNOLOGIES, LLC, 519 S Henderson St, Seattle WA 98108-4522 USA
 
 We do not collect your code, prompts, AI responses, server URLs, or chat history.
 
-We collect (via Sentry SDK for crash reporting):
+We collect, only with your opt-in consent (single toggle, default OFF):
+
+Via Sentry SDK (crash reporting):
 - Device model, OS version, app version
 - Stack traces of crashes and unhandled errors
 - App breadcrumbs (function names, screen names — no message bodies)
 
-Data is sent to Sentry (sentry.io) and retained per Sentry defaults (~90 days).
+Via PostHog SDK (anonymous usage analytics, EU region):
+- Activation-funnel events: app_opened, connection_form_submitted,
+  connection_attempted, connection_succeeded, connection_failed,
+  message_sent, response_received
+- Only coarse properties (e.g. mode=quick/advanced, error_class=timeout);
+  never server URLs, prompts, code, or raw error text
+
+Via our own Chatwoot support inbox (support.agentlabs.cc), only when you tap
+"Share Report":
+- The same diagnostic report shown in the OS share sheet: connection
+  classification, probe results, device info, and recent app logs
+- Every URL and every hostname/IP probed this session is redacted first —
+  your server address never reaches this inbox
+- A random per-install identifier links follow-up reports into the same
+  support conversation; not linked to your name, email, or account
+
+Data is sent to Sentry (sentry.io, ~90 days retention), PostHog
+(eu.i.posthog.com, standard retention), and our Chatwoot instance
+(support.agentlabs.cc, retained until the conversation is resolved and
+periodically purged thereafter).
 
 Third-party services:
 - Sentry — crash reporting. https://sentry.io/privacy/
+- PostHog — usage analytics. https://posthog.com/privacy
 
-Data sharing: none beyond Sentry.
+Self-hosted infrastructure:
+- Chatwoot support inbox (support.agentlabs.cc) — we operate this
+  ourselves; it is not a third-party vendor.
+
+Data sharing: none beyond Sentry, PostHog, and our own Chatwoot support inbox.
 
 User rights:
-- Email support@agentlabs.cc to request deletion of crash records associated with your device.
+- Email support@agentlabs.cc to request deletion of crash records, analytics
+  records, or shared support-report conversations associated with your device.
 
 Contact: support@agentlabs.cc
 ```
@@ -203,7 +230,7 @@ Google requires this before publishing. Answers for OpenCode Mobile current stat
 | Question | Answer |
 |---|---|
 | Does your app collect or share any of the required user data types? | Yes |
-| Is all of the user data collected by your app encrypted in transit? | Yes (HTTPS to Sentry) |
+| Is all of the user data collected by your app encrypted in transit? | Yes (HTTPS to Sentry, PostHog, and our Chatwoot support inbox) |
 | Do you provide a way for users to request that their data is deleted? | Yes — via support@agentlabs.cc |
 
 ### Data types collected
@@ -211,8 +238,9 @@ Google requires this before publishing. Answers for OpenCode Mobile current stat
 | Data type | Collected? | Shared? | Optional? | Purpose | Encrypted in transit? |
 |---|---|---|---|---|---|
 | App crash logs (Diagnostics) | Yes | Yes (Sentry) | **Yes (opt-in, default OFF)** | App functionality, diagnostics | Yes |
-| App performance / interactions | No | – | – | – | – |
-| Device or other IDs | No | – | – | – | – |
+| App interactions (App activity) | Yes | Yes (PostHog) | **Yes (opt-in, default OFF, same toggle)** | Analytics (activation funnel: app opened, connection attempted/succeeded/failed, message sent, response received) | Yes |
+| Device or other IDs | Yes | Yes (Sentry/PostHog anonymous IDs) | **Yes (opt-in, default OFF)** | Diagnostics, analytics — random app-generated IDs, not linked to identity | Yes |
+| User-submitted diagnostic reports (Diagnostics) | Yes | Yes (delivered to our own self-hosted Chatwoot support inbox) | **Yes (opt-in, default OFF, same toggle; also requires the user to manually tap "Share Report")** | Customer support — troubleshooting a connection failure or crash the user chose to report; server address always redacted first | Yes |
 | Personal info (name, email, etc.) | No | – | – | – | – |
 | Financial info | No | – | – | – | – |
 | Health / fitness | No | – | – | – | – |
