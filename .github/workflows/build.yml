@@ -111,8 +111,165 @@ jobs:
           name: app-release
           path: android/app/build/outputs/apk/release/app-release.apk
 
+  # F-Droid rebuilds this app from source using the recipe in
+  # distribution/fdroid-submission/metadata.yml (Builds:), which applies
+  # fdroid/expo-application-patches and fdroid/expo-notifications-patches to
+  # strip Firebase Cloud Messaging / Play Install Referrer / Sentry before
+  # compiling. If we only ever publish the full-featured `app-release.apk`
+  # (built above, unpatched) and metadata.yml's `Binaries:` points at it,
+  # F-Droid's reproducible-build check compares its from-source (patched)
+  # rebuild against that (unpatched) reference binary and can never match —
+  # see issue #95.
+  #
+  # Fix: build a SECOND, additional artifact here — app-release-fdroid.apk —
+  # by applying the exact same patch set F-Droid's own recipe applies, then
+  # publish it as an extra GitHub Release asset. metadata.yml's `Binaries:`
+  # points at THIS asset, not app-release.apk. The main `build` job above is
+  # completely untouched: Play/GitHub/IzzyOnDroid users keep the full-featured
+  # binary (push notifications, Sentry crash reporting) unchanged.
+  #
+  # This job intentionally does NOT run `npx expo prebuild` — F-Droid's own
+  # Builds: recipe doesn't either; it patches the already-committed `android/`
+  # tree directly. Running prebuild here would regenerate android/app/build.gradle
+  # and could diverge from what F-Droid's build server produces from the same
+  # tracked source, defeating the byte-for-byte parity this job exists for.
+  #
+  # This job also intentionally receives NONE of the EXPO_PUBLIC_SENTRY_DSN /
+  # EXPO_PUBLIC_POSTHOG_KEY / EXPO_PUBLIC_CHATWOOT_INBOX_IDENTIFIER / SENTRY_*
+  # secrets that the main `build` job sets — F-Droid's isolated build
+  # environment has no access to this repo's secrets either, so baking any of
+  # them into the JS bundle here would itself be a source of reproducible-build
+  # divergence.
+  build-fdroid:
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 20
+          cache: npm
+
+      # F-Droid's metadata.yml prebuild patch bumps the Kotlin/Java toolchain
+      # target from 17 to 21 (see the "Apply F-Droid source patches" step
+      # below). Install both so Gradle's toolchain auto-detection can resolve
+      # either, matching F-Droid's own multi-JDK build environment.
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v4
+
+      - name: Cache Gradle
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+            android/.gradle
+          key: ${{ runner.os }}-gradle-fdroid-${{ hashFiles('android/**/*.gradle*', 'android/gradle/wrapper/gradle-wrapper.properties') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-fdroid-
+
+      - name: Install dependencies
+        run: npm install --legacy-peer-deps
+
+      - name: Apply F-Droid source patches
+        # Mirrors distribution/fdroid-submission/metadata.yml `Builds:.prebuild`
+        # verbatim so this CI build and F-Droid's from-source rebuild patch the
+        # exact same lines/files. Keep these two in sync on any future change.
+        run: |
+          set -euxo pipefail
+
+          # Drop the Sentry native gradle plugin apply (no SENTRY_* secrets
+          # are available in F-Droid's build environment either).
+          sed -i '/apply from.*sentry.gradle/d' android/app/build.gradle
+
+          # F-Droid's build environment toolchains on JDK 21; bump the
+          # Kotlin/Java compile target used by RN's gradle plugin + expo-modules-core.
+          sed -i '/jvmToolchain\|JavaVersion/s/17/21/' \
+            node_modules/@react-native/gradle-plugin/*/build.gradle.kts \
+            node_modules/@react-native/gradle-plugin/react-native-gradle-plugin/src/main/kotlin/com/facebook/react/utils/JdkConfiguratorUtils.kt \
+            node_modules/expo-modules-core/android/ExpoModulesCorePlugin.gradle
+          printf '\nkotlin.jvm.target.validation.mode=warning\n' >> android/gradle.properties
+
+          # Strip Firebase Cloud Messaging from expo-notifications.
+          sed -i '/firebase/d' node_modules/expo-notifications/android/build.gradle
+          cp -a fdroid/expo-notifications-patches/. \
+            node_modules/expo-notifications/android/src/main/java/expo/modules/notifications/
+          rm -f \
+            node_modules/expo-notifications/android/src/main/java/expo/modules/notifications/notifications/RemoteMessageSerializer.java \
+            node_modules/expo-notifications/android/src/main/java/expo/modules/notifications/notifications/model/triggers/FirebaseNotificationTrigger.kt
+
+          # Strip Google Play Install Referrer (GMS-only API) from expo-application.
+          sed -i '/installreferrer/d' node_modules/expo-application/android/build.gradle
+          cp -a fdroid/expo-application-patches/. \
+            node_modules/expo-application/android/src/main/java/expo/modules/application/
+
+      - name: Setup signing
+        run: |
+          if [[ -n "${{ secrets.KEYSTORE_BASE64 }}" ]]; then
+            echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > android/app/release.keystore
+            echo "RELEASE_STORE_FILE=release.keystore" >> "$GITHUB_ENV"
+            echo "RELEASE_STORE_PASSWORD=${{ secrets.KEYSTORE_PASSWORD }}" >> "$GITHUB_ENV"
+            echo "RELEASE_KEY_ALIAS=${{ secrets.KEY_ALIAS }}" >> "$GITHUB_ENV"
+            echo "RELEASE_KEY_PASSWORD=${{ secrets.KEY_PASSWORD }}" >> "$GITHUB_ENV"
+            # Same production keystore as app-release.apk: F-Droid's
+            # AllowedAPKSigningKeys check requires this binary to carry the
+            # same signing certificate fingerprint.
+            echo "Signing: production keystore"
+          else
+            keytool -genkey -v -keystore android/app/debug.keystore -storepass android \
+              -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 \
+              -dname "CN=Android Debug,O=Android,C=US"
+            echo "Signing: debug keystore (non-release build)"
+          fi
+
+      - name: Build F-Droid-flavored APK
+        working-directory: android
+        run: ./gradlew assembleRelease
+
+      - name: Re-sign APK v1+v2 only (drop v3/v4 for fdroidserver compatibility)
+        if: ${{ env.RELEASE_STORE_FILE != '' }}
+        run: |
+          # Same rationale as publish-fdroid.yml: androguard (used by
+          # fdroidserver) crashes parsing a v2+v3 signature block pair. Force
+          # v1+v2-only here deterministically.
+          APK=android/app/build/outputs/apk/release/app-release.apk
+          APKSIGNER=$(ls "$ANDROID_HOME"/build-tools/*/apksigner | sort -V | tail -1)
+          echo "Using $APKSIGNER"
+          "$APKSIGNER" sign \
+            --ks android/app/release.keystore \
+            --ks-pass "pass:${RELEASE_STORE_PASSWORD}" \
+            --ks-key-alias "${RELEASE_KEY_ALIAS}" \
+            --key-pass "pass:${RELEASE_KEY_PASSWORD}" \
+            --v1-signing-enabled true \
+            --v2-signing-enabled true \
+            --v3-signing-enabled false \
+            --v4-signing-enabled false \
+            "$APK"
+          echo "=== signature schemes after re-sign ==="
+          "$APKSIGNER" verify -v "$APK" | grep -i "Verified using" || true
+
+      - name: Rename artifact
+        run: cp android/app/build/outputs/apk/release/app-release.apk app-release-fdroid.apk
+
+      - name: Upload F-Droid APK artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: app-release-fdroid
+          path: app-release-fdroid.apk
+
   release:
-    needs: build
+    needs: [build, build-fdroid]
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     permissions:
@@ -122,8 +279,14 @@ jobs:
         with:
           name: app-release
 
+      - uses: actions/download-artifact@v8
+        with:
+          name: app-release-fdroid
+
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
-          files: app-release.apk
+          files: |
+            app-release.apk
+            app-release-fdroid.apk
           generate_release_notes: true

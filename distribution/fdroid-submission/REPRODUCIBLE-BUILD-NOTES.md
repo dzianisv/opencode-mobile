@@ -135,3 +135,31 @@ fdroid build ai.opencode.mobile:<versionCode> --verbose
 ```
 
 See https://f-droid.org/en/docs/Reproducible_Builds/ for the full guide.
+
+---
+
+## Update (2026-07-17) — separate `-fdroid` release asset (issue #95)
+
+Root cause of the original mismatch: `Binaries:` pointed at `app-release.apk`,
+which is built WITHOUT the `Builds:.prebuild` patches (it still has Firebase,
+Play Install Referrer, and Sentry). F-Droid's from-source rebuild applies
+those patches, so the two binaries diverge structurally and `fdroid build`'s
+reproducibility check can never match — stripping the patches from the main
+APK instead would have removed push notifications and crash reporting for
+every Play/GitHub/IzzyOnDroid user, which is not acceptable.
+
+Fix shipped in `.github/workflows/build.yml` (`build-fdroid` job, tag-release
+only): build a second, additional artifact — `app-release-fdroid.apk` —
+applying the exact same patch commands as `Builds:.prebuild` below, signed
+with the same production keystore (v1+v2 only, matching `publish-fdroid.yml`'s
+existing androguard workaround), and attach it to the GitHub Release next to
+the untouched `app-release.apk`. `Binaries:` now points at the `-fdroid` asset.
+The main `build` job is unmodified — no feature loss for non-F-Droid users.
+
+**Remaining human step:** this environment cannot run `fdroid build` (needs
+`fdroidserver` + a maintainer's Docker/Linux environment — see "How to test
+reproducible builds" above). Before relying on this for a real fdroiddata
+submission or an `AllowedAPKSigningKeys` update, a maintainer must run
+`fdroid build ai.opencode.mobile:<versionCode> --verbose` (or the fdroiddata
+CI equivalent) against a tagged release that has an `app-release-fdroid.apk`
+asset, and confirm the from-source rebuild matches it byte-for-byte.

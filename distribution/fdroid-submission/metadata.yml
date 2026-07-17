@@ -18,7 +18,7 @@ AutoName: OpenCode
 RepoType: git
 Repo: https://github.com/dzianisv/opencode-mobile
 
-Binaries: https://github.com/dzianisv/opencode-mobile/releases/download/v%v/app-release.apk
+Binaries: https://github.com/dzianisv/opencode-mobile/releases/download/v%v/app-release-fdroid.apk
 
 Builds:
   - versionName: 0.4.3
