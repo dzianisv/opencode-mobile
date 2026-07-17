@@ -30,7 +30,7 @@ export default function PrivacyPage() {
     policyHtml = bodyMatch ? bodyMatch[1] : raw
   } catch {
     policyHtml = `<p style="color:#94A3B8">Privacy policy document not found. Please contact
-      <a href="mailto:support@vibebrowser.app" style="color:#3B82F6">support@vibebrowser.app</a>.</p>`
+      <a href="mailto:support@agentlabs.cc" style="color:#3B82F6">support@agentlabs.cc</a>.</p>`
   }
 
   return (

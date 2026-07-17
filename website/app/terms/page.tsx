@@ -128,7 +128,7 @@ export default function TermsPage() {
             GitHub Issues
           </a>{' '}
           and via{' '}
-          <a href="mailto:support@vibebrowser.app">support@vibebrowser.app</a>, but we make no
+          <a href="mailto:support@agentlabs.cc">support@agentlabs.cc</a>, but we make no
           guarantees about response times or resolution.
         </p>
         <p>
@@ -191,7 +191,7 @@ export default function TermsPage() {
           Seattle, WA 98108-4522<br />
           USA<br />
           Email:{' '}
-          <a href="mailto:support@vibebrowser.app">support@vibebrowser.app</a>
+          <a href="mailto:support@agentlabs.cc">support@agentlabs.cc</a>
         </p>
       </div>
     </div>

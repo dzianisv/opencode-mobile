@@ -48,7 +48,7 @@ export default function SupportPage() {
       {/* Contact cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 mb-16">
         <a
-          href="mailto:support@vibebrowser.app"
+          href="mailto:support@agentlabs.cc"
           className="card flex items-start gap-4 hover:border-blue-500/60 transition-colors"
           style={{ textDecoration: 'none' }}
         >
@@ -61,7 +61,7 @@ export default function SupportPage() {
           </div>
           <div>
             <p className="font-semibold mb-1" style={{ color: 'var(--fg)' }}>Email Support</p>
-            <p className="text-sm" style={{ color: 'var(--muted)' }}>support@vibebrowser.app</p>
+            <p className="text-sm" style={{ color: 'var(--muted)' }}>support@agentlabs.cc</p>
           </div>
         </a>
 
@@ -111,8 +111,8 @@ export default function SupportPage() {
           GitHub Issue
         </a>{' '}
         or email{' '}
-        <a href="mailto:support@vibebrowser.app" style={{ color: 'var(--accent)' }}>
-          support@vibebrowser.app
+        <a href="mailto:support@agentlabs.cc" style={{ color: 'var(--accent)' }}>
+          support@agentlabs.cc
         </a>.
         Include your device, OS version, and app version for fastest resolution.
       </div>
