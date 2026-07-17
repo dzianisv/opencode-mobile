@@ -1,0 +1,69 @@
+{
+  "common": {
+    "cancel": "Cancel"
+  },
+  "settings": {
+    "sections": {
+      "security": "Security",
+      "notifications": "Notifications",
+      "privacy": "Privacy",
+      "about": "About"
+    },
+    "security": {
+      "biometricOpen": {
+        "label": "Require Biometric to Open",
+        "descriptionEnabled": "Use Face ID or Touch ID to unlock the app",
+        "descriptionUnavailable": "Biometric authentication not available"
+      },
+      "biometricSend": {
+        "label": "Require Biometric to Send",
+        "description": "Authenticate before sending messages"
+      },
+      "lockNow": {
+        "label": "Lock App Now",
+        "description": "Require authentication to reopen"
+      }
+    },
+    "notifications": {
+      "disabledNotice": "Notifications are disabled at the system level. Enable them in Settings to receive alerts."
+    },
+    "privacy": {
+      "crashReporting": {
+        "label": "Crash Reporting",
+        "description": "Share anonymous crash reports via Sentry to help improve OpenCode. No code or prompts are included."
+      },
+      "privacyPolicy": {
+        "label": "Privacy Policy",
+        "description": "What data we collect and how"
+      }
+    },
+    "about": {
+      "version": "Version",
+      "github": {
+        "label": "GitHub",
+        "description": "View source code"
+      },
+      "docs": {
+        "label": "Documentation",
+        "description": "Learn how to use OpenCode"
+      }
+    },
+    "language": {
+      "label": "Language",
+      "title": "Choose Language",
+      "system": "System Default",
+      "en": "English",
+      "zhHans": "Simplified Chinese"
+    },
+    "footer": {
+      "appName": "OpenCode Mobile",
+      "tagline": "Connect to your AI coding assistant from anywhere"
+    },
+    "alerts": {
+      "privacyNotSavedTitle": "Privacy Setting Not Saved",
+      "privacyNotSavedMessage": "Crash reporting is off for this session, but your choice could not be saved. Please try again.",
+      "notificationsDisabledTitle": "Notifications Disabled",
+      "notificationsDisabledMessage": "Enable notifications for OpenCode in your device settings to receive alerts."
+    }
+  }
+}

@@ -11,6 +11,7 @@ import {
   Alert,
 } from "react-native"
 import { Ionicons } from "@expo/vector-icons"
+import { useTranslation } from "react-i18next"
 import { useAuth } from "../../src/stores/auth"
 import { useSettings } from "../../src/stores/settings"
 import {
@@ -22,6 +23,7 @@ import {
 import type { Category } from "../../src/lib/notifications"
 import { hasTelemetryConsent, setTelemetryConsent } from "../../src/lib/telemetry"
 import { PRIVACY_POLICY_URL } from "../../src/lib/links"
+import type { LocalePreference } from "../../src/lib/i18n/locale-resolve"
 
 function SettingRow({
   icon,
@@ -70,9 +72,10 @@ function SettingSection({ title, children, isDark }: { title: string; children: 
 export default function SettingsScreen() {
   const colorScheme = useColorScheme()
   const isDark = colorScheme === "dark"
+  const { t } = useTranslation()
 
   const { settings, hasBiometrics, updateSettings, lock } = useAuth()
-  const { notifications, setNotification } = useSettings()
+  const { notifications, setNotification, locale, setLocale } = useSettings()
   const [osGranted, setOsGranted] = useState<boolean | null>(null)
   const [telemetryUpdating, setTelemetryUpdating] = useState(false)
 
@@ -80,21 +83,21 @@ export default function SettingsScreen() {
   // We initialise local state from in-memory value; updates call setTelemetryConsent().
   const [crashReporting, setCrashReporting] = useState<boolean>(hasTelemetryConsent() ?? false)
 
-  const handleCrashReportingToggle = useCallback(async (value: boolean) => {
-    setTelemetryUpdating(true)
-    try {
-      await setTelemetryConsent(value)
-      setCrashReporting(value)
-    } catch {
-      setCrashReporting(hasTelemetryConsent() ?? false)
-      Alert.alert(
-        "Privacy Setting Not Saved",
-        "Crash reporting is off for this session, but your choice could not be saved. Please try again.",
-      )
-    } finally {
-      setTelemetryUpdating(false)
-    }
-  }, [])
+  const handleCrashReportingToggle = useCallback(
+    async (value: boolean) => {
+      setTelemetryUpdating(true)
+      try {
+        await setTelemetryConsent(value)
+        setCrashReporting(value)
+      } catch {
+        setCrashReporting(hasTelemetryConsent() ?? false)
+        Alert.alert(t("settings.alerts.privacyNotSavedTitle"), t("settings.alerts.privacyNotSavedMessage"))
+      } finally {
+        setTelemetryUpdating(false)
+      }
+    },
+    [t],
+  )
 
   // Check OS permission state on first toggle attempt
   const handleToggle = useCallback(
@@ -103,16 +106,13 @@ export default function SettingsScreen() {
         const ok = await setupNotifications()
         setOsGranted(ok)
         if (!ok) {
-          Alert.alert(
-            "Notifications Disabled",
-            "Enable notifications for OpenCode in your device settings to receive alerts.",
-          )
+          Alert.alert(t("settings.alerts.notificationsDisabledTitle"), t("settings.alerts.notificationsDisabledMessage"))
           return
         }
       }
       setNotification(category, enabled)
     },
-    [setNotification],
+    [setNotification, t],
   )
 
   // Lazy-check OS permission for status display
@@ -122,14 +122,31 @@ export default function SettingsScreen() {
       .catch(() => setOsGranted(false))
   }
 
+  const localeLabels: Record<LocalePreference, string> = {
+    system: t("settings.language.system"),
+    en: t("settings.language.en"),
+    "zh-Hans": t("settings.language.zhHans"),
+  }
+
+  const handleLanguagePress = useCallback(() => {
+    Alert.alert(t("settings.language.title"), undefined, [
+      { text: localeLabels.system, onPress: () => setLocale("system") },
+      { text: localeLabels.en, onPress: () => setLocale("en") },
+      { text: localeLabels["zh-Hans"], onPress: () => setLocale("zh-Hans") },
+      { text: t("common.cancel"), style: "cancel" },
+    ])
+  }, [t, setLocale, localeLabels])
+
   return (
     <ScrollView style={[styles.container, isDark && styles.containerDark]} contentContainerStyle={styles.content}>
-      <SettingSection title="Security" isDark={isDark}>
+      <SettingSection title={t("settings.sections.security")} isDark={isDark}>
         <SettingRow
           icon="finger-print"
-          label="Require Biometric to Open"
+          label={t("settings.security.biometricOpen.label")}
           description={
-            hasBiometrics ? "Use Face ID or Touch ID to unlock the app" : "Biometric authentication not available"
+            hasBiometrics
+              ? t("settings.security.biometricOpen.descriptionEnabled")
+              : t("settings.security.biometricOpen.descriptionUnavailable")
           }
           isDark={isDark}
           right={
@@ -143,8 +160,8 @@ export default function SettingsScreen() {
         />
         <SettingRow
           icon="lock-closed"
-          label="Require Biometric to Send"
-          description="Authenticate before sending messages"
+          label={t("settings.security.biometricSend.label")}
+          description={t("settings.security.biometricSend.description")}
           isDark={isDark}
           right={
             <Switch
@@ -158,8 +175,8 @@ export default function SettingsScreen() {
         {settings.requireBiometric && (
           <SettingRow
             icon="exit"
-            label="Lock App Now"
-            description="Require authentication to reopen"
+            label={t("settings.security.lockNow.label")}
+            description={t("settings.security.lockNow.description")}
             isDark={isDark}
             onPress={lock}
             right={<Ionicons name="chevron-forward" size={20} color={isDark ? "#666666" : "#999999"} />}
@@ -167,7 +184,7 @@ export default function SettingsScreen() {
         )}
       </SettingSection>
 
-      <SettingSection title="Notifications" isDark={isDark}>
+      <SettingSection title={t("settings.sections.notifications")} isDark={isDark}>
         {categories.map((category) => {
           const meta = categoryMeta[category]
           return (
@@ -190,17 +207,17 @@ export default function SettingsScreen() {
         {osGranted === false && (
           <View style={[styles.settingRow, isDark && styles.settingRowDark]}>
             <Text style={[styles.settingDescription, { color: "#ef4444", paddingLeft: 48 }]}>
-              Notifications are disabled at the system level. Enable them in Settings to receive alerts.
+              {t("settings.notifications.disabledNotice")}
             </Text>
           </View>
         )}
       </SettingSection>
 
-      <SettingSection title="Privacy" isDark={isDark}>
+      <SettingSection title={t("settings.sections.privacy")} isDark={isDark}>
         <SettingRow
           icon="shield-checkmark"
-          label="Crash Reporting"
-          description="Share anonymous crash reports via Sentry to help improve OpenCode. No code or prompts are included."
+          label={t("settings.privacy.crashReporting.label")}
+          description={t("settings.privacy.crashReporting.description")}
           isDark={isDark}
           right={
             <Switch
@@ -213,28 +230,36 @@ export default function SettingsScreen() {
         />
         <SettingRow
           icon="document-text"
-          label="Privacy Policy"
-          description="What data we collect and how"
+          label={t("settings.privacy.privacyPolicy.label")}
+          description={t("settings.privacy.privacyPolicy.description")}
           isDark={isDark}
           onPress={() => Linking.openURL(PRIVACY_POLICY_URL)}
           right={<Ionicons name="open-outline" size={20} color={isDark ? "#666666" : "#999999"} />}
         />
       </SettingSection>
 
-      <SettingSection title="About" isDark={isDark}>
-        <SettingRow icon="information-circle" label="Version" description="1.0.0" isDark={isDark} />
+      <SettingSection title={t("settings.sections.about")} isDark={isDark}>
+        <SettingRow
+          icon="language"
+          label={t("settings.language.label")}
+          description={localeLabels[locale]}
+          isDark={isDark}
+          onPress={handleLanguagePress}
+          right={<Ionicons name="chevron-forward" size={20} color={isDark ? "#666666" : "#999999"} />}
+        />
+        <SettingRow icon="information-circle" label={t("settings.about.version")} description="1.0.0" isDark={isDark} />
         <SettingRow
           icon="logo-github"
-          label="GitHub"
-          description="View source code"
+          label={t("settings.about.github.label")}
+          description={t("settings.about.github.description")}
           isDark={isDark}
           onPress={() => Linking.openURL("https://github.com/anomalyco/opencode")}
           right={<Ionicons name="open-outline" size={20} color={isDark ? "#666666" : "#999999"} />}
         />
         <SettingRow
           icon="document-text"
-          label="Documentation"
-          description="Learn how to use OpenCode"
+          label={t("settings.about.docs.label")}
+          description={t("settings.about.docs.description")}
           isDark={isDark}
           onPress={() => Linking.openURL("https://opencode.ai/docs")}
           right={<Ionicons name="open-outline" size={20} color={isDark ? "#666666" : "#999999"} />}
@@ -242,10 +267,8 @@ export default function SettingsScreen() {
       </SettingSection>
 
       <View style={styles.footer}>
-        <Text style={[styles.footerText, isDark && styles.metaDark]}>OpenCode Mobile</Text>
-        <Text style={[styles.footerText, isDark && styles.metaDark]}>
-          Connect to your AI coding assistant from anywhere
-        </Text>
+        <Text style={[styles.footerText, isDark && styles.metaDark]}>{t("settings.footer.appName")}</Text>
+        <Text style={[styles.footerText, isDark && styles.metaDark]}>{t("settings.footer.tagline")}</Text>
       </View>
     </ScrollView>
   )

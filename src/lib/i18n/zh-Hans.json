@@ -1,0 +1,69 @@
+{
+  "common": {
+    "cancel": "取消"
+  },
+  "settings": {
+    "sections": {
+      "security": "安全",
+      "notifications": "通知",
+      "privacy": "隐私",
+      "about": "关于"
+    },
+    "security": {
+      "biometricOpen": {
+        "label": "解锁时需要生物识别",
+        "descriptionEnabled": "使用 Face ID 或 Touch ID 解锁应用",
+        "descriptionUnavailable": "生物识别功能不可用"
+      },
+      "biometricSend": {
+        "label": "发送消息时需要生物识别",
+        "description": "发送消息前需要验证身份"
+      },
+      "lockNow": {
+        "label": "立即锁定应用",
+        "description": "重新打开时需要验证身份"
+      }
+    },
+    "notifications": {
+      "disabledNotice": "通知已在系统层面关闭。请在系统设置中启用通知以接收提醒。"
+    },
+    "privacy": {
+      "crashReporting": {
+        "label": "崩溃报告",
+        "description": "通过 Sentry 分享匿名崩溃报告，帮助改进 OpenCode。报告不包含代码或提示词内容。"
+      },
+      "privacyPolicy": {
+        "label": "隐私政策",
+        "description": "我们收集哪些数据及收集方式"
+      }
+    },
+    "about": {
+      "version": "版本",
+      "github": {
+        "label": "GitHub",
+        "description": "查看源代码"
+      },
+      "docs": {
+        "label": "文档",
+        "description": "了解如何使用 OpenCode"
+      }
+    },
+    "language": {
+      "label": "语言",
+      "title": "选择语言",
+      "system": "跟随系统",
+      "en": "English",
+      "zhHans": "简体中文"
+    },
+    "footer": {
+      "appName": "OpenCode Mobile",
+      "tagline": "随时随地连接您的 AI 编程助手"
+    },
+    "alerts": {
+      "privacyNotSavedTitle": "隐私设置未保存",
+      "privacyNotSavedMessage": "本次会话已关闭崩溃报告，但您的选择未能保存。请重试。",
+      "notificationsDisabledTitle": "通知已关闭",
+      "notificationsDisabledMessage": "请在设备设置中为 OpenCode 启用通知以接收提醒。"
+    }
+  }
+}

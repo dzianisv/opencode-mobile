@@ -2,17 +2,21 @@ import { create } from "zustand"
 import * as SecureStore from "expo-secure-store"
 import { type Category, defaultPreferences } from "../lib/notifications"
 import { clampPageSize, mergeStoredSettings } from "../lib/settings-merge"
+import { setAppLocale } from "../lib/i18n/config"
+import type { LocalePreference } from "../lib/i18n/locale-resolve"
 
 const SETTINGS_KEY = "opencode_settings"
 
 interface Settings {
   pageSize: number
   notifications: Record<Category, boolean>
+  locale: LocalePreference
 }
 
 const DEFAULTS: Settings = {
   pageSize: 25,
   notifications: { ...defaultPreferences },
+  locale: "system",
 }
 
 interface SettingsState extends Settings {
@@ -20,10 +24,11 @@ interface SettingsState extends Settings {
   load: () => Promise<void>
   setPageSize: (size: number) => Promise<void>
   setNotification: (category: Category, enabled: boolean) => Promise<void>
+  setLocale: (locale: LocalePreference) => Promise<void>
 }
 
 function snapshot(get: () => SettingsState): Settings {
-  return { pageSize: get().pageSize, notifications: get().notifications }
+  return { pageSize: get().pageSize, notifications: get().notifications, locale: get().locale }
 }
 
 async function persist(settings: Settings) {
@@ -39,7 +44,9 @@ export const useSettings = create<SettingsState>((set, get) => ({
     if (raw) {
       const parsed = JSON.parse(raw) as Partial<Settings>
       // Merge stored settings with defaults so new fields/categories get their default
-      set({ ...mergeStoredSettings(DEFAULTS, parsed), loaded: true })
+      const merged = mergeStoredSettings(DEFAULTS, parsed)
+      set({ ...merged, loaded: true })
+      setAppLocale(merged.locale)
       return
     }
     set({ loaded: true })
@@ -55,5 +62,11 @@ export const useSettings = create<SettingsState>((set, get) => ({
     const notifications = { ...get().notifications, [category]: enabled }
     set({ notifications })
     await persist({ ...snapshot(get), notifications })
+  },
+
+  setLocale: async (locale) => {
+    set({ locale })
+    setAppLocale(locale) // applies immediately
+    await persist({ ...snapshot(get), locale })
   },
 }))

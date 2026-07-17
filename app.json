@@ -79,7 +79,8 @@
           "microphonePermission": "OpenCode uses the microphone to capture your voice when using speech-to-text input.",
           "speechRecognitionPermission": "OpenCode uses speech recognition so you can dictate prompts to your AI coding agent hands-free."
         }
-      ]
+      ],
+      "expo-localization"
     ],
     "experiments": {
       "typedRoutes": true,
