@@ -1,0 +1,119 @@
+appId: cc.agentlabs.opencode
+name: "DiffView + CodeBlock horizontal scroll - wide diff/code line reachable by swipe (closes #21)"
+---
+# GitHub issue #21 ("QA: verify DiffView + CodeBlock horizontal-scroll
+# on-device with a populated diff"). Two rendering fixes shipped earlier were
+# code-audited but never verified with real, wide content on a real
+# (emulated) device:
+#   - src/components/chat/DiffView.tsx: diff lines render inside a horizontal
+#     ScrollView (previously truncated with numberOfLines={1}).
+#   - src/components/markdown/CodeBlock.tsx: code renders inside a horizontal
+#     ScrollView (previously long lines wrapped/mangled).
+#
+# The CI job starts `node tests/fixtures/mock-opencode-server.ts --port 4100
+# --seed-diff` on the runner host BEFORE this flow runs. --seed-diff
+# pre-populates ONE session (id "seed-diff", directory /mock/project — the
+# default connection's directory) whose single assistant message already
+# contains:
+#   - a completed `edit` tool part with a wide "add" diff line (renders via
+#     ToolCallCard -> EditDetail -> DiffView once the card is expanded)
+#   - a text part with a wide fenced code block (renders via Markdown ->
+#     CodeBlock)
+# Both wide lines are ~220 filler characters (no spaces, so they can't
+# word-wrap) followed by a distinct marker token. This is loaded via GET
+# /session/seed-diff/message when the session is opened (selectSession),
+# NOT delivered over SSE — issue #90 (a separate SSE-render bug) is being
+# fixed independently, and this flow must not depend on it landing first.
+#
+# Caveat for whoever debugs a flake here: assertVisible/assertNotVisible on
+# a substring deep inside ONE very wide, unwrapped Text node is coarser than
+# it looks — Maestro (like most accessibility-tree-based mobile test
+# frameworks) determines visibility per ELEMENT, not per glyph, and there are
+# open Maestro issues about partially-visible elements being reported as
+# fully visible (mobile-dev-inc/maestro #1275, #2411). The filler is made
+# very wide (~220 chars, comfortably wider than any emulator screen at this
+# monospace font size) specifically to keep the marker's actual rendered
+# position off past the right edge at rest. Screenshots are taken at every
+# step so a flake here can be diagnosed visually, not just from the
+# assertion's pass/fail.
+
+- launchApp:
+    clearState: true
+- assertVisible:
+    id: "telemetry-consent-card"
+- tapOn:
+    id: "telemetry-decline-button"
+
+- assertVisible:
+    text: "No Connection"
+- tapOn:
+    id: "add-connection-button"
+- tapOn:
+    id: "connect-ip-input"
+- inputText: "127.0.0.1:4100"
+- hideKeyboard
+- tapOn:
+    id: "connect-submit-button"
+
+# 40s margin: see activation-positive.yaml — the connect handshake's own
+# fetches are individually capped at 30s (src/lib/sdk.ts REQUEST_TIMEOUT_MS).
+- extendedWaitUntil:
+    visible:
+      id: "connection-status-dot"
+    timeout: 40000
+- takeScreenshot: diffscroll-S1_connected
+
+# The seeded session must appear on the home tab's own-directory list (no
+# SSE, no roots=true — this is the plain GET /session directory-scoped path).
+- extendedWaitUntil:
+    visible:
+      text: "Wide Diff Session"
+    timeout: 15000
+- tapOn:
+    id: "session-item-seed-diff"
+- extendedWaitUntil:
+    visible:
+      id: "chat-message-input"
+    timeout: 15000
+
+# History loaded via GET /session/seed-diff/message (not SSE) must already
+# render both the tool card and the markdown code block.
+- assertVisible:
+    text: "Edit wide_diff_target.ts"
+- assertVisible:
+    text: "Here is a wide code sample"
+- takeScreenshot: diffscroll-S2_history_loaded
+
+# --- CodeBlock: the wide fenced code block is already expanded (no tap
+# needed — Markdown renders it immediately, unlike the collapsible tool card).
+- assertVisible:
+    id: "code-block-scroll"
+- assertNotVisible:
+    text: "ZZZ_CODE_SCROLL_TARGET_ZZZ"
+- takeScreenshot: diffscroll-S3_codeblock_marker_offscreen
+- swipe:
+    from:
+      id: "code-block-scroll"
+    direction: LEFT
+- assertVisible:
+    text: "ZZZ_CODE_SCROLL_TARGET_ZZZ"
+- takeScreenshot: diffscroll-S4_codeblock_marker_revealed
+
+# --- DiffView: lives inside the collapsible tool card's detail section, so
+# expand it first.
+- tapOn:
+    text: "Edit wide_diff_target.ts"
+- assertVisible:
+    text: "src/wide_diff_target.ts"
+- assertVisible:
+    id: "diff-view-scroll"
+- assertNotVisible:
+    text: "ZZZ_DIFF_SCROLL_TARGET_ZZZ"
+- takeScreenshot: diffscroll-S5_diffview_marker_offscreen
+- swipe:
+    from:
+      id: "diff-view-scroll"
+    direction: LEFT
+- assertVisible:
+    text: "ZZZ_DIFF_SCROLL_TARGET_ZZZ"
+- takeScreenshot: diffscroll-S6_diffview_marker_revealed

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # Runs the Maestro activation E2E flows against the mock opencode servers the
-# workflow started on the host (ports 4096-4099). Invoked as a single line from
+# workflow started on the host (ports 4096-4100). Invoked as a single line from
 # activation-e2e.yml's emulator-runner `script:` so cd/trap/loop actually work.
 #
 # Networking: `adb reverse` maps each mock port so the emulator's own
@@ -11,14 +11,14 @@ set -uo pipefail
 
 ROOT="$(pwd)"                       # capture BEFORE any cd, so diag paths are absolute
 APK="android/app/build/outputs/apk/release/app-release.apk"
-FLOWS=(activation-positive activation-negative-401 directory-picker all-sessions variant-picker)
+FLOWS=(activation-positive activation-negative-401 directory-picker all-sessions variant-picker diff-scroll)
 mkdir -p "$ROOT/artifacts/screenshots" "$ROOT/artifacts/diag"
 
 echo "== installing APK =="
 adb install "$APK"
 
 echo "== forwarding mock ports into the emulator (adb reverse) =="
-for p in 4096 4097 4098 4099; do adb reverse "tcp:$p" "tcp:$p"; done
+for p in 4096 4097 4098 4099 4100; do adb reverse "tcp:$p" "tcp:$p"; done
 adb reverse --list
 
 # Decisive probe: can the EMULATOR actually reach the host mock via 127.0.0.1?

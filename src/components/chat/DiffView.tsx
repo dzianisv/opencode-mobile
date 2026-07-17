@@ -1,4 +1,5 @@
 import { View, Text, StyleSheet, Platform, ScrollView } from "react-native"
+import { WIDE_CONTENT_SCROLL_CONFIG } from "../../lib/scroll-config"
 
 const mono = Platform.OS === "ios" ? "Menlo" : "monospace"
 
@@ -76,7 +77,7 @@ export function DiffView({ before, after, isDark }: Props) {
 
   return (
     <View style={[s.container, isDark && s.containerDark]}>
-      <ScrollView horizontal showsHorizontalScrollIndicator>
+      <ScrollView {...WIDE_CONTENT_SCROLL_CONFIG} testID="diff-view-scroll">
         <View>
           {lines.map((line, idx) => (
             <View

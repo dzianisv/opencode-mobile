@@ -68,6 +68,7 @@
 //   node tests/fixtures/mock-opencode-server.ts --port 4096
 //   node tests/fixtures/mock-opencode-server.ts --port 4097 --fail-auth
 //   node tests/fixtures/mock-opencode-server.ts --port 4098 --seed-sessions
+//   node tests/fixtures/mock-opencode-server.ts --port 4100 --seed-diff
 
 import http from "node:http"
 import { randomUUID } from "node:crypto"
@@ -88,6 +89,20 @@ export interface MockServerOptions {
    * open regression for GitHub issues #46/#48).
    */
   seedSessions?: boolean
+  /**
+   * Pre-populate a session (id "seed-diff", in DEFAULT_DIRECTORY so it shows
+   * up on the normal home-tab session list) with ONE assistant message that
+   * already contains a wide `edit` tool part (renders via DiffView) and a
+   * wide fenced code block in its text (renders via CodeBlock) — used by
+   * .maestro/flows/diff-scroll.yaml (GitHub issue #21) to prove both
+   * components' horizontal ScrollView actually scrolls on-device.
+   *
+   * Deliberately seeded as pre-existing history, fetched via GET
+   * /session/:id/message, NOT delivered over SSE — the positive-flow SSE
+   * render bug (issue #90) is being fixed separately, and this flow must not
+   * depend on it landing first.
+   */
+  seedDiff?: boolean
 }
 
 interface StoredSession {
@@ -106,6 +121,16 @@ interface StoredPart {
   messageID: string
   type: string
   text?: string
+  // Tool part fields (type: "tool") — mirrors src/lib/sdk.ts's Part interface,
+  // needed to seed a populated `edit` tool call for --seed-diff.
+  tool?: string
+  callID?: string
+  state?: {
+    status: "pending" | "running" | "completed" | "error"
+    input?: unknown
+    output?: unknown
+    title?: string
+  }
 }
 
 interface StoredMessageInfo {
@@ -166,12 +191,96 @@ export const FAKE_SERVER_PROJECTS = [
   },
 ]
 
+// Exported so .maestro/flows/diff-scroll.yaml's assertions and this file's
+// own seeding logic share one source of truth for what's "off-screen until
+// you scroll" in the seeded diff/code content.
+export const SEED_DIFF_SESSION_ID = "seed-diff"
+export const SEED_DIFF_TITLE = "Wide Diff Session"
+export const SEED_DIFF_TOOL_TITLE = "Edit wide_diff_target.ts"
+export const SEED_DIFF_LINE_MARKER = "ZZZ_DIFF_SCROLL_TARGET_ZZZ"
+export const SEED_CODE_LINE_MARKER = "ZZZ_CODE_SCROLL_TARGET_ZZZ"
+
+// Long, space-free filler so the RN <Text> can't word-wrap it — it just
+// overflows its parent, which is exactly what the horizontal ScrollView (the
+// fix under test) exists to make scrollable instead of clipped/truncated.
+const WIDE_FILLER = "x".repeat(220)
+
 export function createMockOpencodeServer(opts: MockServerOptions) {
-  const { port, failAuth = false, replyText = DEFAULT_REPLY_TEXT, replyDelayMs = 300, seedSessions = false } = opts
+  const {
+    port,
+    failAuth = false,
+    replyText = DEFAULT_REPLY_TEXT,
+    replyDelayMs = 300,
+    seedSessions = false,
+    seedDiff = false,
+  } = opts
 
   const sessions = new Map<string, StoredSession>()
   const messagesBySession = new Map<string, StoredMessage[]>()
   const sseClients = new Set<http.ServerResponse>()
+
+  if (seedDiff) {
+    const now = Date.now()
+    const session: StoredSession = {
+      id: SEED_DIFF_SESSION_ID,
+      slug: "seed-diff",
+      projectID: "mock-project",
+      directory: DEFAULT_DIRECTORY,
+      title: SEED_DIFF_TITLE,
+      version: "0.0.0-mock",
+      time: { created: now - 30_000, updated: now - 20_000 },
+    }
+    sessions.set(session.id, session)
+
+    const messageID = "seed-diff-msg"
+    const info: StoredMessageInfo = {
+      id: messageID,
+      sessionID: session.id,
+      role: "assistant",
+      time: { created: now - 25_000, completed: now - 20_000 },
+      modelID: "mock-model",
+      providerID: "mock",
+    }
+
+    // Populated `edit` tool call: renders via ToolCallCard -> EditDetail ->
+    // DiffView (src/components/chat/DiffView.tsx) once the card is expanded.
+    // One short unchanged line + one wide added line, so DiffView's diff has
+    // both a context row and an "add" row whose text overflows the ScrollView.
+    const toolPart: StoredPart = {
+      id: "seed-diff-tool",
+      sessionID: session.id,
+      messageID,
+      type: "tool",
+      tool: "edit",
+      callID: "seed-diff-call-1",
+      state: {
+        status: "completed",
+        title: SEED_DIFF_TOOL_TITLE,
+        input: {
+          filePath: "src/wide_diff_target.ts",
+          oldString: "const shortLine = 1",
+          newString: `const shortLine = 1\nconst wideLine = "${WIDE_FILLER}${SEED_DIFF_LINE_MARKER}"`,
+        },
+        output: "applied",
+      },
+    }
+
+    // Wide fenced code block in the reply text: renders via
+    // Markdown -> CustomRenderer.code -> CodeBlock
+    // (src/components/markdown/CodeBlock.tsx).
+    const textPart: StoredPart = {
+      id: "seed-diff-text",
+      sessionID: session.id,
+      messageID,
+      type: "text",
+      text:
+        "Here is a wide code sample:\n\n```typescript\n" +
+        `const wideCodeLine = "${WIDE_FILLER}${SEED_CODE_LINE_MARKER}"\n` +
+        "```\n",
+    }
+
+    messagesBySession.set(session.id, [{ info, parts: [toolPart, textPart] }])
+  }
 
   if (seedSessions) {
     const now = Date.now()
@@ -539,12 +648,13 @@ export function createMockOpencodeServer(opts: MockServerOptions) {
   }
 }
 
-function parseArgs(argv: string[]): { port: number; failAuth: boolean; seedSessions: boolean } {
-  const opts = { port: 4096, failAuth: false, seedSessions: false }
+function parseArgs(argv: string[]): { port: number; failAuth: boolean; seedSessions: boolean; seedDiff: boolean } {
+  const opts = { port: 4096, failAuth: false, seedSessions: false, seedDiff: false }
   for (let i = 0; i < argv.length; i++) {
     if (argv[i] === "--port") opts.port = Number(argv[++i])
     else if (argv[i] === "--fail-auth") opts.failAuth = true
     else if (argv[i] === "--seed-sessions") opts.seedSessions = true
+    else if (argv[i] === "--seed-diff") opts.seedDiff = true
   }
   return opts
 }
@@ -557,7 +667,7 @@ if (invokedDirectly) {
   const mock = createMockOpencodeServer(opts)
   mock.listen().then(() => {
     console.log(
-      `[mock-opencode-server] listening on ${mock.url} (failAuth=${opts.failAuth}, seedSessions=${opts.seedSessions})`,
+      `[mock-opencode-server] listening on ${mock.url} (failAuth=${opts.failAuth}, seedSessions=${opts.seedSessions}, seedDiff=${opts.seedDiff})`,
     )
   })
   const shutdown = () => {
