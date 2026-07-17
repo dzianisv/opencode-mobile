@@ -109,13 +109,6 @@ export default function AddConnectionScreen() {
       )
       captureDiagnostic(report)
       setIsConnecting(false)
-      // Temporary diagnostic (issue #90 follow-up, negative-401 flow stale
-      // assertion): confirms exactly what text this Alert renders, since
-      // logcat is the only visibility into a native Alert's content in CI.
-      console.log("[connect] failure alert content", {
-        summary: report.summary,
-        error: result.error,
-      })
       Alert.alert(
         t("connection.shared.alerts.connectionFailedTitle"),
         t("connection.add.alerts.connectionFailedMessage", {

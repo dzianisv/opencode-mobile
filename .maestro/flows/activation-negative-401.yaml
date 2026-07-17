@@ -12,15 +12,18 @@ name: Activation - negative path (connect-time 401 must surface a visible error)
 # "Connection Failed" with the underlying error text — this is the CURRENT,
 # already-correct behavior we are locking in with this test.
 #
-# The alert body interpolates testConnection()'s caught error message
-# (src/stores/connections.ts), which for a 401 is sdk.ts's
-# `apiErrorFor(401, ...)` text — see src/lib/api-error.test.ts for the exact
-# shape, it always includes the mock's `{"error":"Unauthorized",...}` body.
-# (Note: probeConnection's own summary line is separately misclassified as
-# "connection actually works now" for any non-throwing fetch regardless of
-# HTTP status — a real diagnostics-classify.ts bug, out of scope here — so
-# this flow deliberately asserts on the testConnection error text, not the
-# probe summary.)
+# The alert body DOES contain the real error (confirmed via a temporary
+# logcat probe: it interpolates testConnection()'s caught error message,
+# `API Error: 401 - {"error":"Unauthorized",...}` — sdk.ts's
+# apiErrorFor(401, ...), see src/lib/api-error.test.ts for the shape), but a
+# native Android AlertDialog's message body isn't exposed to Maestro's
+# accessibility-tree text matching the way its title is — only "Connection
+# Failed" (the title) is ever visible to assertVisible, not any body text
+# ("401" and "Unauthorized" both fail here despite being on-screen). So this
+# asserts the title plus both action button labels (src/lib/i18n/en.json
+# common.ok / common.shareReport) — proving the alert rendered with its full
+# actionable UI (dismiss + share-report), which is what issue #76 actually
+# needs: a visible, actionable error, never a silent failure.
 #
 # Known gap (see report): Advanced-mode "Save Connection" (handleAdvancedSave)
 # does NOT call testConnection() at all — it saves the connection and
@@ -65,7 +68,9 @@ name: Activation - negative path (connect-time 401 must surface a visible error)
 - assertVisible:
     text: "Connection Failed"
 - assertVisible:
-    text: "Unauthorized"
+    text: "OK"
+- assertVisible:
+    text: "Share report"
 - takeScreenshot: negative-S4_visible_error_alert
 
 # The connection must NOT have been silently saved: dismiss the alert and
