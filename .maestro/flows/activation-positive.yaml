@@ -8,7 +8,7 @@ name: Activation - positive path (consent -> connect -> send -> reply)
 #
 # The CI job starts `node tests/fixtures/mock-opencode-server.ts --port 4096`
 # on the runner host BEFORE this flow runs. The Android emulator reaches the
-# runner host via the standard emulator alias 10.0.2.2.
+# runner host via the standard emulator alias 127.0.0.1.
 
 - launchApp:
     clearState: true
@@ -29,20 +29,24 @@ name: Activation - positive path (consent -> connect -> send -> reply)
 - takeScreenshot: positive-S3_add_connection_form
 - tapOn:
     id: "connect-ip-input"
-- inputText: "10.0.2.2"
-- tapOn:
-    id: "connect-port-input"
-- eraseText
-- inputText: "4096"
+- inputText: "127.0.0.1:4096"
 - hideKeyboard
 - takeScreenshot: positive-S4_server_url_entered
 - tapOn:
     id: "connect-submit-button"
 
+# Quick Connect fires up to 3 sequential/parallel network calls before the
+# dot renders (testConnection's health(), then addConnection's parallel
+# project.current() + path.get()), and each individual fetch is capped by
+# src/lib/sdk.ts REQUEST_TIMEOUT_MS = 30_000. A 20s wait here raced that
+# 30s client-side timeout and flaked in CI (first real run, #82) even
+# though the mock server was up and reachable. 40s gives the app's own
+# timeout room to complete; this still asserts the real thing, just with a
+# wait that isn't shorter than the code path it's waiting on.
 - extendedWaitUntil:
     visible:
       id: "connection-status-dot"
-    timeout: 20000
+    timeout: 40000
 - assertVisible:
     id: "connection-status-dot"
 - takeScreenshot: positive-S5_connected

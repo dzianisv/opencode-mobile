@@ -39,20 +39,19 @@ name: Activation - negative path (connect-time 401 must surface a visible error)
 
 - tapOn:
     id: "connect-ip-input"
-- inputText: "10.0.2.2"
-- tapOn:
-    id: "connect-port-input"
-- eraseText
-- inputText: "4097"
+- inputText: "127.0.0.1:4097"
 - hideKeyboard
 - takeScreenshot: negative-S3_401_server_url_entered
 - tapOn:
     id: "connect-submit-button"
 
+# Matches the 40s margin used for the positive flow's connection-status-dot
+# wait (src/lib/sdk.ts REQUEST_TIMEOUT_MS = 30_000) for consistency, even
+# though --fail-auth responds with 401 immediately in practice.
 - extendedWaitUntil:
     visible:
       text: "Connection Failed"
-    timeout: 20000
+    timeout: 40000
 - assertVisible:
     text: "Connection Failed"
 - assertVisible:
