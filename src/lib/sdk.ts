@@ -253,10 +253,19 @@ export function createClient(config: ClientConfig) {
         const decoder = new TextDecoder()
         const parser = new SSEParser()
 
+        let receivedFirstByte = false
         try {
           while (true) {
             const { done, value } = await reader.read()
-            if (done) break
+            if (done) {
+              console.log("[SSE] stream ended")
+              break
+            }
+
+            if (!receivedFirstByte) {
+              receivedFirstByte = true
+              console.log(`[SSE] first byte received (${value?.byteLength ?? 0} bytes)`)
+            }
 
             for (const data of parser.push(decoder.decode(value, { stream: true }))) {
               try {

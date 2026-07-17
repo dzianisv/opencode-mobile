@@ -201,6 +201,7 @@ export function createMockOpencodeServer(opts: MockServerOptions) {
 
   function broadcast(type: string, properties: Record<string, unknown>) {
     const line = `data: ${JSON.stringify({ type, properties })}\n\n`
+    console.log(`[mock-opencode-server] broadcast type=${type} clients=${sseClients.size}`)
     for (const res of sseClients) {
       try {
         res.write(line)
@@ -298,6 +299,12 @@ export function createMockOpencodeServer(opts: MockServerOptions) {
     const path = url.pathname
     const method = req.method || "GET"
 
+    // Per-request logging: proves whether the request ever reached the mock
+    // at all (attributes transport vs. app-side rendering for issue #90).
+    res.on("finish", () => {
+      console.log(`[mock-opencode-server] ${method} ${path} -> ${res.statusCode}`)
+    })
+
     if (failAuth) {
       unauthorized(res)
       return
@@ -387,7 +394,24 @@ export function createMockOpencodeServer(opts: MockServerOptions) {
       })
       res.write(": connected\n\n")
       sseClients.add(res)
-      req.on("close", () => sseClients.delete(res))
+      console.log(`[mock-opencode-server] SSE connect, clients=${sseClients.size}`)
+
+      // Periodic heartbeat comment. If the client never sees even this, the
+      // silence is a transport problem (expo/fetch not streaming), not a
+      // broadcast bug — attributes issue #90 mode B.
+      const heartbeat = setInterval(() => {
+        try {
+          res.write(": ping\n\n")
+        } catch {
+          clearInterval(heartbeat)
+        }
+      }, 2000)
+
+      req.on("close", () => {
+        clearInterval(heartbeat)
+        sseClients.delete(res)
+        console.log(`[mock-opencode-server] SSE disconnect, clients=${sseClients.size}`)
+      })
       return
     }
 

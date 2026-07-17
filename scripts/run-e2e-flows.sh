@@ -22,14 +22,56 @@ for p in 4096 4097 4098 4099; do adb reverse "tcp:$p" "tcp:$p"; done
 adb reverse --list
 
 # Decisive probe: can the EMULATOR actually reach the host mock via 127.0.0.1?
-# If either method prints the health JSON, the network path is good and any flow
-# failure is app-side; if both fail/hang, it's the transport (adb reverse). Both
-# are best-effort — API 28's toybox may or may not ship wget, so nc is a fallback.
-echo "== emulator -> mock reachability probe (127.0.0.1:4096/global/health) ==" | tee "$ROOT/artifacts/diag/probe.txt"
-echo "[wget]" | tee -a "$ROOT/artifacts/diag/probe.txt"
-timeout 15 adb shell 'toybox wget -qO - http://127.0.0.1:4096/global/health' 2>&1 | tee -a "$ROOT/artifacts/diag/probe.txt" || true
-echo "[nc]" | tee -a "$ROOT/artifacts/diag/probe.txt"
-timeout 15 adb shell 'printf "GET /global/health HTTP/1.0\r\n\r\n" | toybox nc 127.0.0.1 4096' 2>&1 | tee -a "$ROOT/artifacts/diag/probe.txt" || true
+# If any in-emulator method prints the health JSON, the network path is good
+# and any flow failure is app-side; if none succeed, attribution falls back to
+# a host-side check + adb reverse state so we at least know the mock is up.
+# `toybox wget`/`nc` don't work reliably on the API-28 image (wget: unknown
+# command; nc connects but the request/response framing is unreliable) — so
+# this tries curl (if present), then mksh's /dev/tcp pseudo-device (a shell
+# builtin, not an external binary, so it survives whatever toybox applets
+# this image did/didn't build), then nc as a last in-emulator attempt, before
+# falling back to a host-side confirmation. This never blocks the flow — the
+# result is recorded and the script continues regardless.
+PROBE_FILE="$ROOT/artifacts/diag/probe.txt"
+probe_result="UNKNOWN"
+
+{
+  echo "== emulator -> mock reachability probe (127.0.0.1:4096/global/health) =="
+} > "$PROBE_FILE"
+
+probe_via() {
+  # $1 = human label for the log, $2 = remote shell command string
+  local label="$1" cmd="$2" out
+  echo "[$label]" | tee -a "$PROBE_FILE"
+  out="$(timeout 10 adb shell "$cmd" 2>&1)"
+  echo "$out" | tee -a "$PROBE_FILE"
+  [[ "$out" == *'"healthy"'* ]]
+}
+
+if probe_via "curl" 'curl -s -m 5 http://127.0.0.1:4096/global/health'; then
+  probe_result="PASS (curl)"
+elif probe_via "toybox-wget" 'toybox wget -qO - http://127.0.0.1:4096/global/health'; then
+  probe_result="PASS (wget)"
+elif probe_via "mksh-devtcp" 'exec 3<>/dev/tcp/127.0.0.1/4096 && printf "GET /global/health HTTP/1.0\r\n\r\n" >&3 && cat <&3'; then
+  probe_result="PASS (/dev/tcp)"
+elif probe_via "nc" 'printf "GET /global/health HTTP/1.0\r\n\r\n" | toybox nc -w 3 127.0.0.1 4096'; then
+  probe_result="PASS (nc)"
+else
+  echo "[fallback: host-side confirmation]" | tee -a "$PROBE_FILE"
+  host_check="$(timeout 5 curl -s http://127.0.0.1:4096/global/health 2>&1 || true)"
+  reverse_list="$(adb reverse --list 2>&1 || true)"
+  {
+    echo "host curl: $host_check"
+    echo "adb reverse --list: $reverse_list"
+  } | tee -a "$PROBE_FILE"
+  if [[ "$host_check" == *'"healthy"'* ]]; then
+    probe_result="UNKNOWN (host mock is up, but no in-emulator method could confirm emulator-side reachability)"
+  else
+    probe_result="FAIL (host mock itself is not responding on 127.0.0.1:4096)"
+  fi
+fi
+
+echo "== probe result: $probe_result ==" | tee -a "$PROBE_FILE"
 
 adb logcat -c || true            # clear, so the captured log is just this run
 
