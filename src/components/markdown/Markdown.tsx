@@ -1,9 +1,28 @@
 import type { ReactNode } from "react"
-import { View, Text, useColorScheme, Platform, type ViewStyle, type TextStyle } from "react-native"
+import { View, Text, useColorScheme, Platform, type StyleProp, type ViewStyle, type TextStyle } from "react-native"
 import { useMarkdown, Renderer } from "react-native-marked"
 import { CodeBlock } from "./CodeBlock"
 
+// react-native-marked's base Renderer hardcodes `selectable` on every plain
+// text node it produces (text/strong/em/del/heading/codespan). On Android,
+// selectable <Text> nested inside a FlatList row has a long-standing,
+// still-unresolved RN bug (facebook/react-native#46999, a reopened
+// regression of #28952's fix) where the underlying view's selectable state
+// — and, per our own diff-scroll flow (issue #104), its exposure to the
+// accessibility tree Maestro/UiAutomator reads from — never gets applied
+// correctly. Chat messages here are rendered as rows of the session screen's
+// own FlatList (app/session/[id].tsx), so every markdown text node hits
+// this. Code content is still copyable via CodeBlock's explicit Copy
+// button, so dropping `selectable` on plain text costs little.
 class CustomRenderer extends Renderer {
+  private plainText(children: string | ReactNode[], styles?: StyleProp<TextStyle>): ReactNode {
+    return (
+      <Text key={this.getKey()} style={styles}>
+        {children}
+      </Text>
+    )
+  }
+
   code(text: string, language?: string, containerStyle?: ViewStyle, _textStyle?: TextStyle) {
     return (
       <View key={this.getKey()} style={containerStyle}>
@@ -12,12 +31,28 @@ class CustomRenderer extends Renderer {
     )
   }
 
+  text(text: string | ReactNode[], styles?: TextStyle): ReactNode {
+    return this.plainText(text, styles)
+  }
+
+  strong(children: string | ReactNode[], styles?: TextStyle): ReactNode {
+    return this.plainText(children, styles)
+  }
+
+  em(children: string | ReactNode[], styles?: TextStyle): ReactNode {
+    return this.plainText(children, styles)
+  }
+
+  del(children: string | ReactNode[], styles?: TextStyle): ReactNode {
+    return this.plainText(children, styles)
+  }
+
+  heading(text: string | ReactNode[], styles?: TextStyle): ReactNode {
+    return this.plainText(text, styles)
+  }
+
   codespan(text: string, styles?: TextStyle): ReactNode {
-    return (
-      <Text selectable key={this.getKey()} style={[styles, { fontStyle: "normal", fontWeight: "normal" }]}>
-        {text}
-      </Text>
-    )
+    return this.plainText(text, [styles, { fontStyle: "normal", fontWeight: "normal" }])
   }
 }
 
