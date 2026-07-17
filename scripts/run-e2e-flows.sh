@@ -11,7 +11,23 @@ set -uo pipefail
 
 ROOT="$(pwd)"                       # capture BEFORE any cd, so diag paths are absolute
 APK="android/app/build/outputs/apk/release/app-release.apk"
-FLOWS=(activation-positive activation-negative-401 directory-picker all-sessions variant-picker diff-scroll)
+# CORE = the activation coverage issue #90 verified green (consent -> connect
+# -> send, and the connect-time-401 visible-error case). A failure here fails
+# the job — this is the suite's actual regression gate.
+#
+# NEWER = flows added after the initial activation suite (#82's
+# directory-picker/all-sessions/variant-picker, #101's diff-scroll) that have
+# never once run to completion in CI: they always sat behind the positive
+# flow's stale SSE-reply assertion (issue #90 mode B, now fixed) or the
+# negative-401 flow's stale "401" assertion (also now fixed), both of which
+# made the job fail before reaching them — so they were merged and have been
+# running unverified against the current UI/mock ever since. Run them for
+# visibility (each flow's pass/fail is reported below) but don't block on
+# them yet — see issue #104 for hardening them (fixing whatever stale
+# selectors/seeding surface) and moving each back into CORE once confirmed
+# green.
+CORE_FLOWS=(activation-positive activation-negative-401)
+NEWER_FLOWS=(directory-picker all-sessions variant-picker diff-scroll)
 mkdir -p "$ROOT/artifacts/screenshots" "$ROOT/artifacts/diag"
 
 echo "== installing APK =="
@@ -85,12 +101,26 @@ trap dump_diag EXIT
 
 cd "$ROOT/artifacts/screenshots"
 rc=0
-for f in "${FLOWS[@]}"; do
-  echo "--- flow: $f ---"
+for f in "${CORE_FLOWS[@]}"; do
+  echo "--- flow (core, blocking): $f ---"
   if ! maestro test --debug-output "$ROOT/artifacts/diag/maestro-$f" "$ROOT/.maestro/flows/$f.yaml"; then
     echo "::error::Maestro flow failed: $f"
     rc=1
     break
   fi
 done
+
+# Newer flows: always run all of them (no `break` on failure) and never
+# affect $rc — see the CORE_FLOWS/NEWER_FLOWS comment above for why. Each
+# flow's own pass/fail is still clearly reported, just non-blocking.
+echo "== newer flows (non-blocking, tracked for hardening) =="
+for f in "${NEWER_FLOWS[@]}"; do
+  echo "--- flow (newer, non-blocking): $f ---"
+  if maestro test --debug-output "$ROOT/artifacts/diag/maestro-$f" "$ROOT/.maestro/flows/$f.yaml"; then
+    echo "== newer flow PASSED: $f =="
+  else
+    echo "::warning::newer flow FAILED (non-blocking): $f"
+  fi
+done
+
 exit $rc
