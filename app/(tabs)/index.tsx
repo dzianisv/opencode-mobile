@@ -135,6 +135,7 @@ export default function SessionsScreen() {
     recentDirectories,
   } = useConnections()
   const authError = useEvents((s) => s.authError)
+  const reconnect = useEvents((s) => s.connect)
   const loadCatalog = useCatalog((s) => s.load)
   const dirSheetRef = useRef<BottomSheet>(null)
   const browserSheetRef = useRef<BottomSheet>(null)
@@ -362,13 +363,27 @@ export default function SessionsScreen() {
         <Text style={[styles.emptySubtitle, isDark && styles.metaDark]}>
           {activeConnection.name} rejected your credentials. Check the username and password to reconnect.
         </Text>
-        <TouchableOpacity
-          style={[styles.addButton, isDark && styles.addButtonDark]}
-          onPress={() => router.push(`/connection/${activeConnection.id}`)}
-          testID="fix-connection-button"
-        >
-          <Text style={[styles.addButtonText, isDark && styles.addButtonTextDark]}>Check Credentials</Text>
-        </TouchableOpacity>
+        <View style={styles.authErrorButtonRow}>
+          <TouchableOpacity
+            style={[styles.addButton, isDark && styles.addButtonDark]}
+            onPress={() => router.push(`/connection/${activeConnection.id}`)}
+            testID="fix-connection-button"
+          >
+            <Text style={[styles.addButtonText, isDark && styles.addButtonTextDark]}>Check Credentials</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.addButton, isDark && styles.addButtonDark]}
+            onPress={() => {
+              // authError is cleared inside connect() itself once the retry
+              // attempt starts (see src/stores/events.ts), so a manual
+              // set() here isn't needed — just kick the SSE state machine.
+              reconnect()
+            }}
+            testID="retry-connection-button"
+          >
+            <Text style={[styles.addButtonText, isDark && styles.addButtonTextDark]}>Retry</Text>
+          </TouchableOpacity>
+        </View>
       </View>
     )
   }
@@ -856,6 +871,10 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     borderRadius: 8,
     marginTop: 24,
+  },
+  authErrorButtonRow: {
+    flexDirection: "row",
+    gap: 12,
   },
   addButtonDark: {
     backgroundColor: "#ffffff",

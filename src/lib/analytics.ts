@@ -87,11 +87,12 @@ export enum AnalyticsEvent {
   ResponseReceived = "response_received",
 }
 
-/** Where a connection test was initiated from. The activation funnel filters
- *  to source=onboarding; edit_test covers the Test button on the existing-
- *  connection edit screen, which would otherwise pollute the funnel with
- *  repeat-tester noise. */
-export type ConnectionTestSource = "onboarding" | "edit_test"
+/** Where a connection test/failure was initiated from. The activation funnel
+ *  filters to source=onboarding only; edit_test (Test button on the
+ *  existing-connection edit screen) and sse (background reconnect loop,
+ *  see events.ts) would otherwise pollute the funnel with repeat-tester and
+ *  post-activation noise. */
+export type ConnectionTestSource = "onboarding" | "edit_test" | "sse"
 
 export function initAnalytics() {
   if (enabled) return
