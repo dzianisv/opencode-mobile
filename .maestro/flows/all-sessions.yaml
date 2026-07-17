@@ -18,6 +18,16 @@ name: All sessions across directories - list + open-across-project (regression #
 #   seed-default -> directory /mock/project        (matches the active
 #                   connection's default project — GET /project/current)
 #   seed-other   -> directory /mock/project/other-dir (a DIFFERENT directory)
+#
+# Why this can actually FAIL if #46/#48 regresses: the mock ENFORCES
+# per-directory scoping — GET /session/seed-other and
+# GET /session/seed-other/message return 404 unless the request carries
+# x-opencode-directory: /mock/project/other-dir. With the fix present, the
+# app threads the session's directory through selectSession ->
+# clientForDirectory, sends the right header, and the session screen renders.
+# Without it, the request goes out with the wrong (or no) directory header,
+# the mock 404s, and the session-screen assertions below (title, directory
+# badge, empty state) fail.
 
 - launchApp:
     clearState: true

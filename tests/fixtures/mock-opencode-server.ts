@@ -36,8 +36,25 @@
 //   - GET /session/:id, needed to open a session from the directory-less
 //     all-sessions list (src/stores/sessions.ts loadSessions/selectSession),
 //     including sessions the client never itself created.
+//   - Per-directory workspace scoping is ENFORCED (like the real server):
+//     GET /session/:id and GET /session/:id/message 404 unless the request's
+//     x-opencode-directory (or DEFAULT_DIRECTORY when absent) matches the
+//     session's own directory, and GET /session without ?roots=true only
+//     lists the request directory's sessions. This is what gives
+//     all-sessions.yaml teeth as a #46/#48 regression test — an app that
+//     stops threading the session's directory gets 404s, not silent passes.
 //   - GET /provider's mock-model carries `variants` (low/medium/high) so
 //     VariantPicker has options to render.
+//
+// Shared-state note: in CI (.github/workflows/activation-e2e.yml) the
+// instance on port 4099 is shared by directory-picker.yaml and then
+// variant-picker.yaml (run sequentially in the same emulator session).
+// State persists across flows — e.g. the session directory-picker creates in
+// /mock/project/backend still exists when variant-picker runs. That is
+// harmless today (variant-picker creates its own quick session and never
+// asserts on list contents), but keep it in mind when adding assertions
+// about "how many sessions exist" to either flow — or give a new flow its
+// own port instead.
 //
 // Two modes:
 //   - Normal mode: implements the endpoints above so the app can connect,
@@ -106,6 +123,19 @@ interface StoredMessage {
 }
 
 export const DEFAULT_REPLY_TEXT = "Hello from the mock opencode server — activation e2e canned reply."
+
+// The directory a request is scoped to when the client sends no
+// x-opencode-directory header (i.e. a connection added without an explicit
+// directory). Mirrors the real server's notion of a default/current workspace.
+export const DEFAULT_DIRECTORY = "/mock/project"
+
+// Resolve the workspace directory a request is scoped to. Directory-scoped
+// clients (src/stores/connections.ts clientForDirectory(dir)) send the
+// x-opencode-directory header (src/lib/headers.ts); directory-less clients
+// send none and fall back to DEFAULT_DIRECTORY.
+function requestDirectory(req: http.IncomingMessage): string {
+  return (req.headers["x-opencode-directory"] as string | undefined) || DEFAULT_DIRECTORY
+}
 
 // Fake server-side filesystem tree for DirectoryBrowserSheet
 // (src/components/chat/DirectoryBrowserSheet.tsx -> client.file.list({path: "."})
@@ -338,7 +368,7 @@ export function createMockOpencodeServer(opts: MockServerOptions) {
     // always requests path="." (see src/lib/sdk.ts file.list) and scopes to a
     // directory via the x-opencode-directory header (src/lib/headers.ts).
     if (method === "GET" && path === "/file") {
-      const dir = (req.headers["x-opencode-directory"] as string | undefined) || "/mock/project"
+      const dir = requestDirectory(req)
       return json(res, 200, FAKE_FILE_TREE[dir] || [])
     }
     if (method === "GET" && path === "/permission") {
@@ -367,7 +397,7 @@ export function createMockOpencodeServer(opts: MockServerOptions) {
       // Directory-scoped clients (connections store clientForDirectory()) send
       // the target directory via this header — used by the "create session in
       // a browsed/picked folder" flow (DirectoryBrowserSheet -> onCreateInDirectory).
-      const directory = (req.headers["x-opencode-directory"] as string | undefined) || "/mock/project"
+      const directory = requestDirectory(req)
       const session: StoredSession = {
         id,
         slug: id.slice(0, 8),
@@ -382,24 +412,53 @@ export function createMockOpencodeServer(opts: MockServerOptions) {
       return json(res, 200, session)
     }
     if (method === "GET" && path === "/session") {
-      return json(res, 200, Array.from(sessions.values()))
+      // Directory-less "all sessions across all projects" list: the app's
+      // loadSessions() (src/stores/sessions.ts) uses clientForDirectory(undefined)
+      // — no x-opencode-directory header — and passes ?roots=true (src/lib/sdk.ts
+      // session.list). Only that combination returns sessions from every
+      // directory; otherwise the list is scoped to the request's directory, so
+      // directory-scoped and directory-less clients are actually distinguishable.
+      if (url.searchParams.get("roots") === "true") {
+        return json(res, 200, Array.from(sessions.values()))
+      }
+      const dir = requestDirectory(req)
+      return json(
+        res,
+        200,
+        Array.from(sessions.values()).filter((s) => s.directory === dir),
+      )
     }
 
     // Single-session fetch (src/lib/sdk.ts session.get -> src/stores/sessions.ts
     // selectSession), used whenever a session from the all-sessions list (which
     // may belong to any directory) is opened — including sessions the client
     // never created itself (e.g. the seeded ones below).
+    //
+    // Directory ownership is ENFORCED, mirroring the real server's per-directory
+    // workspace scoping: a session is only visible to a request scoped to the
+    // session's own directory. This is what makes all-sessions.yaml real
+    // regression coverage for #46/#48 — if the app stopped threading the
+    // session's directory into clientFor()/clientForDirectory(), the request
+    // would carry the wrong (or no) x-opencode-directory header and get a 404
+    // here, and the flow's session-screen assertions would fail.
     const sessionGetMatch = path.match(/^\/session\/([^/]+)$/)
     if (method === "GET" && sessionGetMatch) {
       const sid = sessionGetMatch[1]
       const session = sessions.get(sid)
-      if (!session) return json(res, 404, { error: `unknown session ${sid}` })
+      if (!session || session.directory !== requestDirectory(req)) {
+        return json(res, 404, { error: `unknown session ${sid}` })
+      }
       return json(res, 200, session)
     }
 
     const sessionMessageMatch = path.match(/^\/session\/([^/]+)\/message$/)
     if (method === "GET" && sessionMessageMatch) {
       const sid = sessionMessageMatch[1]
+      const session = sessions.get(sid)
+      // Same per-directory enforcement as GET /session/:id above.
+      if (!session || session.directory !== requestDirectory(req)) {
+        return json(res, 404, { error: `unknown session ${sid}` })
+      }
       return json(res, 200, messagesBySession.get(sid) || [])
     }
 
