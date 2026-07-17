@@ -50,6 +50,9 @@ export function VariantPicker({ variants, selected, isDark, onSelect, sheetRef }
       ref={sheetRef}
       index={-1}
       snapPoints={["30%", "50%"]}
+      // See DirectoryBrowserSheet.tsx for why this is required alongside
+      // static snapPoints (issue #104): without it the sheet can never open.
+      enableDynamicSizing={false}
       enablePanDownToClose
       backgroundStyle={isDark ? s.sheetDark : s.sheet}
       handleIndicatorStyle={{ backgroundColor: isDark ? "#666666" : "#cccccc" }}

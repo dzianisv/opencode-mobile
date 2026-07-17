@@ -84,6 +84,9 @@ export function ModelPicker({ providers, selected, isDark, onSelect, sheetRef }:
       ref={sheetRef}
       index={-1}
       snapPoints={["50%", "80%"]}
+      // See DirectoryBrowserSheet.tsx for why this is required alongside
+      // static snapPoints (issue #104): without it the sheet can never open.
+      enableDynamicSizing={false}
       enablePanDownToClose
       keyboardBehavior="interactive"
       keyboardBlurBehavior="restore"
@@ -123,6 +126,7 @@ export function ModelPicker({ providers, selected, isDark, onSelect, sheetRef }:
             <TouchableOpacity
               style={[s.row, isDark && s.rowDark, active && (isDark ? s.rowSelectedDark : s.rowSelected)]}
               onPress={() => handleSelect(item.providerID, item.modelID)}
+              testID={`model-option-${item.providerID}-${item.modelID}`}
             >
               <View style={s.rowText}>
                 <Text style={[s.rowName, isDark && s.textWhite]} numberOfLines={1}>

@@ -80,8 +80,17 @@ name: "DiffView + CodeBlock horizontal scroll - wide diff/code line reachable by
 # render both the tool card and the markdown code block.
 - assertVisible:
     text: "Edit wide_diff_target.ts"
-- assertVisible:
-    text: "Here is a wide code sample"
+# Diagnostic screenshot (issue #104): the tool-card title above renders via
+# plain Text, while the paragraph below renders via react-native-marked's
+# nested FlatList inside this screen's own *inverted* FlatList. If this ever
+# regresses again, check whether this frame shows blank space between the
+# message header and the tool card (nested-FlatList-in-inverted-list content
+# not laying out) vs. genuinely missing/incorrect text.
+- takeScreenshot: diffscroll-S1b_before_markdown_text_check
+- extendedWaitUntil:
+    visible:
+      text: "Here is a wide code sample"
+    timeout: 20000
 - takeScreenshot: diffscroll-S2_history_loaded
 
 # --- CodeBlock: the wide fenced code block is already expanded (no tap

@@ -710,6 +710,7 @@ export default function SessionScreen() {
           <TouchableOpacity
             style={[s.modelChip, isDark && s.modelChipDark]}
             onPress={() => modelSheetRef.current?.expand()}
+            testID="model-chip"
           >
             <Ionicons name="hardware-chip-outline" size={14} color={isDark ? "#888888" : "#666666"} />
             <Text style={[s.modelLabel, isDark && s.metaDark]} numberOfLines={1}>

@@ -154,6 +154,14 @@ export function DirectoryBrowserSheet({
       ref={sheetRef}
       index={-1}
       snapPoints={["65%", "92%"]}
+      // Static percentage snapPoints are provided above, but @gorhom/bottom-sheet
+      // v5 defaults enableDynamicSizing to true, which requires content wrapped
+      // in a size-reporting component (BottomSheetView) to ever compute a valid
+      // detent — this sheet's children are plain Views/BottomSheetFlatList, so
+      // contentHeight never resolves and the sheet can never open (expand() has
+      // no valid snap position to animate to). Disable dynamic sizing so the
+      // explicit snapPoints above are used directly. See GitHub issue #104.
+      enableDynamicSizing={false}
       enablePanDownToClose
       keyboardBehavior="interactive"
       keyboardBlurBehavior="restore"

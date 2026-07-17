@@ -95,6 +95,20 @@ declare module "react-native-marked" {
     hooks?: Hooks
   }
 
+  // Used by src/components/markdown/Markdown.tsx to render parsed blocks
+  // directly (bypassing the FlatList-based default export) — see issue #104.
+  export interface useMarkdownHookOptions {
+    colorScheme?: "light" | "dark" | null
+    renderer?: RendererInterface
+    theme?: UserTheme
+    styles?: MarkedStyles | Record<string, unknown>
+    baseUrl?: string
+    tokenizer?: Tokenizer
+    hooks?: Hooks
+  }
+
+  export function useMarkdown(value: string, options?: useMarkdownHookOptions): ReactNode[]
+
   const Markdown: React.FC<MarkdownProps>
   export default Markdown
 }

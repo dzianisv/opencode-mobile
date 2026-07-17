@@ -55,6 +55,9 @@ export function DirectorySwitcher({ sheetRef, current, recents, serverHome, isDa
       ref={sheetRef}
       index={-1}
       snapPoints={["45%", "70%"]}
+      // See DirectoryBrowserSheet.tsx for why this is required alongside
+      // static snapPoints (issue #104): without it the sheet can never open.
+      enableDynamicSizing={false}
       enablePanDownToClose
       keyboardBehavior="interactive"
       keyboardBlurBehavior="restore"

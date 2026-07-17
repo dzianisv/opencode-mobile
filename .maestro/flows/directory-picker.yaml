@@ -62,6 +62,10 @@ name: Directory picker - browse server folders and create a session in one
     id: "browse-folders-button"
 - assertVisible:
     text: "Browse Folders"
+# Diagnostic screenshot before the (previously flaky, see issue #104) wait
+# below — if this ever regresses again, compare this frame against
+# dirpicker-S2 to see whether the sheet actually opened.
+- takeScreenshot: dirpicker-S2b_browser_sheet_opened
 - extendedWaitUntil:
     visible:
       id: "directory-row-frontend"

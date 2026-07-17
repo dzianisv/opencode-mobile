@@ -13,6 +13,14 @@ name: Variant picker - reasoning-effort chip renders, selects, and still sends
 # on the runner host BEFORE this flow runs (same fresh, non-seeded normal-mode
 # server used by directory-picker.yaml — GET /provider's mock-model carries
 # low/medium/high variants; see tests/fixtures/mock-opencode-server.ts).
+#
+# A brand-new session has NO explicit model selection: src/lib/model-selection.ts
+# chooseModelSelection() deliberately returns null until the user picks one
+# (issue #37/#35 — the provider registry's "default" model is unreliable), so
+# app/session/[id].tsx's currentModelVariants is undefined and the chip does
+# NOT render on session open. This flow explicitly opens the model picker and
+# selects the mock provider's model first, which is what actually makes
+# variants available — matching how a real user reaches this chip.
 
 - launchApp:
     clearState: true
@@ -46,6 +54,18 @@ name: Variant picker - reasoning-effort chip renders, selects, and still sends
     visible:
       id: "chat-message-input"
     timeout: 15000
+
+# Explicitly pick the mock provider's model — a fresh session has no model
+# selection yet (see comment above), so the variant chip has nothing to key
+# off of until this happens.
+- tapOn:
+    id: "model-chip"
+- extendedWaitUntil:
+    visible:
+      id: "model-option-mock-mock-model"
+    timeout: 10000
+- tapOn:
+    id: "model-option-mock-mock-model"
 
 # The chip only appears once catalog.load() (triggered on connect, see
 # app/_layout.tsx) has resolved GET /provider and found variants for the
