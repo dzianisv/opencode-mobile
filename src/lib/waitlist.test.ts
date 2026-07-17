@@ -51,7 +51,9 @@ test("mailto fallback works without an email", () => {
 
 // --- fallback decision ---
 
-test("fallback: transport failures and 5xx -> mailto, 4xx -> fix input", () => {
+// 502 named explicitly: the server returns it when Brevo itself fails, and the
+// signup must survive that via mailto.
+test("fallback: transport failures and 5xx (incl. 502 Brevo failure) -> mailto, 4xx -> fix input", () => {
   assert.equal(shouldFallbackToMailto({ kind: "network-error" }), true)
   assert.equal(shouldFallbackToMailto({ kind: "http", status: 500 }), true)
   assert.equal(shouldFallbackToMailto({ kind: "http", status: 502 }), true)

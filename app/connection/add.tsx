@@ -164,7 +164,12 @@ export default function AddConnectionScreen() {
     if (result.fallback) {
       // API unreachable/broken: fall back to the pre-#87 mailto path so the
       // signup still reaches the support inbox instead of being lost.
-      Linking.openURL(buildWaitlistMailtoUrl(result.email))
+      try {
+        await Linking.openURL(buildWaitlistMailtoUrl(result.email))
+      } catch {
+        // No mail app either — tell the user instead of failing silently.
+        Alert.alert("Join Waitlist", "Could not reach the signup service or open an email app. Please email support@agentlabs.cc with subject \"OpenCode Connect Waitlist\".")
+      }
     } else {
       Alert.alert("Join Waitlist", result.error)
     }
