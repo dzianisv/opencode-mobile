@@ -30,7 +30,7 @@ name: Directory picker - browse server folders and create a session in one
     id: "add-connection-button"
 - tapOn:
     id: "connect-ip-input"
-- inputText: "10.0.2.2"
+- inputText: "127.0.0.1"
 - tapOn:
     id: "connect-port-input"
 - eraseText
