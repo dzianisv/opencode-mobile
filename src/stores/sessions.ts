@@ -58,7 +58,7 @@ interface SessionsState {
   handleEvent: (event: Event) => void
 }
 
-export type RevertResult = ({ ok: true } & PromptFromParts) | { ok: false; reason: "unsupported" | "error" }
+export type RevertResult = ({ ok: true } & PromptFromParts) | { ok: false; reason: "unsupported" | "auth" | "error" }
 
 // Sessions the user aborted since they last went busy. Mirrors events.ts's
 // erroredSessions: SessionStatus has no "aborted" variant — an aborted run
@@ -366,9 +366,14 @@ export const useSessions = create<SessionsState>((set, get) => ({
       }))
       return { ok: true, ...extractPromptFromParts(get().parts[messageID]) }
     } catch (err) {
-      // Older servers (pre session.revert) 404 on this route — degrade
-      // gracefully instead of surfacing a generic error.
-      if (err instanceof ApiError && err.status === 404) return { ok: false, reason: "unsupported" }
+      if (err instanceof ApiError) {
+        // Older servers (pre session.revert) 404 on this route — degrade
+        // gracefully instead of surfacing a generic error.
+        if (err.status === 404) return { ok: false, reason: "unsupported" }
+        // Expired/invalid credentials — distinct from a generic failure so
+        // the caller can point the user at reconnecting rather than "retry".
+        if (err.status === 401 || err.status === 403) return { ok: false, reason: "auth" }
+      }
       console.error("Failed to revert message:", err)
       set({ error: "Failed to revert message" })
       return { ok: false, reason: "error" }

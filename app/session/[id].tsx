@@ -157,14 +157,17 @@ export default function SessionScreen() {
   // While a revert is pending, the reverted message and everything after it
   // still exist server-side (cleanup only runs on the next prompt/unrevert)
   // — hide them client-side so editing feels immediate. Message IDs are
-  // lexicographically sortable, same comparison the TUI uses.
+  // lexicographically sortable, same comparison the TUI uses. Optimistic
+  // "temp-" IDs (assigned client-side before the server responds, see
+  // sendMessage) aren't part of that sort order — always keep them so a
+  // message sent concurrently with a revert isn't hidden.
   const revertMessageID = currentSession?.revert?.messageID
 
   // Inverted FlatList: data is reversed (newest first) so newest renders at bottom
   const messageData = useMemo(
     () =>
       (messages || [])
-        .filter((msg) => !revertMessageID || msg.id < revertMessageID)
+        .filter((msg) => !revertMessageID || msg.id.startsWith("temp-") || msg.id < revertMessageID)
         .map((msg) => ({
           message: msg,
           parts: (parts && parts[msg.id]) || [],
@@ -172,6 +175,37 @@ export default function SessionScreen() {
         .reverse(),
     [messages, parts, revertMessageID],
   )
+
+  // Tracks the latest composer text without pulling `input` into
+  // handleMessageLongPress's deps — kept as a plain ref assignment (not
+  // state) so the callback below stays referentially stable across
+  // keystrokes for MessageBubble's custom memo comparator.
+  const inputRef = useRef(input)
+  inputRef.current = input
+
+  const applyRevertResult = useCallback((result: Awaited<ReturnType<typeof revertToMessage>>) => {
+    if (!result.ok) {
+      if (result.reason === "unsupported") {
+        Alert.alert(
+          "Not supported",
+          "Editing sent messages needs a newer opencode server. Please update the server and try again.",
+        )
+      } else if (result.reason === "auth") {
+        Alert.alert("Authentication failed", "Your server credentials were rejected. Check your connection and try again.")
+      } else {
+        Alert.alert("Edit failed", "Could not revert to this message. Please try again.")
+      }
+      return
+    }
+    setInput(result.text)
+    // Restore attachments in the same shape the composer's own picker
+    // functions (pickFromLibrary/pickFromCamera/pasteFromClipboard) use.
+    setAttachments(
+      result.files
+        .filter((f): f is typeof f & { url: string; mime: string } => !!f.url && !!f.mime)
+        .map((f) => ({ uri: f.url, mime: f.mime, filename: f.filename })),
+    )
+  }, [])
 
   // Stable across renders (reads fresh state via getState() rather than
   // closing over props) so MessageBubble's custom memo comparator can bail
@@ -181,24 +215,30 @@ export default function SessionScreen() {
       { text: "Cancel", style: "cancel" },
       {
         text: "Edit message",
-        onPress: async () => {
-          const result = await useSessions.getState().revertToMessage(messageID)
-          if (!result.ok) {
-            if (result.reason === "unsupported") {
-              Alert.alert(
-                "Not supported",
-                "Editing sent messages needs a newer opencode server. Please update the server and try again.",
-              )
-            } else {
-              Alert.alert("Edit failed", "Could not revert to this message. Please try again.")
-            }
+        onPress: () => {
+          const doRevert = async () => {
+            const result = await useSessions.getState().revertToMessage(messageID)
+            applyRevertResult(result)
+          }
+          // Editing overwrites the composer — don't silently clobber an
+          // in-progress unsent draft.
+          if (inputRef.current.trim()) {
+            Alert.alert(
+              "Replace draft?",
+              "You have an unsent message in the composer. Editing this message will replace it.",
+              [
+                { text: "Cancel", style: "cancel" },
+                { text: "Replace", style: "destructive", onPress: doRevert },
+              ],
+              { cancelable: false },
+            )
             return
           }
-          setInput(result.text)
+          doRevert()
         },
       },
     ])
-  }, [])
+  }, [applyRevertResult])
 
   const scrollToBottom = useCallback((animated = true) => {
     flatListRef.current?.scrollToOffset({ offset: 0, animated })
