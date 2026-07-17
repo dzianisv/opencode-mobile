@@ -78,7 +78,7 @@ OpenCode Mobile does not collect your code, prompts, or AI responses. All traffi
 Support: support@agentlabs.cc
 Issues: github.com/dzianisv/opencode-mobile/issues
 ```
-(3410/4000 chars)
+(3366/4000 chars)
 
 > Supersedes the prior draft, which named a dated model ("GPT-4") and was missing the directory picker and reasoning-effort features shipped since. Model references are now version-free by design ("Claude, GPT, Gemini, or any other model") so this copy doesn't go stale again as model names change.
 
