@@ -33,8 +33,9 @@ export function TelemetryConsentModal({ visible, onAllow, onDecline }: Props) {
 
           {/* Body */}
           <Text style={[styles.body, isDark && styles.bodyDark]}>
-            Share anonymous crash reports to help us find and fix bugs faster. No code, prompts,
-            or server addresses are ever included.
+            Share anonymous crash reports to help us find and fix bugs faster. Diagnostic reports
+            you share are also delivered to our support inbox. No code, prompts, or server
+            addresses are ever included.
           </Text>
 
           {/* Detail bullets */}
