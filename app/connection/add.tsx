@@ -19,6 +19,7 @@ import { probeConnection, shareReport } from "../../src/lib/diagnostics"
 import { captureDiagnostic } from "../../src/lib/sentry"
 import { parseUrl } from "../../src/lib/diagnostics-classify"
 import { AnalyticsEvent, track } from "../../src/lib/analytics"
+import { submitWaitlistSignup, buildWaitlistMailtoUrl } from "../../src/lib/waitlist"
 
 export default function AddConnectionScreen() {
   const colorScheme = useColorScheme()
@@ -37,6 +38,7 @@ export default function AddConnectionScreen() {
   const [password, setPassword] = useState("")
   const [isConnecting, setIsConnecting] = useState(false)
   const [waitlistEmail, setWaitlistEmail] = useState("")
+  const [waitlistState, setWaitlistState] = useState<"idle" | "submitting" | "joined">("idle")
 
   const buildUrl = () => {
     if (mode === "advanced") return url.trim()
@@ -150,11 +152,22 @@ export default function AddConnectionScreen() {
     router.back()
   }
 
-  const handleJoinWaitlist = () => {
-    const email = waitlistEmail.trim()
-    const subject = encodeURIComponent("OpenCode Connect Waitlist")
-    const body = encodeURIComponent(email ? `Sign me up!\n\nEmail: ${email}` : "Sign me up!")
-    Linking.openURL(`mailto:support@agentlabs.cc?subject=${subject}&body=${body}`)
+  const handleJoinWaitlist = async () => {
+    if (waitlistState === "submitting") return
+    setWaitlistState("submitting")
+    const result = await submitWaitlistSignup(waitlistEmail)
+    if (result.ok) {
+      setWaitlistState("joined")
+      return
+    }
+    setWaitlistState("idle")
+    if (result.fallback) {
+      // API unreachable/broken: fall back to the pre-#87 mailto path so the
+      // signup still reaches the support inbox instead of being lost.
+      Linking.openURL(buildWaitlistMailtoUrl(result.email))
+    } else {
+      Alert.alert("Join Waitlist", result.error)
+    }
   }
 
   // Quick connect mode - simplified
@@ -283,23 +296,44 @@ export default function AddConnectionScreen() {
             Bridge your phone to your opencode server — no tunnel setup, no firewall config. One-tap connect from
             anywhere.
           </Text>
-          <TextInput
-            style={[styles.input, isDark && styles.inputDark, { marginTop: 12 }]}
-            placeholder="your@email.com"
-            placeholderTextColor={isDark ? "#666666" : "#999999"}
-            value={waitlistEmail}
-            onChangeText={setWaitlistEmail}
-            autoCapitalize="none"
-            autoCorrect={false}
-            keyboardType="email-address"
-          />
-          <TouchableOpacity
-            style={styles.waitlistButton}
-            onPress={handleJoinWaitlist}
-          >
-            <Ionicons name="mail-outline" size={16} color="#ffffff" />
-            <Text style={styles.waitlistButtonText}>Join Waitlist</Text>
-          </TouchableOpacity>
+          {waitlistState === "joined" ? (
+            <View style={styles.waitlistSuccess} testID="waitlist-success">
+              <Ionicons name="checkmark-circle" size={20} color="#22c55e" />
+              <Text style={[styles.waitlistSuccessText, isDark && styles.textDark]}>
+                You're on the list — we'll email you when OpenCode Connect is ready.
+              </Text>
+            </View>
+          ) : (
+            <>
+              <TextInput
+                style={[styles.input, isDark && styles.inputDark, { marginTop: 12 }]}
+                placeholder="your@email.com"
+                placeholderTextColor={isDark ? "#666666" : "#999999"}
+                value={waitlistEmail}
+                onChangeText={setWaitlistEmail}
+                autoCapitalize="none"
+                autoCorrect={false}
+                keyboardType="email-address"
+                editable={waitlistState !== "submitting"}
+                testID="waitlist-email-input"
+              />
+              <TouchableOpacity
+                style={styles.waitlistButton}
+                onPress={handleJoinWaitlist}
+                disabled={waitlistState === "submitting"}
+                testID="waitlist-submit-button"
+              >
+                {waitlistState === "submitting" ? (
+                  <ActivityIndicator size="small" color="#ffffff" />
+                ) : (
+                  <>
+                    <Ionicons name="mail-outline" size={16} color="#ffffff" />
+                    <Text style={styles.waitlistButtonText}>Join Waitlist</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            </>
+          )}
         </View>
 
         {/* Advanced mode link */}
@@ -710,5 +744,17 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: "600",
     color: "#ffffff",
+  },
+  waitlistSuccess: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginTop: 12,
+  },
+  waitlistSuccessText: {
+    flex: 1,
+    fontSize: 13,
+    color: "#0a0a0a",
+    lineHeight: 20,
   },
 })
