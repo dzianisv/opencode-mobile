@@ -42,11 +42,7 @@ name: All sessions across directories - list + open-across-project (regression #
     id: "add-connection-button"
 - tapOn:
     id: "connect-ip-input"
-- inputText: "127.0.0.1"
-- tapOn:
-    id: "connect-port-input"
-- eraseText
-- inputText: "4098"
+- inputText: "127.0.0.1:4098"
 - hideKeyboard
 - tapOn:
     id: "connect-submit-button"
