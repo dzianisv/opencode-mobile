@@ -62,8 +62,10 @@ STOPWORDS = {
 def env_client():
     raw = os.environ.get("GOOGLE_SERVICE_ACCOUNT_JSON", "")
     if not raw:
-        print("GOOGLE_SERVICE_ACCOUNT_JSON not set — skipping.")
-        sys.exit(0)
+        # Fail visibly (issue #61 done-criteria): a missing credential must
+        # turn the workflow run red, not report success while doing nothing.
+        print("ERROR: GOOGLE_SERVICE_ACCOUNT_JSON not set — cannot fetch reviews.", file=sys.stderr)
+        sys.exit(1)
     info = json.loads(raw)
     creds = service_account.Credentials.from_service_account_info(info, scopes=SCOPES)
     return build("androidpublisher", "v3", credentials=creds, cache_discovery=False)
