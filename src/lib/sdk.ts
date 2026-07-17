@@ -190,13 +190,25 @@ function createHeaders(config: ClientConfig): HeadersInit {
   return buildRequestHeaders(config)
 }
 
-async function request<T>(config: ClientConfig, path: string, options: RequestInit = {}): Promise<T> {
+// `timeoutMs` lets specific callers (e.g. the onboarding health-check) fail
+// faster than the general REQUEST_TIMEOUT_MS used by real session calls.
+// Leave it unset to get the default.
+async function request<T>(
+  config: ClientConfig,
+  path: string,
+  options: RequestInit = {},
+  timeoutMs?: number,
+): Promise<T> {
   const url = `${config.baseUrl}${path}`
   const headers = { ...createHeaders(config), ...options.headers }
-  const response = await fetchWithTimeout(url, {
-    ...options,
-    headers,
-  })
+  const response = await fetchWithTimeout(
+    url,
+    {
+      ...options,
+      headers,
+    },
+    timeoutMs,
+  )
 
   if (!response.ok) {
     const error = await response.text()
@@ -206,7 +218,7 @@ async function request<T>(config: ClientConfig, path: string, options: RequestIn
   return response.json()
 }
 
-async function fetchWithTimeout(url: string, options: RequestInit = {}): Promise<Response> {
+async function fetchWithTimeout(url: string, options: RequestInit = {}, timeoutMs: number = REQUEST_TIMEOUT_MS): Promise<Response> {
   const parentSignal = options.signal
   if (parentSignal?.aborted) throw new Error("Request aborted")
 
@@ -215,7 +227,7 @@ async function fetchWithTimeout(url: string, options: RequestInit = {}): Promise
   const timeout = setTimeout(() => {
     timedOut = true
     controller.abort()
-  }, REQUEST_TIMEOUT_MS)
+  }, timeoutMs)
   const onParentAbort = () => controller.abort()
   parentSignal?.addEventListener("abort", onParentAbort)
 
@@ -223,7 +235,7 @@ async function fetchWithTimeout(url: string, options: RequestInit = {}): Promise
     return await fetch(url, { ...options, signal: controller.signal })
   } catch (error) {
     if (timedOut) {
-      throw new Error(`Request timed out after ${REQUEST_TIMEOUT_MS}ms`)
+      throw new Error(`Request timed out after ${timeoutMs}ms`)
     }
     throw error
   } finally {
@@ -235,7 +247,10 @@ async function fetchWithTimeout(url: string, options: RequestInit = {}): Promise
 export function createClient(config: ClientConfig) {
   return {
     global: {
-      health: () => request<HealthResponse>(config, "/global/health"),
+      // `timeoutMs` overrides the default REQUEST_TIMEOUT_MS — used by the
+      // onboarding connection test to fail fast on a bad/unreachable IP
+      // instead of hanging for the full 30s (issue: first-run bounce).
+      health: (timeoutMs?: number) => request<HealthResponse>(config, "/global/health", {}, timeoutMs),
       // SSE event stream - returns async iterator
       // Pass an AbortSignal to cancel the connection
       async *events(signal?: AbortSignal): AsyncGenerator<Event> {

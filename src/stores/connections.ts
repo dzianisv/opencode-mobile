@@ -11,6 +11,12 @@ const CONNECTIONS_KEY = "opencode_connections"
 const PASSWORDS_PREFIX = "opencode_password_"
 const RECENT_DIRS_KEY = "opencode_recent_dirs"
 const MAX_RECENT_DIRS = 10
+// A bad IP (unreachable host, wrong port) otherwise hangs for the full 30s
+// general request timeout before the user sees a "connection failed" error —
+// a first-run bounce driver. The interactive connect flow can afford to fail
+// faster since a real server responds to /global/health in well under a
+// second; this does NOT affect the timeout used for real session traffic.
+const CONNECTION_TEST_TIMEOUT_MS = 12_000
 
 // Cached auth so we can create directory-scoped clients without async SecureStore lookups
 interface ClientBase {
@@ -259,7 +265,7 @@ export const useConnections = create<ConnectionsState>((set, get) => ({
         auth: buildAuth(connection.username, password),
       })
 
-      await client.global.health()
+      await client.global.health(CONNECTION_TEST_TIMEOUT_MS)
       track(AnalyticsEvent.ConnectionSucceeded, { source })
       return { ok: true }
     } catch (error) {

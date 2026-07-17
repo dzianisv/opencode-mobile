@@ -189,7 +189,8 @@
       "alerts": {
         "enterIp": "Please enter your computer's IP address",
         "connectionFailedMessage": "{{summary}}\n\nTarget: {{target}}\nError: {{error}}"
-      }
+      },
+      "prerequisiteNotice": "Requires a computer running opencode serve, reachable on the same network or via Tailscale."
     },
     "edit": {
       "notFound": "Connection not found",
@@ -256,7 +257,8 @@
     },
     "empty": {
       "noConnectionTitle": "No Connection",
-      "noConnectionSubtitle": "Add a server connection to get started",
+      "noConnectionSubtitle": "Connect to a computer running opencode serve on your network or via Tailscale to get started.",
+      "setupGuideLink": "How to set up a server",
       "addConnectionButton": "Add Connection",
       "authFailedTitle": "Authentication Failed",
       "authFailedSubtitle": "{{name}} rejected your credentials. Check the username and password to reconnect.",

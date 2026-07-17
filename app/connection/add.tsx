@@ -235,6 +235,15 @@ export default function AddConnectionScreen() {
           <Text style={[styles.quickSubtitle, isDark && styles.hintDark]}>{t("connection.add.quick.subtitle")}</Text>
         </View>
 
+        {/* Prerequisite notice — the help box below explains this in detail,
+            but new users need to see it before they start typing (issue: 0% 7-day retention). */}
+        <View style={[styles.prerequisiteNotice, isDark && styles.prerequisiteNoticeDark]}>
+          <Ionicons name="information-circle-outline" size={16} color={isDark ? "#a5b4fc" : "#6366f1"} />
+          <Text style={[styles.prerequisiteNoticeText, isDark && styles.hintDark]}>
+            {t("connection.add.quick.prerequisiteNotice")}
+          </Text>
+        </View>
+
         {/* IP Address */}
         <Text style={[styles.label, isDark && styles.labelDark]}>{t("connection.add.quick.ipAddressLabel")}</Text>
         <View style={styles.ipRow}>
@@ -577,6 +586,25 @@ const styles = StyleSheet.create({
     color: "#666666",
     marginTop: 8,
     textAlign: "center",
+  },
+  prerequisiteNotice: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: "#f0f0ff",
+    borderRadius: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    marginBottom: 8,
+  },
+  prerequisiteNoticeDark: {
+    backgroundColor: "#1e1b4b",
+  },
+  prerequisiteNoticeText: {
+    flex: 1,
+    fontSize: 13,
+    color: "#4338ca",
+    lineHeight: 18,
   },
   ipRow: {
     flexDirection: "row",

@@ -189,7 +189,8 @@
       "alerts": {
         "enterIp": "请输入您电脑的 IP 地址",
         "connectionFailedMessage": "{{summary}}\n\n目标：{{target}}\n错误：{{error}}"
-      }
+      },
+      "prerequisiteNotice": "需要一台在同一网络（或通过 Tailscale）运行 opencode serve 的电脑。"
     },
     "edit": {
       "notFound": "未找到该连接",
@@ -256,7 +257,8 @@
     },
     "empty": {
       "noConnectionTitle": "无连接",
-      "noConnectionSubtitle": "添加服务器连接以开始使用",
+      "noConnectionSubtitle": "连接到运行 opencode serve 的电脑（同一网络或通过 Tailscale）以开始使用。",
+      "setupGuideLink": "如何设置服务器",
       "addConnectionButton": "添加连接",
       "authFailedTitle": "身份验证失败",
       "authFailedSubtitle": "{{name}} 拒绝了您的凭据。请检查用户名和密码后重新连接。",
