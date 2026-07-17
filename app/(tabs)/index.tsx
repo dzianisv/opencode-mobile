@@ -49,7 +49,15 @@ function SessionItem({
   onDelete: () => void
 }) {
   const onPress = () => {
-    router.push(`/session/${session.id}`)
+    // Thread the session's directory through the route so selectSession() can
+    // resolve a directory-scoped client (clientForDirectory) instead of
+    // falling back to the active connection's default client. Without this,
+    // opening a session that belongs to a non-active project silently fails
+    // (see onCreateSession / onCreateInDirectory, which already pass it).
+    router.push({
+      pathname: `/session/[id]`,
+      params: { id: session.id, ...(session.directory ? { directory: session.directory } : {}) },
+    })
   }
 
   const onLongPress = () => {
