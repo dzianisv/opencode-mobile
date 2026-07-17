@@ -97,6 +97,22 @@ export function DirectoryBrowserSheet({
     [clientForDirectory],
   )
 
+  // The caller (app/(tabs)/index.tsx openBrowser) sets the start directory
+  // via setState and calls sheetRef.current?.expand() in the very same
+  // synchronous handler. expand() kicks off a reanimated-driven animation
+  // whose onChange callback can fire before React has committed the
+  // re-render that would give this component the new `startDirectory` prop
+  // (issue #104: this raced consistently, leaving the sheet permanently
+  // showing "Enter a path above to start browsing" because the FIRST
+  // onChange(index=0) captured `startDirectory=null` from the initial
+  // mount's closure and set wasOpen=true, which then blocked every later
+  // onChange from ever calling enter() again for that open). Mirror the
+  // prop into a ref, updated inline on every render (synchronous, no extra
+  // render cycle) so the onChange handler below always reads the latest
+  // value regardless of which render's closure the native side invokes.
+  const startDirectoryRef = useRef(startDirectory)
+  startDirectoryRef.current = startDirectory
+
   // Reset to the starting directory when the sheet transitions from closed
   // to open (not on drags between snap points), and notify on full close.
   const wasOpen = useRef(false)
@@ -110,9 +126,10 @@ export function DirectoryBrowserSheet({
       if (wasOpen.current) return // snap-point change while already open
       wasOpen.current = true
       setJumpPath("")
-      if (startDirectory) {
-        enter(startDirectory)
-        loadRoots(startDirectory)
+      const dir = startDirectoryRef.current
+      if (dir) {
+        enter(dir)
+        loadRoots(dir)
       } else {
         // No starting directory known (e.g. server home not loaded yet):
         // show an explicit empty state instead of a previous open's entries.
@@ -124,7 +141,7 @@ export function DirectoryBrowserSheet({
         setRoots([])
       }
     },
-    [startDirectory, enter, loadRoots, onDismiss],
+    [enter, loadRoots, onDismiss],
   )
 
   const goUp = useCallback(() => {
