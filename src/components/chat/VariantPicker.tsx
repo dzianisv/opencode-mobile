@@ -1,6 +1,7 @@
 import { View, Text, TouchableOpacity, StyleSheet } from "react-native"
 import { Ionicons } from "@expo/vector-icons"
 import BottomSheet, { BottomSheetBackdrop, BottomSheetFlatList } from "@gorhom/bottom-sheet"
+import { useTranslation } from "react-i18next"
 
 interface VariantOption {
   id: string | null
@@ -16,25 +17,26 @@ interface Props {
   sheetRef: React.RefObject<BottomSheet | null>
 }
 
-const AUTO_OPTION: VariantOption = {
-  id: null,
-  label: "Auto",
-  description: "Use model default reasoning",
-}
-
-const EFFORT_DESCRIPTIONS: Record<string, string> = {
-  low: "Faster, less thorough reasoning",
-  medium: "Balanced reasoning and speed",
-  high: "Deep, thorough reasoning",
-}
-
 export function VariantPicker({ variants, selected, isDark, onSelect, sheetRef }: Props) {
+  const { t } = useTranslation()
+
+  const effortDescriptions: Record<string, string> = {
+    low: t("chat.variantPicker.effort.low"),
+    medium: t("chat.variantPicker.effort.medium"),
+    high: t("chat.variantPicker.effort.high"),
+  }
+  const autoOption: VariantOption = {
+    id: null,
+    label: t("chat.variantPicker.autoLabel"),
+    description: t("chat.variantPicker.autoDescription"),
+  }
+
   const options: VariantOption[] = [
-    AUTO_OPTION,
+    autoOption,
     ...Object.keys(variants || {}).map((id) => ({
       id,
       label: id.charAt(0).toUpperCase() + id.slice(1),
-      description: EFFORT_DESCRIPTIONS[id] ?? id,
+      description: effortDescriptions[id] ?? id,
     })),
   ]
 
@@ -56,7 +58,7 @@ export function VariantPicker({ variants, selected, isDark, onSelect, sheetRef }
       )}
     >
       <View style={s.header}>
-        <Text style={[s.title, isDark && s.textWhite]}>Reasoning Effort</Text>
+        <Text style={[s.title, isDark && s.textWhite]}>{t("chat.variantPicker.title")}</Text>
       </View>
       <BottomSheetFlatList
         data={options}

@@ -2,6 +2,7 @@ import { useCallback, useRef, useState } from "react"
 import { ActivityIndicator, StyleSheet, Text, TouchableOpacity, View } from "react-native"
 import { Ionicons } from "@expo/vector-icons"
 import BottomSheet, { BottomSheetBackdrop, BottomSheetFlatList, BottomSheetTextInput } from "@gorhom/bottom-sheet"
+import { useTranslation } from "react-i18next"
 import type { Client, FileEntry } from "../../lib/sdk"
 import { parentOf, nameOf } from "../../lib/path-utils"
 
@@ -26,6 +27,7 @@ export function DirectoryBrowserSheet({
   onSelect,
   onDismiss,
 }: Props) {
+  const { t } = useTranslation()
   const [browseDir, setBrowseDir] = useState<string | null>(null)
   const [entries, setEntries] = useState<FileEntry[]>([])
   const [loading, setLoading] = useState(false)
@@ -42,7 +44,7 @@ export function DirectoryBrowserSheet({
       if (!client) {
         setEntries([])
         setLoading(false)
-        setError("No active connection")
+        setError(t("chat.directoryBrowserSheet.noActiveConnection"))
         return
       }
       client.file
@@ -54,13 +56,13 @@ export function DirectoryBrowserSheet({
         .catch((err) => {
           if (loadToken.current !== token) return
           setEntries([])
-          setError(err instanceof Error ? err.message : "Failed to list directory")
+          setError(err instanceof Error ? err.message : t("chat.directoryBrowserSheet.listFailed"))
         })
         .finally(() => {
           if (loadToken.current === token) setLoading(false)
         })
     },
-    [clientForDirectory],
+    [clientForDirectory, t],
   )
 
   const enter = useCallback(
@@ -138,7 +140,7 @@ export function DirectoryBrowserSheet({
       onChange={handleSheetChange}
     >
       <View style={s.header}>
-        <Text style={[s.title, isDark && s.white]}>Browse Folders</Text>
+        <Text style={[s.title, isDark && s.white]}>{t("chat.directoryBrowserSheet.title")}</Text>
         <View style={s.pathRow}>
           <TouchableOpacity onPress={goUp} disabled={!canGoUp} hitSlop={8} testID="directory-up-button">
             <Ionicons
@@ -156,7 +158,7 @@ export function DirectoryBrowserSheet({
       <View style={s.inputWrap}>
         <BottomSheetTextInput
           style={[s.input, isDark && s.inputDark]}
-          placeholder="Jump to path..."
+          placeholder={t("chat.directoryBrowserSheet.jumpPlaceholder")}
           placeholderTextColor={isDark ? "#666666" : "#999999"}
           value={jumpPath}
           onChangeText={setJumpPath}
@@ -208,7 +210,9 @@ export function DirectoryBrowserSheet({
         ListEmptyComponent={
           !loading && !error ? (
             <Text style={[s.emptyText, isDark && s.dimDark]}>
-              {browseDir ? "No subfolders here" : "Enter a path above to start browsing"}
+              {browseDir
+                ? t("chat.directoryBrowserSheet.noSubfolders")
+                : t("chat.directoryBrowserSheet.enterPathHint")}
             </Text>
           ) : null
         }
@@ -223,7 +227,9 @@ export function DirectoryBrowserSheet({
         >
           <Ionicons name="checkmark-circle" size={18} color={isDark ? "#0a0a0a" : "#ffffff"} />
           <Text style={[s.selectBtnText, isDark && s.selectBtnTextDark]} numberOfLines={1}>
-            Use {browseDir ? nameOf(browseDir) : "this folder"}
+            {t("chat.directoryBrowserSheet.useFolderButton", {
+              folder: browseDir ? nameOf(browseDir) : t("chat.directoryBrowserSheet.thisFolderFallback"),
+            })}
           </Text>
         </TouchableOpacity>
       </View>

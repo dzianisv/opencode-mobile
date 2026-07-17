@@ -11,6 +11,7 @@
 
 import { View, Text, TouchableOpacity, StyleSheet, useColorScheme, Modal, Linking } from "react-native"
 import { Ionicons } from "@expo/vector-icons"
+import { useTranslation } from "react-i18next"
 import { PRIVACY_POLICY_URL } from "../lib/links"
 
 interface Props {
@@ -22,6 +23,7 @@ interface Props {
 export function TelemetryConsentModal({ visible, onAllow, onDecline }: Props) {
   const colorScheme = useColorScheme()
   const isDark = colorScheme === "dark"
+  const { t } = useTranslation()
 
   return (
     <Modal visible={visible} transparent animationType="fade" statusBarTranslucent onRequestClose={onDecline}>
@@ -33,32 +35,43 @@ export function TelemetryConsentModal({ visible, onAllow, onDecline }: Props) {
           </View>
 
           {/* Title */}
-          <Text style={[styles.title, isDark && styles.textDark]}>Help improve OpenCode?</Text>
+          <Text style={[styles.title, isDark && styles.textDark]}>{t("telemetryConsent.title")}</Text>
 
           {/* Body */}
-          <Text style={[styles.body, isDark && styles.bodyDark]}>
-            Share anonymous crash reports and usage analytics to help us find and fix bugs
-            faster. Diagnostic reports you share are also delivered to our support inbox. No
-            code, prompts, or server addresses are ever included.
-          </Text>
+          <Text style={[styles.body, isDark && styles.bodyDark]}>{t("telemetryConsent.body")}</Text>
 
           {/* Detail bullets */}
           <View style={styles.bullets}>
-            <BulletRow icon="checkmark-circle" text="Device model, OS version, app version" isDark={isDark} positive />
-            <BulletRow icon="checkmark-circle" text="Stack traces of crashes (no variable values)" isDark={isDark} positive />
+            <BulletRow icon="checkmark-circle" text={t("telemetryConsent.bullets.deviceInfo")} isDark={isDark} positive />
             <BulletRow
               icon="checkmark-circle"
-              text="Anonymous usage events (app opened, connection attempts, messages sent) — sent to PostHog EU"
+              text={t("telemetryConsent.bullets.stackTraces")}
               isDark={isDark}
               positive
             />
-            <BulletRow icon="close-circle" text="Your code, prompts, or chat messages" isDark={isDark} positive={false} />
-            <BulletRow icon="close-circle" text="Server URLs or authentication tokens" isDark={isDark} positive={false} />
+            <BulletRow
+              icon="checkmark-circle"
+              text={t("telemetryConsent.bullets.usageEvents")}
+              isDark={isDark}
+              positive
+            />
+            <BulletRow
+              icon="close-circle"
+              text={t("telemetryConsent.bullets.noCode")}
+              isDark={isDark}
+              positive={false}
+            />
+            <BulletRow
+              icon="close-circle"
+              text={t("telemetryConsent.bullets.noServerUrls")}
+              isDark={isDark}
+              positive={false}
+            />
           </View>
 
           {/* Privacy policy link */}
           <TouchableOpacity onPress={() => Linking.openURL(PRIVACY_POLICY_URL)}>
-            <Text style={styles.privacyLink}>Read our full privacy policy</Text>
+            <Text style={styles.privacyLink}>{t("telemetryConsent.privacyLink")}</Text>
           </TouchableOpacity>
 
           {/* Actions */}
@@ -66,24 +79,24 @@ export function TelemetryConsentModal({ visible, onAllow, onDecline }: Props) {
             <TouchableOpacity
               style={[styles.btn, styles.btnDecline, isDark && styles.btnDeclineDark]}
               onPress={onDecline}
-              accessibilityLabel="No thanks, decline crash reporting and analytics"
+              accessibilityLabel={t("telemetryConsent.declineA11yLabel")}
               testID="telemetry-decline-button"
             >
-              <Text style={[styles.btnDeclineText, isDark && styles.btnDeclineTextDark]}>No thanks</Text>
+              <Text style={[styles.btnDeclineText, isDark && styles.btnDeclineTextDark]}>
+                {t("telemetryConsent.declineButton")}
+              </Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.btn, styles.btnAllow]}
               onPress={onAllow}
-              accessibilityLabel="Allow anonymous crash reports and usage analytics"
+              accessibilityLabel={t("telemetryConsent.allowA11yLabel")}
               testID="telemetry-allow-button"
             >
-              <Text style={styles.btnAllowText}>Allow</Text>
+              <Text style={styles.btnAllowText}>{t("telemetryConsent.allowButton")}</Text>
             </TouchableOpacity>
           </View>
 
-          <Text style={[styles.footnote, isDark && styles.footnoteDark]}>
-            You can change this at any time in Settings → Privacy.
-          </Text>
+          <Text style={[styles.footnote, isDark && styles.footnoteDark]}>{t("telemetryConsent.footnote")}</Text>
         </View>
       </View>
     </Modal>

@@ -191,8 +191,8 @@ export default function SettingsScreen() {
             <SettingRow
               key={category}
               icon={meta.icon as keyof typeof Ionicons.glyphMap}
-              label={meta.label}
-              description={meta.description}
+              label={t(meta.labelKey)}
+              description={t(meta.descriptionKey)}
               isDark={isDark}
               right={
                 <Switch

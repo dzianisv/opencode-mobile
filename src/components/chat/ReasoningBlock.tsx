@@ -1,6 +1,7 @@
 import { useState } from "react"
 import { View, Text, TouchableOpacity, StyleSheet } from "react-native"
 import { Ionicons } from "@expo/vector-icons"
+import { useTranslation } from "react-i18next"
 
 interface Props {
   text: string
@@ -8,6 +9,7 @@ interface Props {
 }
 
 export function ReasoningBlock({ text, isDark }: Props) {
+  const { t } = useTranslation()
   const [expanded, setExpanded] = useState(false)
 
   return (
@@ -18,7 +20,7 @@ export function ReasoningBlock({ text, isDark }: Props) {
     >
       <View style={s.header}>
         <Ionicons name="bulb-outline" size={14} color="#f59e0b" />
-        <Text style={[s.label, isDark && s.labelDark]}>Thinking</Text>
+        <Text style={[s.label, isDark && s.labelDark]}>{t("chat.reasoningBlock.label")}</Text>
         <Ionicons name={expanded ? "chevron-up" : "chevron-down"} size={14} color={isDark ? "#666666" : "#999999"} />
       </View>
       {expanded && (

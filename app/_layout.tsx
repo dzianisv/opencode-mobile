@@ -5,7 +5,7 @@ import { useColorScheme, View, ActivityIndicator } from "react-native"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { GestureHandlerRootView } from "react-native-gesture-handler"
 import { BottomSheetModalProvider } from "@gorhom/bottom-sheet"
-import { I18nextProvider } from "react-i18next"
+import { I18nextProvider, useTranslation } from "react-i18next"
 import i18n from "../src/lib/i18n/config"
 import { useAuth } from "../src/stores/auth"
 import { useConnections } from "../src/stores/connections"
@@ -25,6 +25,7 @@ const queryClient = new QueryClient()
 function RootLayout() {
   const colorScheme = useColorScheme()
   const isDark = colorScheme === "dark"
+  const { t } = useTranslation()
 
   const { initialize: initAuth, isLoading: authLoading } = useAuth()
   const { loadConnections, isLoading: connectionsLoading, client } = useConnections()
@@ -129,21 +130,21 @@ function RootLayout() {
               <Stack.Screen
                 name="session/[id]"
                 options={{
-                  title: "Session",
+                  title: t("session.titleFallback"),
                   presentation: "card",
                 }}
               />
               <Stack.Screen
                 name="connection/add"
                 options={{
-                  title: "Add Connection",
+                  title: t("nav.addConnectionTitle"),
                   presentation: "modal",
                 }}
               />
               <Stack.Screen
                 name="connection/[id]"
                 options={{
-                  title: "Edit Connection",
+                  title: t("nav.editConnectionTitle"),
                   presentation: "modal",
                 }}
               />

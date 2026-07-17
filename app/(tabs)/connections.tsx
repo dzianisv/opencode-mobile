@@ -1,6 +1,7 @@
 import { View, Text, FlatList, TouchableOpacity, StyleSheet, useColorScheme, Alert } from "react-native"
 import { router } from "expo-router"
 import { Ionicons } from "@expo/vector-icons"
+import { useTranslation } from "react-i18next"
 import { useConnections } from "../../src/stores/connections"
 import { useSettings } from "../../src/stores/settings"
 import type { ServerConnection } from "../../src/lib/types"
@@ -22,13 +23,14 @@ function ConnectionItem({
   onEdit: () => void
   onDelete: () => void
 }) {
+  const { t } = useTranslation()
   const typeIcon = connection.type === "local" ? "wifi" : connection.type === "tunnel" ? "globe" : "cloud"
 
   const handleLongPress = () => {
-    Alert.alert(connection.name, "What would you like to do?", [
-      { text: "Cancel", style: "cancel" },
-      { text: "Edit", onPress: onEdit },
-      { text: "Delete", style: "destructive", onPress: onDelete },
+    Alert.alert(connection.name, t("connectionsList.actionsAlert.message"), [
+      { text: t("common.cancel"), style: "cancel" },
+      { text: t("connectionsList.actionsAlert.edit"), onPress: onEdit },
+      { text: t("common.delete"), style: "destructive", onPress: onDelete },
     ])
   }
 
@@ -60,7 +62,9 @@ function ConnectionItem({
           </Text>
           {isActive && (
             <View style={[styles.activeBadge, isDark && styles.activeBadgeDark]}>
-              <Text style={[styles.activeBadgeText, isDark && styles.activeBadgeTextDark]}>Active</Text>
+              <Text style={[styles.activeBadgeText, isDark && styles.activeBadgeTextDark]}>
+                {t("connectionsList.activeBadge")}
+              </Text>
             </View>
           )}
         </View>
@@ -72,7 +76,7 @@ function ConnectionItem({
         </Text>
         {connection.lastConnected && (
           <Text style={[styles.connectionMeta, isDark && styles.metaDark]}>
-            Last connected: {new Date(connection.lastConnected).toLocaleDateString()}
+            {t("connectionsList.lastConnected", { date: new Date(connection.lastConnected).toLocaleDateString() })}
           </Text>
         )}
       </View>
@@ -86,19 +90,24 @@ function ConnectionItem({
 export default function ConnectionsScreen() {
   const colorScheme = useColorScheme()
   const isDark = colorScheme === "dark"
+  const { t } = useTranslation()
 
   const { connections, activeConnection, setActiveConnection, removeConnection } = useConnections()
   const { pageSize, setPageSize } = useSettings()
 
   const handleDelete = (connection: ServerConnection) => {
-    Alert.alert("Delete Connection", `Are you sure you want to delete "${connection.name}"?`, [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Delete",
-        style: "destructive",
-        onPress: () => removeConnection(connection.id),
-      },
-    ])
+    Alert.alert(
+      t("connection.edit.alerts.deleteTitle"),
+      t("connection.edit.alerts.deleteMessage", { name: connection.name }),
+      [
+        { text: t("common.cancel"), style: "cancel" },
+        {
+          text: t("common.delete"),
+          style: "destructive",
+          onPress: () => removeConnection(connection.id),
+        },
+      ],
+    )
   }
 
   return (
@@ -119,24 +128,28 @@ export default function ConnectionsScreen() {
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
             <Ionicons name="server-outline" size={64} color={isDark ? "#444444" : "#cccccc"} />
-            <Text style={[styles.emptyTitle, isDark && styles.textDark]}>No Connections</Text>
+            <Text style={[styles.emptyTitle, isDark && styles.textDark]}>{t("connectionsList.empty.title")}</Text>
             <Text style={[styles.emptySubtitle, isDark && styles.metaDark]}>
-              Add a connection to your OpenCode server
+              {t("connectionsList.empty.subtitle")}
             </Text>
           </View>
         }
         ListHeaderComponent={
           <View style={[styles.header, isDark && styles.headerDark]}>
-            <Text style={[styles.headerText, isDark && styles.metaDark]}>Tap to switch, long press for options</Text>
+            <Text style={[styles.headerText, isDark && styles.metaDark]}>{t("connectionsList.header")}</Text>
           </View>
         }
         ListFooterComponent={
           <View style={[styles.settingsSection, isDark && styles.settingsSectionDark]}>
-            <Text style={[styles.settingsTitle, isDark && styles.textDark]}>Preferences</Text>
+            <Text style={[styles.settingsTitle, isDark && styles.textDark]}>
+              {t("connectionsList.preferences.title")}
+            </Text>
             <View style={styles.settingRow}>
               <View style={styles.settingLabel}>
                 <Ionicons name="layers-outline" size={18} color={isDark ? "#888888" : "#666666"} />
-                <Text style={[styles.settingText, isDark && styles.textDark]}>Messages per page</Text>
+                <Text style={[styles.settingText, isDark && styles.textDark]}>
+                  {t("connectionsList.preferences.pageSizeLabel")}
+                </Text>
               </View>
               <View style={styles.pagePicker}>
                 {PAGE_SIZE_OPTIONS.map((size) => (
@@ -164,7 +177,7 @@ export default function ConnectionsScreen() {
               </View>
             </View>
             <Text style={[styles.settingHint, isDark && styles.metaDark]}>
-              How many messages to load when opening a session. Lower = faster.
+              {t("connectionsList.preferences.pageSizeHint")}
             </Text>
           </View>
         }

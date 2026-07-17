@@ -17,6 +17,7 @@ import {
 } from "react-native"
 import { router, useFocusEffect } from "expo-router"
 import { Ionicons } from "@expo/vector-icons"
+import { useTranslation } from "react-i18next"
 import { useSessions } from "../../src/stores/sessions"
 import { useConnections } from "../../src/stores/connections"
 import { useEvents } from "../../src/stores/events"
@@ -27,15 +28,15 @@ import { DirectorySwitcher, DirectoryBrowserSheet } from "../../src/components/c
 import { groupByDirectory } from "../../src/lib/session-grouping"
 import { nameOf } from "../../src/lib/path-utils"
 
-function formatTime(timestamp: number): string {
+function formatTime(timestamp: number, t: (key: string, opts?: Record<string, unknown>) => string): string {
   const date = new Date(timestamp)
   const now = new Date()
   const diff = now.getTime() - date.getTime()
 
-  if (diff < 60000) return "Just now"
-  if (diff < 3600000) return `${Math.floor(diff / 60000)}m ago`
-  if (diff < 86400000) return `${Math.floor(diff / 3600000)}h ago`
-  if (diff < 604800000) return `${Math.floor(diff / 86400000)}d ago`
+  if (diff < 60000) return t("sessionsList.time.justNow")
+  if (diff < 3600000) return t("sessionsList.time.minutesAgo", { count: Math.floor(diff / 60000) })
+  if (diff < 86400000) return t("sessionsList.time.hoursAgo", { count: Math.floor(diff / 3600000) })
+  if (diff < 604800000) return t("sessionsList.time.daysAgo", { count: Math.floor(diff / 86400000) })
 
   return date.toLocaleDateString()
 }
@@ -51,6 +52,8 @@ function SessionItem({
   onRename: () => void
   onDelete: () => void
 }) {
+  const { t } = useTranslation()
+
   const onPress = () => {
     router.push({
       pathname: `/session/[id]`,
@@ -59,10 +62,10 @@ function SessionItem({
   }
 
   const onLongPress = () => {
-    Alert.alert(session.title || "Untitled Session", undefined, [
-      { text: "Cancel", style: "cancel" },
-      { text: "Rename", onPress: onRename },
-      { text: "Delete", style: "destructive", onPress: onDelete },
+    Alert.alert(session.title || t("sessionsList.untitledSession"), undefined, [
+      { text: t("common.cancel"), style: "cancel" },
+      { text: t("sessionsList.actions.rename"), onPress: onRename },
+      { text: t("common.delete"), style: "destructive", onPress: onDelete },
     ])
   }
 
@@ -79,16 +82,17 @@ function SessionItem({
       <View style={styles.sessionContent}>
         <View style={styles.sessionHeader}>
           <Text style={[styles.sessionTitle, isDark && styles.textDark]} numberOfLines={1}>
-            {session.title || "Untitled Session"}
+            {session.title || t("sessionsList.untitledSession")}
           </Text>
         </View>
         <View style={styles.sessionMetaRow}>
           <Text style={[styles.sessionMeta, isDark && styles.metaDark]}>
-            {formatTime(session.time.updated)}
+            {formatTime(session.time.updated, t)}
             {/* summary is always present but files defaults to 0 until the
                 server populates it — only show the count when it's meaningful,
                 matching the SessionInfo panel's `summary.files > 0` guard (#55) */}
-            {session.summary && session.summary.files > 0 && ` · ${session.summary.files} files`}
+            {session.summary && session.summary.files > 0 &&
+              ` · ${t("sessionsList.filesCount", { count: session.summary.files })}`}
           </Text>
           {shortDir && (
             <View style={styles.sessionDirBadge}>
@@ -153,6 +157,7 @@ function getShortPath(
 export default function SessionsScreen() {
   const colorScheme = useColorScheme()
   const isDark = colorScheme === "dark"
+  const { t } = useTranslation()
   const [showNewSession, setShowNewSession] = useState(false)
   const [customDir, setCustomDir] = useState("")
   const [isCreating, setIsCreating] = useState(false)
@@ -277,31 +282,35 @@ export default function SessionsScreen() {
       loadSessions()
     } catch (err) {
       console.error("Rename failed:", err)
-      Alert.alert("Rename failed", "Could not rename the session. Please try again.")
+      Alert.alert(t("sessionsList.alerts.renameFailedTitle"), t("sessionsList.alerts.renameFailedMessage"))
     } finally {
       renamingInFlight.current = false
     }
-  }, [renaming, renameText, client, clientForDirectory, loadSessions])
+  }, [renaming, renameText, client, clientForDirectory, loadSessions, t])
 
   const handleDelete = useCallback(
     (session: Session) => {
-      Alert.alert("Delete Session", `Delete "${session.title || "Untitled Session"}"?`, [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Delete",
-          style: "destructive",
-          onPress: async () => {
-            try {
-              await deleteSession(session.id)
-            } catch (err) {
-              console.error("Delete failed:", err)
-              Alert.alert("Delete failed", "Could not delete the session. Please try again.")
-            }
+      Alert.alert(
+        t("sessionsList.alerts.deleteTitle"),
+        t("sessionsList.alerts.deleteMessage", { title: session.title || t("sessionsList.untitledSession") }),
+        [
+          { text: t("common.cancel"), style: "cancel" },
+          {
+            text: t("common.delete"),
+            style: "destructive",
+            onPress: async () => {
+              try {
+                await deleteSession(session.id)
+              } catch (err) {
+                console.error("Delete failed:", err)
+                Alert.alert(t("sessionsList.alerts.deleteFailedTitle"), t("sessionsList.alerts.deleteFailedMessage"))
+              }
+            },
           },
-        },
-      ])
+        ],
+      )
     },
-    [deleteSession],
+    [deleteSession, t],
   )
 
   const onCreateSession = async () => {
@@ -341,7 +350,7 @@ export default function SessionsScreen() {
         }
       } catch (error) {
         console.error("Failed to create session in directory:", error)
-        Alert.alert("Error", "Failed to create session in that directory.")
+        Alert.alert(t("common.error"), t("sessionsList.alerts.createFailedMessage"))
         setIsCreating(false)
       }
       return
@@ -413,14 +422,18 @@ export default function SessionsScreen() {
     return (
       <View style={[styles.emptyContainer, isDark && styles.containerDark]}>
         <Ionicons name="server-outline" size={64} color={isDark ? "#444444" : "#cccccc"} />
-        <Text style={[styles.emptyTitle, isDark && styles.textDark]}>No Connection</Text>
-        <Text style={[styles.emptySubtitle, isDark && styles.metaDark]}>Add a server connection to get started</Text>
+        <Text style={[styles.emptyTitle, isDark && styles.textDark]}>{t("sessionsList.empty.noConnectionTitle")}</Text>
+        <Text style={[styles.emptySubtitle, isDark && styles.metaDark]}>
+          {t("sessionsList.empty.noConnectionSubtitle")}
+        </Text>
         <TouchableOpacity
           style={[styles.addButton, isDark && styles.addButtonDark]}
           onPress={() => router.push("/connection/add")}
           testID="add-connection-button"
         >
-          <Text style={[styles.addButtonText, isDark && styles.addButtonTextDark]}>Add Connection</Text>
+          <Text style={[styles.addButtonText, isDark && styles.addButtonTextDark]}>
+            {t("sessionsList.empty.addConnectionButton")}
+          </Text>
         </TouchableOpacity>
       </View>
     )
@@ -434,9 +447,9 @@ export default function SessionsScreen() {
     return (
       <View style={[styles.emptyContainer, isDark && styles.containerDark]}>
         <Ionicons name="lock-closed-outline" size={64} color={isDark ? "#444444" : "#cccccc"} />
-        <Text style={[styles.emptyTitle, isDark && styles.textDark]}>Authentication Failed</Text>
+        <Text style={[styles.emptyTitle, isDark && styles.textDark]}>{t("sessionsList.empty.authFailedTitle")}</Text>
         <Text style={[styles.emptySubtitle, isDark && styles.metaDark]}>
-          {activeConnection.name} rejected your credentials. Check the username and password to reconnect.
+          {t("sessionsList.empty.authFailedSubtitle", { name: activeConnection.name })}
         </Text>
         <View style={styles.authErrorButtonRow}>
           <TouchableOpacity
@@ -444,7 +457,9 @@ export default function SessionsScreen() {
             onPress={() => router.push(`/connection/${activeConnection.id}`)}
             testID="fix-connection-button"
           >
-            <Text style={[styles.addButtonText, isDark && styles.addButtonTextDark]}>Check Credentials</Text>
+            <Text style={[styles.addButtonText, isDark && styles.addButtonTextDark]}>
+              {t("sessionsList.empty.checkCredentialsButton")}
+            </Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={[styles.addButton, isDark && styles.addButtonDark]}
@@ -456,7 +471,7 @@ export default function SessionsScreen() {
             }}
             testID="retry-connection-button"
           >
-            <Text style={[styles.addButtonText, isDark && styles.addButtonTextDark]}>Retry</Text>
+            <Text style={[styles.addButtonText, isDark && styles.addButtonTextDark]}>{t("common.retry")}</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -523,7 +538,7 @@ export default function SessionsScreen() {
             </View>
           ) : (
             <View style={styles.emptyList}>
-              <Text style={[styles.emptyListText, isDark && styles.metaDark]}>No sessions yet</Text>
+              <Text style={[styles.emptyListText, isDark && styles.metaDark]}>{t("sessionsList.empty.noSessions")}</Text>
             </View>
           )
         }
@@ -547,7 +562,7 @@ export default function SessionsScreen() {
           <TouchableOpacity style={styles.modalDismiss} activeOpacity={1} onPress={() => setShowNewSession(false)} />
           <View style={[styles.modalContent, isDark && styles.modalContentDark]}>
             <View style={styles.modalHeader}>
-              <Text style={[styles.modalTitle, isDark && styles.textDark]}>New Session</Text>
+              <Text style={[styles.modalTitle, isDark && styles.textDark]}>{t("sessionsList.newSessionModal.title")}</Text>
               <TouchableOpacity onPress={() => setShowNewSession(false)}>
                 <Ionicons name="close" size={24} color={isDark ? "#ffffff" : "#0a0a0a"} />
               </TouchableOpacity>
@@ -555,7 +570,9 @@ export default function SessionsScreen() {
 
             <ScrollView style={styles.modalScrollBody} keyboardShouldPersistTaps="handled">
               {/* Current directory — tapping creates session immediately */}
-              <Text style={[styles.modalLabel, isDark && styles.metaDark]}>Current Project</Text>
+              <Text style={[styles.modalLabel, isDark && styles.metaDark]}>
+                {t("sessionsList.newSessionModal.currentProjectLabel")}
+              </Text>
               <TouchableOpacity
                 style={[styles.modalDirBox, isDark && styles.modalDirBoxDark]}
                 onPress={() => onCreateInDirectory()}
@@ -563,7 +580,7 @@ export default function SessionsScreen() {
               >
                 <Ionicons name="folder" size={20} color={isDark ? "#8b5cf6" : "#6d28d9"} />
                 <Text style={[styles.modalDirText, isDark && styles.textDark]} numberOfLines={2}>
-                  {currentProject?.path?.absolute || activeConnection?.directory || "Server default"}
+                  {currentProject?.path?.absolute || activeConnection?.directory || t("sessionsList.newSessionModal.serverDefault")}
                 </Text>
                 <Ionicons name="arrow-forward-circle" size={20} color={isDark ? "#8b5cf6" : "#6d28d9"} />
               </TouchableOpacity>
@@ -572,7 +589,7 @@ export default function SessionsScreen() {
               {recentDirectories.length > 0 && (
                 <>
                   <Text style={[styles.modalLabel, isDark && styles.metaDark, { marginTop: 16 }]}>
-                    Recent Projects
+                    {t("sessionsList.newSessionModal.recentProjectsLabel")}
                   </Text>
                   {recentDirectories.map((dir) => {
                     const short = dir.split("/").filter(Boolean).pop() || dir
@@ -620,7 +637,7 @@ export default function SessionsScreen() {
               {serverProjects.filter((p) => p.path?.absolute !== currentProject?.path?.absolute).length > 0 && (
                 <>
                   <Text style={[styles.modalLabel, isDark && styles.metaDark, { marginTop: 16 }]}>
-                    Server Projects
+                    {t("sessionsList.newSessionModal.serverProjectsLabel")}
                   </Text>
                   {serverProjects
                     .filter((p) => p.path?.absolute !== currentProject?.path?.absolute)
@@ -661,9 +678,11 @@ export default function SessionsScreen() {
               >
                 <Ionicons name="folder-open-outline" size={18} color={isDark ? "#8b5cf6" : "#6d28d9"} />
                 <View style={styles.projectRowContent}>
-                  <Text style={[styles.projectRowName, isDark && styles.textDark]}>Browse Folders…</Text>
+                  <Text style={[styles.projectRowName, isDark && styles.textDark]}>
+                    {t("sessionsList.newSessionModal.browseFoldersLabel")}
+                  </Text>
                   <Text style={[styles.projectRowPath, isDark && styles.metaDark]}>
-                    Explore the server's filesystem
+                    {t("sessionsList.newSessionModal.browseFoldersHint")}
                   </Text>
                 </View>
                 <Ionicons name="chevron-forward" size={16} color={isDark ? "#666666" : "#999999"} />
@@ -671,7 +690,7 @@ export default function SessionsScreen() {
 
               {/* Manual path input fallback */}
               <Text style={[styles.modalLabel, isDark && styles.metaDark, { marginTop: 16 }]}>
-                Enter Path Manually
+                {t("sessionsList.newSessionModal.enterPathLabel")}
               </Text>
               <TextInput
                 style={[styles.modalInput, isDark && styles.modalInputDark]}
@@ -726,7 +745,9 @@ export default function SessionsScreen() {
                     <ActivityIndicator size="small" color={isDark ? "#0a0a0a" : "#ffffff"} />
                   ) : (
                     <Text style={[styles.modalButtonTextPrimary, isDark && styles.modalButtonTextPrimaryDark]}>
-                      Create in {customDir.split("/").filter(Boolean).pop() || customDir}
+                      {t("sessionsList.newSessionModal.createInButton", {
+                        dir: customDir.split("/").filter(Boolean).pop() || customDir,
+                      })}
                     </Text>
                   )}
                 </TouchableOpacity>
@@ -745,7 +766,7 @@ export default function SessionsScreen() {
                     <ActivityIndicator size="small" color={isDark ? "#0a0a0a" : "#ffffff"} />
                   ) : (
                     <Text style={[styles.modalButtonTextPrimary, isDark && styles.modalButtonTextPrimaryDark]}>
-                      Create Session
+                      {t("sessionsList.newSessionModal.createSessionButton")}
                     </Text>
                   )}
                 </TouchableOpacity>
@@ -763,7 +784,7 @@ export default function SessionsScreen() {
         >
           <TouchableOpacity style={styles.modalDismiss} activeOpacity={1} onPress={() => setRenaming(null)} />
           <View style={[styles.renameCard, isDark && styles.renameCardDark]}>
-            <Text style={[styles.renameTitle, isDark && styles.textDark]}>Rename Session</Text>
+            <Text style={[styles.renameTitle, isDark && styles.textDark]}>{t("sessionsList.renameModal.title")}</Text>
             <TextInput
               style={[styles.modalInput, isDark && styles.modalInputDark]}
               value={renameText}
@@ -777,14 +798,16 @@ export default function SessionsScreen() {
             />
             <View style={styles.renameActions}>
               <TouchableOpacity style={[styles.renameBtn, styles.renameBtnCancel]} onPress={() => setRenaming(null)}>
-                <Text style={styles.renameBtnCancelText}>Cancel</Text>
+                <Text style={styles.renameBtnCancelText}>{t("common.cancel")}</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.renameBtn, styles.modalButtonPrimary, isDark && styles.modalButtonPrimaryDark]}
                 onPress={submitRename}
                 disabled={!renameText.trim()}
               >
-                <Text style={[styles.modalButtonTextPrimary, isDark && styles.modalButtonTextPrimaryDark]}>Save</Text>
+                <Text style={[styles.modalButtonTextPrimary, isDark && styles.modalButtonTextPrimaryDark]}>
+                  {t("common.save")}
+                </Text>
               </TouchableOpacity>
             </View>
           </View>

@@ -1,6 +1,7 @@
 import { useMemo } from "react"
 import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from "react-native"
 import { Ionicons } from "@expo/vector-icons"
+import { useTranslation } from "react-i18next"
 import type { Message, Session } from "../../lib/sdk"
 import type { Provider } from "../../stores/catalog"
 
@@ -27,15 +28,15 @@ function formatCost(cost: number): string {
   return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(cost)
 }
 
-function formatTime(ts: number): string {
+function formatTime(ts: number, t: (key: string, opts?: Record<string, unknown>) => string): string {
   const diff = Date.now() - ts
   const mins = Math.floor(diff / 60_000)
-  if (mins < 1) return "just now"
-  if (mins < 60) return `${mins}m ago`
+  if (mins < 1) return t("chat.sessionInfo.time.justNow")
+  if (mins < 60) return t("chat.sessionInfo.time.minutesAgo", { count: mins })
   const hours = Math.floor(mins / 60)
-  if (hours < 24) return `${hours}h ago`
+  if (hours < 24) return t("chat.sessionInfo.time.hoursAgo", { count: hours })
   const days = Math.floor(hours / 24)
-  if (days < 7) return `${days}d ago`
+  if (days < 7) return t("chat.sessionInfo.time.daysAgo", { count: days })
   return new Date(ts).toLocaleDateString(undefined, { month: "short", day: "numeric" })
 }
 
@@ -51,6 +52,7 @@ export function SessionInfo({
   onScrollToTop,
   onClose,
 }: Props) {
+  const { t } = useTranslation()
   // Match TUI: last assistant message tokens (context window), cumulative cost
   const stats = useMemo(() => {
     let cost = 0
@@ -104,7 +106,9 @@ export function SessionInfo({
             </Text>
           )}
           {hasCost && <Text style={[s.cost, isDark && s.dimDark]}>({formatCost(stats.cost)})</Text>}
-          {!hasTokens && !hasCost && <Text style={[s.cost, isDark && s.dimDark]}>No usage data yet</Text>}
+          {!hasTokens && !hasCost && (
+            <Text style={[s.cost, isDark && s.dimDark]}>{t("chat.sessionInfo.noUsageData")}</Text>
+          )}
         </View>
         <TouchableOpacity onPress={onClose} hitSlop={8}>
           <Ionicons name="close" size={16} color={isDark ? "#666666" : "#999999"} />
@@ -127,37 +131,50 @@ export function SessionInfo({
       {/* Token breakdown pills */}
       {hasTokens && (
         <View style={s.breakdown}>
-          <TokenPill label="In" value={stats.input} color="#3b82f6" isDark={isDark} />
-          <TokenPill label="Out" value={stats.output} color="#10b981" isDark={isDark} />
-          {stats.reasoning > 0 && <TokenPill label="Think" value={stats.reasoning} color="#f59e0b" isDark={isDark} />}
-          {stats.cacheRead > 0 && <TokenPill label="Cache R" value={stats.cacheRead} color="#8b5cf6" isDark={isDark} />}
+          <TokenPill label={t("chat.sessionInfo.pills.in")} value={stats.input} color="#3b82f6" isDark={isDark} />
+          <TokenPill label={t("chat.sessionInfo.pills.out")} value={stats.output} color="#10b981" isDark={isDark} />
+          {stats.reasoning > 0 && (
+            <TokenPill label={t("chat.sessionInfo.pills.think")} value={stats.reasoning} color="#f59e0b" isDark={isDark} />
+          )}
+          {stats.cacheRead > 0 && (
+            <TokenPill label={t("chat.sessionInfo.pills.cacheRead")} value={stats.cacheRead} color="#8b5cf6" isDark={isDark} />
+          )}
           {stats.cacheWrite > 0 && (
-            <TokenPill label="Cache W" value={stats.cacheWrite} color="#ec4899" isDark={isDark} />
+            <TokenPill
+              label={t("chat.sessionInfo.pills.cacheWrite")}
+              value={stats.cacheWrite}
+              color="#ec4899"
+              isDark={isDark}
+            />
           )}
         </View>
       )}
 
       {/* Session metadata */}
       <View style={s.meta}>
-        {created && <MetaItem icon="time-outline" label="Created" value={formatTime(created)} isDark={isDark} />}
+        {created && (
+          <MetaItem icon="time-outline" label={t("chat.sessionInfo.meta.created")} value={formatTime(created, t)} isDark={isDark} />
+        )}
         {updated && updated !== created && (
-          <MetaItem icon="refresh-outline" label="Updated" value={formatTime(updated)} isDark={isDark} />
+          <MetaItem icon="refresh-outline" label={t("chat.sessionInfo.meta.updated")} value={formatTime(updated, t)} isDark={isDark} />
         )}
         <MetaItem
           icon="chatbubbles-outline"
-          label="Messages"
+          label={t("chat.sessionInfo.meta.messages")}
           value={String(messages.length) + (hasMore ? "+" : "")}
           isDark={isDark}
         />
         {summary && summary.files > 0 && (
           <MetaItem
             icon="code-outline"
-            label="Changes"
+            label={t("chat.sessionInfo.meta.changes")}
             value={`${summary.files}f +${summary.additions} -${summary.deletions}`}
             isDark={isDark}
           />
         )}
-        {session?.share?.url && <MetaItem icon="share-outline" label="Shared" value="Yes" isDark={isDark} />}
+        {session?.share?.url && (
+          <MetaItem icon="share-outline" label={t("chat.sessionInfo.meta.shared")} value={t("chat.sessionInfo.meta.yes")} isDark={isDark} />
+        )}
       </View>
 
       {/* Navigation actions */}
@@ -169,13 +186,15 @@ export function SessionInfo({
             ) : (
               <Ionicons name="download-outline" size={14} color={isDark ? "#888888" : "#666666"} />
             )}
-            <Text style={[s.actionText, isDark && s.dimDark]}>{loadingAll ? "Loading..." : "Load all messages"}</Text>
+            <Text style={[s.actionText, isDark && s.dimDark]}>
+              {loadingAll ? t("chat.sessionInfo.loading") : t("chat.sessionInfo.loadAllMessages")}
+            </Text>
           </TouchableOpacity>
         )}
         {messages.length > 0 && (
           <TouchableOpacity style={[s.action, isDark && s.actionDark]} onPress={onScrollToTop}>
             <Ionicons name="arrow-up-outline" size={14} color={isDark ? "#888888" : "#666666"} />
-            <Text style={[s.actionText, isDark && s.dimDark]}>Jump to beginning</Text>
+            <Text style={[s.actionText, isDark && s.dimDark]}>{t("chat.sessionInfo.jumpToBeginning")}</Text>
           </TouchableOpacity>
         )}
       </View>

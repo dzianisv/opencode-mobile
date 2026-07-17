@@ -1,10 +1,12 @@
 import { Tabs } from "expo-router"
 import { useColorScheme } from "react-native"
 import { Ionicons } from "@expo/vector-icons"
+import { useTranslation } from "react-i18next"
 
 export default function TabLayout() {
   const colorScheme = useColorScheme()
   const isDark = colorScheme === "dark"
+  const { t } = useTranslation()
 
   return (
     <Tabs
@@ -24,21 +26,21 @@ export default function TabLayout() {
       <Tabs.Screen
         name="index"
         options={{
-          title: "Sessions",
+          title: t("nav.sessionsTab"),
           tabBarIcon: ({ color, size }) => <Ionicons name="chatbubbles-outline" size={size} color={color} />,
         }}
       />
       <Tabs.Screen
         name="connections"
         options={{
-          title: "Connections",
+          title: t("nav.connectionsTab"),
           tabBarIcon: ({ color, size }) => <Ionicons name="server-outline" size={size} color={color} />,
         }}
       />
       <Tabs.Screen
         name="settings"
         options={{
-          title: "Settings",
+          title: t("nav.settingsTab"),
           tabBarIcon: ({ color, size }) => <Ionicons name="settings-outline" size={size} color={color} />,
         }}
       />

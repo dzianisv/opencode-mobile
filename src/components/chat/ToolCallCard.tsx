@@ -1,6 +1,7 @@
 import { useState, useCallback } from "react"
 import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, ScrollView, Platform } from "react-native"
 import { Ionicons } from "@expo/vector-icons"
+import { useTranslation } from "react-i18next"
 import type { Part } from "../../lib/sdk"
 import { DiffView } from "./DiffView"
 
@@ -151,6 +152,7 @@ function PatchDetail({ input, isDark }: { input: unknown; isDark: boolean }) {
 }
 
 function GlobGrepDetail({ input, output, isDark }: { input: unknown; output: unknown; isDark: boolean }) {
+  const { t } = useTranslation()
   const pattern = typeof input === "object" && input !== null ? (input as Record<string, unknown>).pattern : undefined
   const path = typeof input === "object" && input !== null ? (input as Record<string, unknown>).path : undefined
   const results = typeof output === "string" ? output : undefined
@@ -158,8 +160,9 @@ function GlobGrepDetail({ input, output, isDark }: { input: unknown; output: unk
     <View style={s.detailSection}>
       {typeof pattern === "string" && (
         <Text style={[s.detailMeta, isDark && s.detailMetaDark]}>
-          Pattern: {pattern}
-          {typeof path === "string" ? ` in ${path}` : ""}
+          {typeof path === "string"
+            ? t("chat.toolCallCard.patternWithPath", { pattern, path })
+            : t("chat.toolCallCard.patternOnly", { pattern })}
         </Text>
       )}
       {results && results.length > 0 && (
@@ -310,6 +313,7 @@ interface Props {
 }
 
 export function ToolCallCard({ tool, isDark }: Props) {
+  const { t } = useTranslation()
   const [expanded, setExpanded] = useState(false)
   const icon = (tool.tool && TOOL_ICONS[tool.tool]) || "extension-puzzle-outline"
   const status = tool.state?.status || "pending"
@@ -338,7 +342,7 @@ export function ToolCallCard({ tool, isDark }: Props) {
         <View style={s.headerLeft}>
           <Ionicons name={icon as any} size={16} color={color} />
           <Text style={[s.name, isDark && s.nameDark]} numberOfLines={1}>
-            {tool.state?.title || tool.tool || "Tool"}
+            {tool.state?.title || tool.tool || t("chat.toolCallCard.fallbackTitle")}
           </Text>
           {elapsed && <Text style={[s.elapsed, isDark && s.elapsedDark]}>{elapsed}</Text>}
         </View>

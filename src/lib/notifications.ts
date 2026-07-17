@@ -9,31 +9,34 @@ import { Platform, AppState } from "react-native"
 export const categories = ["permissions", "questions", "completed", "errors", "connection"] as const
 export type Category = (typeof categories)[number]
 
-// Per-category metadata used by both the notification module and the settings UI
-export const categoryMeta: Record<Category, { label: string; description: string; icon: string }> = {
+// Per-category metadata used by both the notification module and the settings UI.
+// label/description are i18next keys (not display strings) — this module loads
+// before i18next is guaranteed to be ready, so callers (e.g. settings.tsx) resolve
+// them with t() at render time instead of reading literal text here.
+export const categoryMeta: Record<Category, { labelKey: string; descriptionKey: string; icon: string }> = {
   permissions: {
-    label: "Permission Requests",
-    description: "When a tool needs approval to proceed",
+    labelKey: "notifications.categories.permissions.label",
+    descriptionKey: "notifications.categories.permissions.description",
     icon: "shield-checkmark",
   },
   questions: {
-    label: "Questions",
-    description: "When the assistant needs your input",
+    labelKey: "notifications.categories.questions.label",
+    descriptionKey: "notifications.categories.questions.description",
     icon: "help-circle",
   },
   completed: {
-    label: "Task Completed",
-    description: "When a session finishes processing",
+    labelKey: "notifications.categories.completed.label",
+    descriptionKey: "notifications.categories.completed.description",
     icon: "checkmark-circle",
   },
   errors: {
-    label: "Errors",
-    description: "When a session encounters a problem",
+    labelKey: "notifications.categories.errors.label",
+    descriptionKey: "notifications.categories.errors.description",
     icon: "alert-circle",
   },
   connection: {
-    label: "Connection",
-    description: "When the app loses connection for an extended period",
+    labelKey: "notifications.categories.connection.label",
+    descriptionKey: "notifications.categories.connection.description",
     icon: "wifi",
   },
 }

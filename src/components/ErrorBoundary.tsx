@@ -10,6 +10,10 @@ import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-nati
 import { captureException } from "../lib/sentry"
 import { buildCrashReport, shareReport } from "../lib/diagnostics"
 import { log } from "../lib/logbuffer"
+// Class component — can't use the useTranslation() hook, so resolve strings
+// via the shared i18next instance directly (already initialized by the time
+// this can render, since app/_layout.tsx imports it before mounting).
+import i18n from "../lib/i18n/config"
 
 interface Props {
   children: React.ReactNode
@@ -52,21 +56,18 @@ export class ErrorBoundary extends React.Component<Props, State> {
     const { error, componentStack } = this.state
     if (!error) return this.props.children
 
-    const message = error.message || "Unknown error"
+    const message = error.message || i18n.t("errorBoundary.unknownError")
     const stack = (error.stack ?? "").split("\n").slice(0, 6).join("\n")
     const compStack = (componentStack ?? "").split("\n").slice(0, 6).join("\n")
 
     return (
       <View style={styles.root}>
         <ScrollView contentContainerStyle={styles.content}>
-          <Text style={styles.title}>Something went wrong</Text>
-          <Text style={styles.subtitle}>
-            The app hit an unexpected error. It has been reported automatically. You can share a detailed report to help us
-            fix it faster.
-          </Text>
+          <Text style={styles.title}>{i18n.t("errorBoundary.title")}</Text>
+          <Text style={styles.subtitle}>{i18n.t("errorBoundary.subtitle")}</Text>
 
           <View style={styles.card}>
-            <Text style={styles.cardLabel}>Error</Text>
+            <Text style={styles.cardLabel}>{i18n.t("errorBoundary.errorLabel")}</Text>
             <Text style={styles.cardBody} selectable>
               {message}
             </Text>
@@ -74,7 +75,7 @@ export class ErrorBoundary extends React.Component<Props, State> {
 
           {stack ? (
             <View style={styles.card}>
-              <Text style={styles.cardLabel}>Stack</Text>
+              <Text style={styles.cardLabel}>{i18n.t("errorBoundary.stackLabel")}</Text>
               <Text style={styles.code} selectable>
                 {stack}
               </Text>
@@ -83,7 +84,7 @@ export class ErrorBoundary extends React.Component<Props, State> {
 
           {compStack ? (
             <View style={styles.card}>
-              <Text style={styles.cardLabel}>Component</Text>
+              <Text style={styles.cardLabel}>{i18n.t("errorBoundary.componentLabel")}</Text>
               <Text style={styles.code} selectable>
                 {compStack}
               </Text>
@@ -92,10 +93,10 @@ export class ErrorBoundary extends React.Component<Props, State> {
 
           <View style={styles.actions}>
             <TouchableOpacity style={[styles.button, styles.buttonPrimary]} onPress={this.handleShare}>
-              <Text style={styles.buttonPrimaryText}>Share Report</Text>
+              <Text style={styles.buttonPrimaryText}>{i18n.t("errorBoundary.shareButton")}</Text>
             </TouchableOpacity>
             <TouchableOpacity style={[styles.button, styles.buttonSecondary]} onPress={this.handleRetry}>
-              <Text style={styles.buttonSecondaryText}>Try Again</Text>
+              <Text style={styles.buttonSecondaryText}>{i18n.t("errorBoundary.tryAgainButton")}</Text>
             </TouchableOpacity>
           </View>
         </ScrollView>

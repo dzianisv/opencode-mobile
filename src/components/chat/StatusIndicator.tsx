@@ -1,4 +1,5 @@
 import { View, Text, StyleSheet, ActivityIndicator } from "react-native"
+import { useTranslation } from "react-i18next"
 import { useEvents } from "../../stores/events"
 import { useSessions } from "../../stores/sessions"
 
@@ -8,6 +9,7 @@ interface Props {
 }
 
 export function StatusIndicator({ sessionID, isDark }: Props) {
+  const { t } = useTranslation()
   const status = useEvents((s) => s.sessionStatus[sessionID])
   const text = useEvents((s) => s.statusText[sessionID])
   const optimistic = useSessions((s) => s.sending[sessionID])
@@ -19,7 +21,8 @@ export function StatusIndicator({ sessionID, isDark }: Props) {
   const busy = sseBusy || (optimistic && !status)
   if (!busy) return null
 
-  const label = status?.type === "retry" ? `Retrying (attempt ${status.attempt})...` : text || "Working..."
+  const label =
+    status?.type === "retry" ? t("chat.statusIndicator.retrying", { attempt: status.attempt }) : text || t("chat.statusIndicator.working")
 
   return (
     <View style={[s.bar, isDark && s.barDark]}>

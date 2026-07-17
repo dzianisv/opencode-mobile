@@ -1,6 +1,12 @@
 {
   "common": {
-    "cancel": "取消"
+    "cancel": "取消",
+    "ok": "确定",
+    "error": "错误",
+    "delete": "删除",
+    "retry": "重试",
+    "save": "保存",
+    "shareReport": "分享报告"
   },
   "settings": {
     "sections": {
@@ -64,6 +70,358 @@
       "privacyNotSavedMessage": "本次会话已关闭崩溃报告，但您的选择未能保存。请重试。",
       "notificationsDisabledTitle": "通知已关闭",
       "notificationsDisabledMessage": "请在设备设置中为 OpenCode 启用通知以接收提醒。"
+    }
+  },
+  "session": {
+    "titleFallback": "会话",
+    "toolbar": {
+      "auto": "自动"
+    },
+    "banners": {
+      "reconnecting": "正在重新连接…（第 {{attempt}} 次尝试）",
+      "connected": "已连接 ✓",
+      "reverted": "消息已撤回 — 重新发送以确认",
+      "undo": "撤销"
+    },
+    "empty": {
+      "title": "开始一段对话",
+      "hint": "输入 / 使用命令"
+    },
+    "loadingOlder": "正在加载更早的消息...",
+    "input": {
+      "placeholderListening": "正在聆听...",
+      "placeholderFollowUp": "发送后续消息...",
+      "placeholderDefault": "输入消息..."
+    },
+    "actions": {
+      "editMessage": "编辑消息",
+      "replace": "替换"
+    },
+    "alerts": {
+      "messageActionsTitle": "消息操作",
+      "notSupportedTitle": "不支持此操作",
+      "notSupportedMessage": "编辑已发送的消息需要更新的 opencode 服务器版本。请更新服务器后重试。",
+      "revertAuthFailedTitle": "身份验证失败",
+      "revertAuthFailedMessage": "您的服务器凭据被拒绝。请检查连接后重试。",
+      "editFailedTitle": "编辑失败",
+      "editFailedMessage": "无法撤回到该消息。请重试。",
+      "replaceDraftTitle": "替换草稿？",
+      "replaceDraftMessage": "输入框中有未发送的消息。编辑此消息将替换它。",
+      "cameraPermissionTitle": "需要权限",
+      "cameraPermissionMessage": "拍照需要相机访问权限。",
+      "emptyClipboardTitle": "剪贴板为空",
+      "emptyClipboardMessage": "剪贴板中没有文本或图片。",
+      "authRequiredTitle": "需要身份验证",
+      "authRequiredMessage": "发送消息需要生物识别验证。请重试。",
+      "sendFailedTitle": "消息未发送",
+      "sendFailedMessage": "无法发送您的消息。请检查连接后重试。",
+      "replyFailedTitle": "回复失败",
+      "replyFailedMessage": "无法发送您的回复。请重试。",
+      "rejectFailedTitle": "拒绝失败",
+      "rejectFailedMessage": "无法发送您的回复。请重试。"
+    }
+  },
+  "connection": {
+    "shared": {
+      "connectionType": "连接类型",
+      "types": {
+        "local": "本地",
+        "tunnel": "隧道",
+        "cloud": "云端"
+      },
+      "name": "名称",
+      "namePlaceholder": "我的服务器",
+      "serverUrl": "服务器地址",
+      "directoryOptional": "项目目录（可选）",
+      "authentication": "身份验证",
+      "username": "用户名",
+      "password": "密码",
+      "alerts": {
+        "enterName": "请输入连接名称",
+        "enterUrl": "请输入服务器地址",
+        "invalidUrlTitle": "地址无效",
+        "invalidUrlMessage": "请输入包含 http:// 或 https:// 的完整地址，例如 http://192.168.1.100:4096",
+        "connectionFailedTitle": "连接失败",
+        "unknownError": "未知错误"
+      }
+    },
+    "add": {
+      "quick": {
+        "title": "连接到 OpenCode",
+        "subtitle": "输入您电脑的 IP 地址进行连接",
+        "ipAddressLabel": "IP 地址",
+        "nameOptionalLabel": "名称（可选）",
+        "namePlaceholder": "我的 Mac",
+        "passwordIfSetLabel": "密码（如服务器已设置）",
+        "passwordPlaceholder": "留空表示无密码",
+        "usernameHintPrefix": "用户名默认为 ",
+        "usernameHintMiddle": "。需要自定义用户名？请使用",
+        "usernameHintSuffix": "。",
+        "advancedOptionsLink": "高级选项",
+        "connectButton": "连接",
+        "helpTitle": "如何查找您的 IP 地址：",
+        "helpMacPrefix": "在您的 Mac 上运行：",
+        "helpTailscalePrefix": "Tailscale 示例：",
+        "helpProtocolPrefix": "本地和 Tailscale 地址请使用 ",
+        "helpProtocolMiddle": "，除非已配置 TLS，此时请使用 ",
+        "helpProtocolSuffix": "。",
+        "helpRunningPrefix": "请确保 OpenCode 正在运行：",
+        "connectCardTitle": "OpenCode Connect",
+        "connectCardBadge": "即将上线",
+        "connectCardDesc": "将手机桥接到您的 opencode 服务器 — 无需配置隧道或防火墙。一键连接，随时随地。",
+        "advancedLink": "高级选项（隧道、云端、身份验证）"
+      },
+      "waitlist": {
+        "successText": "您已加入候补名单 — OpenCode Connect 准备就绪时我们会通过邮件通知您。",
+        "joinButton": "加入候补名单",
+        "alertTitle": "加入候补名单",
+        "fallbackMessage": "无法连接注册服务或打开邮件应用。请发送邮件至 support@agentlabs.cc，主题为 \"OpenCode Connect Waitlist\"。"
+      },
+      "advanced": {
+        "backToQuick": "简易模式",
+        "urlHintPrefix": "本地/Tailscale 示例：",
+        "urlHintOr": " 或 ",
+        "urlHintUse": "。仅在已配置 TLS 时使用 ",
+        "urlHintSuffix": "。",
+        "directoryHint": "留空则使用服务器的当前目录，或指定一个路径以在其他文件夹中工作。",
+        "saveButton": "保存连接"
+      },
+      "alerts": {
+        "enterIp": "请输入您电脑的 IP 地址",
+        "connectionFailedMessage": "{{summary}}\n\n目标：{{target}}\n错误：{{error}}"
+      }
+    },
+    "edit": {
+      "notFound": "未找到该连接",
+      "directoryHint": "留空则使用服务器的当前目录。新会话将在此文件夹中创建。",
+      "passwordLabel": "密码（留空则保留原密码）",
+      "testButton": "测试连接",
+      "saveButton": "保存更改",
+      "deleteButton": "删除连接",
+      "alerts": {
+        "successTitle": "成功",
+        "successMessage": "连接成功！",
+        "connectionFailedMessage": "{{summary}}\n\n（{{detail}}）",
+        "noDetail": "无详细信息",
+        "deleteTitle": "删除连接",
+        "deleteMessage": "确定要删除 \"{{name}}\" 吗？"
+      }
+    }
+  },
+  "nav": {
+    "sessionsTab": "会话",
+    "connectionsTab": "连接",
+    "settingsTab": "设置",
+    "addConnectionTitle": "添加连接",
+    "editConnectionTitle": "编辑连接"
+  },
+  "connectionsList": {
+    "activeBadge": "当前使用",
+    "lastConnected": "上次连接：{{date}}",
+    "actionsAlert": {
+      "message": "您想执行什么操作？",
+      "edit": "编辑"
+    },
+    "empty": {
+      "title": "暂无连接",
+      "subtitle": "添加一个 OpenCode 服务器连接"
+    },
+    "header": "点击切换，长按查看更多选项",
+    "preferences": {
+      "title": "偏好设置",
+      "pageSizeLabel": "每页消息数",
+      "pageSizeHint": "打开会话时加载的消息数量。数值越小加载越快。"
+    }
+  },
+  "sessionsList": {
+    "untitledSession": "未命名会话",
+    "time": {
+      "justNow": "刚刚",
+      "minutesAgo": "{{count}} 分钟前",
+      "hoursAgo": "{{count}} 小时前",
+      "daysAgo": "{{count}} 天前"
+    },
+    "filesCount": "{{count}} 个文件",
+    "actions": {
+      "rename": "重命名"
+    },
+    "alerts": {
+      "renameFailedTitle": "重命名失败",
+      "renameFailedMessage": "无法重命名该会话。请重试。",
+      "deleteTitle": "删除会话",
+      "deleteMessage": "删除 \"{{title}}\"？",
+      "deleteFailedTitle": "删除失败",
+      "deleteFailedMessage": "无法删除该会话。请重试。",
+      "createFailedMessage": "无法在该目录中创建会话。"
+    },
+    "empty": {
+      "noConnectionTitle": "无连接",
+      "noConnectionSubtitle": "添加服务器连接以开始使用",
+      "addConnectionButton": "添加连接",
+      "authFailedTitle": "身份验证失败",
+      "authFailedSubtitle": "{{name}} 拒绝了您的凭据。请检查用户名和密码后重新连接。",
+      "checkCredentialsButton": "检查凭据",
+      "noSessions": "暂无会话"
+    },
+    "newSessionModal": {
+      "title": "新建会话",
+      "currentProjectLabel": "当前项目",
+      "serverDefault": "服务器默认目录",
+      "recentProjectsLabel": "最近项目",
+      "serverProjectsLabel": "服务器项目",
+      "browseFoldersLabel": "浏览文件夹…",
+      "browseFoldersHint": "浏览服务器的文件系统",
+      "enterPathLabel": "手动输入路径",
+      "createInButton": "在 {{dir}} 中创建",
+      "createSessionButton": "创建会话"
+    },
+    "renameModal": {
+      "title": "重命名会话"
+    }
+  },
+  "notifications": {
+    "categories": {
+      "permissions": {
+        "label": "权限请求",
+        "description": "当工具需要批准才能继续时"
+      },
+      "questions": {
+        "label": "问题",
+        "description": "当助手需要您的输入时"
+      },
+      "completed": {
+        "label": "任务完成",
+        "description": "当会话处理完成时"
+      },
+      "errors": {
+        "label": "错误",
+        "description": "当会话遇到问题时"
+      },
+      "connection": {
+        "label": "连接",
+        "description": "当应用长时间失去连接时"
+      }
+    }
+  },
+  "errorBoundary": {
+    "title": "出现了一些问题",
+    "subtitle": "应用遇到了一个意外错误，已自动上报。您可以分享详细报告以帮助我们更快修复。",
+    "errorLabel": "错误",
+    "unknownError": "未知错误",
+    "stackLabel": "堆栈",
+    "componentLabel": "组件",
+    "shareButton": "分享报告",
+    "tryAgainButton": "重试"
+  },
+  "telemetryConsent": {
+    "title": "帮助改进 OpenCode？",
+    "body": "分享匿名崩溃报告和使用分析，帮助我们更快地发现并修复问题。您分享的诊断报告也会发送至我们的支持收件箱。绝不包含代码、提示词或服务器地址。",
+    "bullets": {
+      "deviceInfo": "设备型号、系统版本、应用版本",
+      "stackTraces": "崩溃堆栈跟踪（不含变量值）",
+      "usageEvents": "匿名使用事件（打开应用、连接尝试、发送消息）— 发送至 PostHog EU",
+      "noCode": "您的代码、提示词或聊天消息",
+      "noServerUrls": "服务器地址或身份验证令牌"
+    },
+    "privacyLink": "阅读完整隐私政策",
+    "declineA11yLabel": "不用了，拒绝崩溃报告和使用分析",
+    "declineButton": "不用了",
+    "allowA11yLabel": "允许匿名崩溃报告和使用分析",
+    "allowButton": "允许",
+    "footnote": "您可以随时在设置 → 隐私中更改此设置。"
+  },
+  "authGate": {
+    "title": "OpenCode 已锁定",
+    "subtitle": "请验证身份以访问您的会话",
+    "unlockButton": "解锁"
+  },
+  "chat": {
+    "permissionPrompt": {
+      "title": "需要权限",
+      "deny": "拒绝",
+      "always": "始终允许",
+      "allow": "允许"
+    },
+    "questionPrompt": {
+      "headerFallback": "问题",
+      "answerPlaceholder": "输入您的答案...",
+      "customAnswerLabel": "输入自定义答案",
+      "dismiss": "忽略",
+      "next": "下一个",
+      "submit": "提交"
+    },
+    "statusIndicator": {
+      "retrying": "正在重试（第 {{attempt}} 次）...",
+      "working": "处理中..."
+    },
+    "slashPopover": {
+      "customBadge": "命令"
+    },
+    "modelPicker": {
+      "title": "选择模型",
+      "searchPlaceholder": "搜索模型..."
+    },
+    "variantPicker": {
+      "title": "推理强度",
+      "autoLabel": "自动",
+      "autoDescription": "使用模型默认推理强度",
+      "effort": {
+        "low": "速度更快，推理较简略",
+        "medium": "推理与速度均衡",
+        "high": "深入、详尽的推理"
+      }
+    },
+    "directorySwitcher": {
+      "title": "切换项目",
+      "serverDefaultLabel": "服务器默认",
+      "browseLabel": "浏览…",
+      "recentProjectsLabel": "最近项目",
+      "usesServerDir": "使用服务器的工作目录"
+    },
+    "directoryBrowserSheet": {
+      "noActiveConnection": "没有活动连接",
+      "listFailed": "无法列出目录",
+      "title": "浏览文件夹",
+      "jumpPlaceholder": "跳转到路径...",
+      "noSubfolders": "此处没有子文件夹",
+      "enterPathHint": "在上方输入路径以开始浏览",
+      "useFolderButton": "使用 {{folder}}",
+      "thisFolderFallback": "此文件夹"
+    },
+    "reasoningBlock": {
+      "label": "思考中"
+    },
+    "toolCallCard": {
+      "fallbackTitle": "工具",
+      "patternOnly": "模式：{{pattern}}",
+      "patternWithPath": "模式：{{pattern}}，路径：{{path}}"
+    },
+    "sessionInfo": {
+      "noUsageData": "暂无使用数据",
+      "loading": "加载中...",
+      "loadAllMessages": "加载全部消息",
+      "jumpToBeginning": "跳转到开头",
+      "pills": {
+        "in": "输入",
+        "out": "输出",
+        "think": "思考",
+        "cacheRead": "缓存读",
+        "cacheWrite": "缓存写"
+      },
+      "meta": {
+        "created": "创建于",
+        "updated": "更新于",
+        "messages": "消息数",
+        "changes": "变更",
+        "shared": "已分享",
+        "yes": "是"
+      },
+      "time": {
+        "justNow": "刚刚",
+        "minutesAgo": "{{count}} 分钟前",
+        "hoursAgo": "{{count}} 小时前",
+        "daysAgo": "{{count}} 天前"
+      }
     }
   }
 }

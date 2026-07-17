@@ -2,6 +2,7 @@ import { useState, useCallback, useMemo, useRef } from "react"
 import { View, Text, TouchableOpacity, StyleSheet } from "react-native"
 import { Ionicons } from "@expo/vector-icons"
 import BottomSheet, { BottomSheetBackdrop, BottomSheetSectionList, BottomSheetTextInput } from "@gorhom/bottom-sheet"
+import { useTranslation } from "react-i18next"
 
 interface ModelItem {
   providerID: string
@@ -25,6 +26,7 @@ interface Props {
 }
 
 export function ModelPicker({ providers, selected, isDark, onSelect, sheetRef }: Props) {
+  const { t } = useTranslation()
   const [search, setSearch] = useState("")
 
   const sections = useMemo(() => {
@@ -96,10 +98,10 @@ export function ModelPicker({ providers, selected, isDark, onSelect, sheetRef }:
       }}
     >
       <View style={s.header}>
-        <Text style={[s.title, isDark && s.textWhite]}>Select Model</Text>
+        <Text style={[s.title, isDark && s.textWhite]}>{t("chat.modelPicker.title")}</Text>
         <BottomSheetTextInput
           style={[s.search, isDark && s.searchDark]}
-          placeholder="Search models..."
+          placeholder={t("chat.modelPicker.searchPlaceholder")}
           placeholderTextColor={isDark ? "#666666" : "#999999"}
           value={search}
           onChangeText={setSearch}

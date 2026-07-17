@@ -1,6 +1,7 @@
 import { useMemo } from "react"
 import { View, Text, TouchableOpacity, ScrollView, StyleSheet, Keyboard, Platform } from "react-native"
 import { Ionicons } from "@expo/vector-icons"
+import { useTranslation } from "react-i18next"
 
 export interface SlashCommand {
   trigger: string
@@ -18,6 +19,7 @@ interface Props {
 }
 
 export function SlashPopover({ query, commands, isDark, onSelect }: Props) {
+  const { t } = useTranslation()
   const filtered = useMemo(() => {
     const q = query.toLowerCase()
     return commands.filter((c) => c.trigger.toLowerCase().startsWith(q) || c.title.toLowerCase().includes(q))
@@ -45,7 +47,7 @@ export function SlashPopover({ query, commands, isDark, onSelect }: Props) {
             </View>
             {cmd.type === "custom" && (
               <View style={[s.badge, isDark && s.badgeDark]}>
-                <Text style={s.badgeText}>cmd</Text>
+                <Text style={s.badgeText}>{t("chat.slashPopover.customBadge")}</Text>
               </View>
             )}
           </TouchableOpacity>

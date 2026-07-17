@@ -13,6 +13,7 @@ import {
 } from "react-native"
 import { router } from "expo-router"
 import { Ionicons } from "@expo/vector-icons"
+import { useTranslation } from "react-i18next"
 import { useConnections } from "../../src/stores/connections"
 import type { ConnectionType } from "../../src/lib/types"
 import { probeConnection, shareReport } from "../../src/lib/diagnostics"
@@ -24,6 +25,7 @@ import { submitWaitlistSignup, buildWaitlistMailtoUrl } from "../../src/lib/wait
 export default function AddConnectionScreen() {
   const colorScheme = useColorScheme()
   const isDark = colorScheme === "dark"
+  const { t } = useTranslation()
 
   const { addConnection, testConnection } = useConnections()
 
@@ -66,7 +68,7 @@ export default function AddConnectionScreen() {
   const handleQuickConnect = async () => {
     const serverUrl = buildUrl()
     if (!serverUrl) {
-      Alert.alert("Error", "Please enter your computer's IP address")
+      Alert.alert(t("common.error"), t("connection.add.alerts.enterIp"))
       return
     }
 
@@ -77,7 +79,7 @@ export default function AddConnectionScreen() {
     const result = await testConnection(
       {
         id: "",
-        name: name || "My Server",
+        name: name || t("connection.shared.namePlaceholder"),
         type: "local",
         url: serverUrl,
         username: username.trim() || undefined,
@@ -90,7 +92,7 @@ export default function AddConnectionScreen() {
       // Save and go back
       await addConnection(
         {
-          name: name.trim() || "My Server",
+          name: name.trim() || t("connection.shared.namePlaceholder"),
           type: "local",
           url: serverUrl,
           username: username.trim() || undefined,
@@ -108,11 +110,15 @@ export default function AddConnectionScreen() {
       captureDiagnostic(report)
       setIsConnecting(false)
       Alert.alert(
-        "Connection Failed",
-        `${report.summary}\n\nTarget: ${serverUrl}\nError: ${result.error || "Unknown error"}`,
+        t("connection.shared.alerts.connectionFailedTitle"),
+        t("connection.add.alerts.connectionFailedMessage", {
+          summary: report.summary,
+          target: serverUrl,
+          error: result.error || t("connection.shared.alerts.unknownError"),
+        }),
         [
-          { text: "OK", style: "cancel" },
-          { text: "Share report", onPress: () => shareReport(report) },
+          { text: t("common.ok"), style: "cancel" },
+          { text: t("common.shareReport"), onPress: () => shareReport(report) },
         ],
       )
     }
@@ -120,15 +126,15 @@ export default function AddConnectionScreen() {
 
   const handleAdvancedSave = async () => {
     if (!name.trim()) {
-      Alert.alert("Error", "Please enter a connection name")
+      Alert.alert(t("common.error"), t("connection.shared.alerts.enterName"))
       return
     }
     if (!url.trim()) {
-      Alert.alert("Error", "Please enter a server URL")
+      Alert.alert(t("common.error"), t("connection.shared.alerts.enterUrl"))
       return
     }
     if (!parseUrl(url).valid) {
-      Alert.alert("Invalid URL", "Enter a full URL including http:// or https://, e.g. http://192.168.1.100:4096")
+      Alert.alert(t("connection.shared.alerts.invalidUrlTitle"), t("connection.shared.alerts.invalidUrlMessage"))
       return
     }
 
@@ -179,11 +185,15 @@ export default function AddConnectionScreen() {
     captureDiagnostic(report)
     setIsConnecting(false)
     Alert.alert(
-      "Connection Failed",
-      `${report.summary}\n\nTarget: ${url.trim()}\nError: ${result.error || "Unknown error"}`,
+      t("connection.shared.alerts.connectionFailedTitle"),
+      t("connection.add.alerts.connectionFailedMessage", {
+        summary: report.summary,
+        target: url.trim(),
+        error: result.error || t("connection.shared.alerts.unknownError"),
+      }),
       [
-        { text: "OK", style: "cancel" },
-        { text: "Share report", onPress: () => shareReport(report) },
+        { text: t("common.ok"), style: "cancel" },
+        { text: t("common.shareReport"), onPress: () => shareReport(report) },
       ],
     )
   }
@@ -204,10 +214,10 @@ export default function AddConnectionScreen() {
         await Linking.openURL(buildWaitlistMailtoUrl(result.email))
       } catch {
         // No mail app either — tell the user instead of failing silently.
-        Alert.alert("Join Waitlist", "Could not reach the signup service or open an email app. Please email support@agentlabs.cc with subject \"OpenCode Connect Waitlist\".")
+        Alert.alert(t("connection.add.waitlist.alertTitle"), t("connection.add.waitlist.fallbackMessage"))
       }
     } else {
-      Alert.alert("Join Waitlist", result.error)
+      Alert.alert(t("connection.add.waitlist.alertTitle"), result.error)
     }
   }
 
@@ -221,14 +231,12 @@ export default function AddConnectionScreen() {
       >
         <View style={styles.quickHeader}>
           <Ionicons name="wifi" size={48} color={isDark ? "#ffffff" : "#0a0a0a"} />
-          <Text style={[styles.quickTitle, isDark && styles.textDark]}>Connect to OpenCode</Text>
-          <Text style={[styles.quickSubtitle, isDark && styles.hintDark]}>
-            Enter your computer's IP address to connect
-          </Text>
+          <Text style={[styles.quickTitle, isDark && styles.textDark]}>{t("connection.add.quick.title")}</Text>
+          <Text style={[styles.quickSubtitle, isDark && styles.hintDark]}>{t("connection.add.quick.subtitle")}</Text>
         </View>
 
         {/* IP Address */}
-        <Text style={[styles.label, isDark && styles.labelDark]}>IP Address</Text>
+        <Text style={[styles.label, isDark && styles.labelDark]}>{t("connection.add.quick.ipAddressLabel")}</Text>
         <View style={styles.ipRow}>
           <TextInput
             style={[styles.input, styles.ipInput, isDark && styles.inputDark]}
@@ -254,20 +262,20 @@ export default function AddConnectionScreen() {
         </View>
 
         {/* Optional name */}
-        <Text style={[styles.label, isDark && styles.labelDark]}>Name (optional)</Text>
+        <Text style={[styles.label, isDark && styles.labelDark]}>{t("connection.add.quick.nameOptionalLabel")}</Text>
         <TextInput
           style={[styles.input, isDark && styles.inputDark]}
-          placeholder="My Mac"
+          placeholder={t("connection.add.quick.namePlaceholder")}
           placeholderTextColor={isDark ? "#666666" : "#999999"}
           value={name}
           onChangeText={setName}
         />
 
         {/* Password if needed */}
-        <Text style={[styles.label, isDark && styles.labelDark]}>Password (if set on server)</Text>
+        <Text style={[styles.label, isDark && styles.labelDark]}>{t("connection.add.quick.passwordIfSetLabel")}</Text>
         <TextInput
           style={[styles.input, isDark && styles.inputDark]}
-          placeholder="Leave empty if none"
+          placeholder={t("connection.add.quick.passwordPlaceholder")}
           placeholderTextColor={isDark ? "#666666" : "#999999"}
           value={password}
           onChangeText={setPassword}
@@ -275,11 +283,13 @@ export default function AddConnectionScreen() {
           testID="connect-password-input"
         />
         <Text style={[styles.usernameHint, isDark && styles.hintDark]}>
-          Username defaults to <Text style={styles.code}>opencode</Text>. Custom username? Use{" "}
+          {t("connection.add.quick.usernameHintPrefix")}
+          <Text style={styles.code}>opencode</Text>
+          {t("connection.add.quick.usernameHintMiddle")}
           <Text style={styles.usernameHintLink} onPress={() => setMode("advanced")}>
-            Advanced options
+            {t("connection.add.quick.advancedOptionsLink")}
           </Text>
-          .
+          {t("connection.add.quick.usernameHintSuffix")}
         </Text>
 
         {/* Connect button */}
@@ -294,30 +304,38 @@ export default function AddConnectionScreen() {
           ) : (
             <>
               <Ionicons name="flash" size={20} color={isDark ? "#0a0a0a" : "#ffffff"} />
-              <Text style={[styles.connectButtonText, isDark && styles.connectButtonTextDark]}>Connect</Text>
+              <Text style={[styles.connectButtonText, isDark && styles.connectButtonTextDark]}>
+                {t("connection.add.quick.connectButton")}
+              </Text>
             </>
           )}
         </TouchableOpacity>
 
         {/* Help text */}
         <View style={[styles.helpBox, isDark && styles.helpBoxDark]}>
-          <Text style={[styles.helpTitle, isDark && styles.textDark]}>How to find your IP:</Text>
+          <Text style={[styles.helpTitle, isDark && styles.textDark]}>{t("connection.add.quick.helpTitle")}</Text>
           <Text style={[styles.helpText, isDark && styles.hintDark]}>
-            On your Mac, run:{"\n"}
+            {t("connection.add.quick.helpMacPrefix")}
+            {"\n"}
             <Text style={styles.code}>ipconfig getifaddr en0</Text>
           </Text>
           <Text style={[styles.helpText, isDark && styles.hintDark, { marginTop: 8 }]}>
-            Tailscale examples:{"\n"}
+            {t("connection.add.quick.helpTailscalePrefix")}
+            {"\n"}
             <Text style={styles.code}>http://100.64.12.34:4096</Text>
             {"\n"}
             <Text style={styles.code}>http://my-mac.tailnet.ts.net:4096</Text>
           </Text>
           <Text style={[styles.helpText, isDark && styles.hintDark, { marginTop: 8 }]}>
-            Use <Text style={styles.code}>http://</Text> for local and Tailscale addresses unless TLS is configured,
-            then use <Text style={styles.code}>https://</Text>.
+            {t("connection.add.quick.helpProtocolPrefix")}
+            <Text style={styles.code}>http://</Text>
+            {t("connection.add.quick.helpProtocolMiddle")}
+            <Text style={styles.code}>https://</Text>
+            {t("connection.add.quick.helpProtocolSuffix")}
           </Text>
           <Text style={[styles.helpText, isDark && styles.hintDark, { marginTop: 8 }]}>
-            Make sure OpenCode is running:{"\n"}
+            {t("connection.add.quick.helpRunningPrefix")}
+            {"\n"}
             <Text style={styles.code}>opencode serve --hostname 0.0.0.0</Text>
           </Text>
         </View>
@@ -327,21 +345,22 @@ export default function AddConnectionScreen() {
           <View style={styles.connectCardHeader}>
             <Ionicons name="cloud-done-outline" size={28} color="#6366f1" />
             <View style={styles.connectCardTitles}>
-              <Text style={[styles.connectCardTitle, isDark && styles.textDark]}>OpenCode Connect</Text>
+              <Text style={[styles.connectCardTitle, isDark && styles.textDark]}>
+                {t("connection.add.quick.connectCardTitle")}
+              </Text>
               <View style={styles.connectCardBadge}>
-                <Text style={styles.connectCardBadgeText}>Coming Soon</Text>
+                <Text style={styles.connectCardBadgeText}>{t("connection.add.quick.connectCardBadge")}</Text>
               </View>
             </View>
           </View>
           <Text style={[styles.connectCardDesc, isDark && styles.hintDark]}>
-            Bridge your phone to your opencode server — no tunnel setup, no firewall config. One-tap connect from
-            anywhere.
+            {t("connection.add.quick.connectCardDesc")}
           </Text>
           {waitlistState === "joined" ? (
             <View style={styles.waitlistSuccess} testID="waitlist-success">
               <Ionicons name="checkmark-circle" size={20} color="#22c55e" />
               <Text style={[styles.waitlistSuccessText, isDark && styles.textDark]}>
-                You're on the list — we'll email you when OpenCode Connect is ready.
+                {t("connection.add.waitlist.successText")}
               </Text>
             </View>
           ) : (
@@ -369,7 +388,7 @@ export default function AddConnectionScreen() {
                 ) : (
                   <>
                     <Ionicons name="mail-outline" size={16} color="#ffffff" />
-                    <Text style={styles.waitlistButtonText}>Join Waitlist</Text>
+                    <Text style={styles.waitlistButtonText}>{t("connection.add.waitlist.joinButton")}</Text>
                   </>
                 )}
               </TouchableOpacity>
@@ -380,7 +399,7 @@ export default function AddConnectionScreen() {
         {/* Advanced mode link */}
         <TouchableOpacity style={styles.advancedLink} onPress={() => setMode("advanced")}>
           <Text style={[styles.advancedLinkText, isDark && styles.hintDark]}>
-            Advanced options (tunnels, cloud, auth)
+            {t("connection.add.quick.advancedLink")}
           </Text>
           <Ionicons name="chevron-forward" size={16} color={isDark ? "#888888" : "#666666"} />
         </TouchableOpacity>
@@ -397,58 +416,58 @@ export default function AddConnectionScreen() {
     >
       <TouchableOpacity style={styles.backToQuick} onPress={() => setMode("quick")}>
         <Ionicons name="chevron-back" size={16} color={isDark ? "#888888" : "#666666"} />
-        <Text style={[styles.backToQuickText, isDark && styles.hintDark]}>Simple mode</Text>
+        <Text style={[styles.backToQuickText, isDark && styles.hintDark]}>{t("connection.add.advanced.backToQuick")}</Text>
       </TouchableOpacity>
 
       {/* Connection Type */}
-      <Text style={[styles.label, isDark && styles.labelDark]}>Connection Type</Text>
+      <Text style={[styles.label, isDark && styles.labelDark]}>{t("connection.shared.connectionType")}</Text>
       <View style={styles.typeContainer}>
         {[
-          { type: "local" as const, label: "Local", icon: "wifi" as const },
-          { type: "tunnel" as const, label: "Tunnel", icon: "globe" as const },
-          { type: "cloud" as const, label: "Cloud", icon: "cloud" as const },
-        ].map((t) => (
+          { type: "local" as const, label: t("connection.shared.types.local"), icon: "wifi" as const },
+          { type: "tunnel" as const, label: t("connection.shared.types.tunnel"), icon: "globe" as const },
+          { type: "cloud" as const, label: t("connection.shared.types.cloud"), icon: "cloud" as const },
+        ].map((opt) => (
           <TouchableOpacity
-            key={t.type}
+            key={opt.type}
             style={[
               styles.typeOption,
               isDark && styles.typeOptionDark,
-              type === t.type && styles.typeOptionSelected,
-              type === t.type && isDark && styles.typeOptionSelectedDark,
+              type === opt.type && styles.typeOptionSelected,
+              type === opt.type && isDark && styles.typeOptionSelectedDark,
             ]}
-            onPress={() => setType(t.type)}
+            onPress={() => setType(opt.type)}
           >
             <Ionicons
-              name={t.icon}
+              name={opt.icon}
               size={20}
-              color={type === t.type ? (isDark ? "#0a0a0a" : "#ffffff") : isDark ? "#888888" : "#666666"}
+              color={type === opt.type ? (isDark ? "#0a0a0a" : "#ffffff") : isDark ? "#888888" : "#666666"}
             />
             <Text
               style={[
                 styles.typeLabel,
                 isDark && styles.textDark,
-                type === t.type && styles.typeLabelSelected,
-                type === t.type && isDark && styles.typeLabelSelectedDark,
+                type === opt.type && styles.typeLabelSelected,
+                type === opt.type && isDark && styles.typeLabelSelectedDark,
               ]}
             >
-              {t.label}
+              {opt.label}
             </Text>
           </TouchableOpacity>
         ))}
       </View>
 
       {/* Name */}
-      <Text style={[styles.label, isDark && styles.labelDark]}>Name</Text>
+      <Text style={[styles.label, isDark && styles.labelDark]}>{t("connection.shared.name")}</Text>
       <TextInput
         style={[styles.input, isDark && styles.inputDark]}
-        placeholder="My Server"
+        placeholder={t("connection.shared.namePlaceholder")}
         placeholderTextColor={isDark ? "#666666" : "#999999"}
         value={name}
         onChangeText={setName}
       />
 
       {/* URL */}
-      <Text style={[styles.label, isDark && styles.labelDark]}>Server URL</Text>
+      <Text style={[styles.label, isDark && styles.labelDark]}>{t("connection.shared.serverUrl")}</Text>
       <TextInput
         style={[styles.input, isDark && styles.inputDark]}
         placeholder={
@@ -466,13 +485,17 @@ export default function AddConnectionScreen() {
         keyboardType="url"
       />
       <Text style={[styles.hint, isDark && styles.hintDark]}>
-        Local/Tailscale examples: <Text style={styles.code}>http://100.64.12.34:4096</Text> or{" "}
-        <Text style={styles.code}>http://my-mac.tailnet.ts.net:4096</Text>. Use <Text style={styles.code}>https://</Text>
-        only when TLS is configured.
+        {t("connection.add.advanced.urlHintPrefix")}
+        <Text style={styles.code}>http://100.64.12.34:4096</Text>
+        {t("connection.add.advanced.urlHintOr")}
+        <Text style={styles.code}>http://my-mac.tailnet.ts.net:4096</Text>
+        {t("connection.add.advanced.urlHintUse")}
+        <Text style={styles.code}>https://</Text>
+        {t("connection.add.advanced.urlHintSuffix")}
       </Text>
 
       {/* Directory */}
-      <Text style={[styles.label, isDark && styles.labelDark]}>Project Directory (Optional)</Text>
+      <Text style={[styles.label, isDark && styles.labelDark]}>{t("connection.shared.directoryOptional")}</Text>
       <TextInput
         style={[styles.input, isDark && styles.inputDark]}
         placeholder="/path/to/project"
@@ -482,14 +505,12 @@ export default function AddConnectionScreen() {
         autoCapitalize="none"
         autoCorrect={false}
       />
-      <Text style={[styles.hint, isDark && styles.hintDark]}>
-        Leave empty to use the server's current directory, or specify a path to work in a different folder.
-      </Text>
+      <Text style={[styles.hint, isDark && styles.hintDark]}>{t("connection.add.advanced.directoryHint")}</Text>
 
       {/* Auth */}
-      <Text style={[styles.sectionTitle, isDark && styles.textDark]}>Authentication</Text>
+      <Text style={[styles.sectionTitle, isDark && styles.textDark]}>{t("connection.shared.authentication")}</Text>
 
-      <Text style={[styles.label, isDark && styles.labelDark]}>Username</Text>
+      <Text style={[styles.label, isDark && styles.labelDark]}>{t("connection.shared.username")}</Text>
       <TextInput
         style={[styles.input, isDark && styles.inputDark]}
         placeholder="admin"
@@ -500,7 +521,7 @@ export default function AddConnectionScreen() {
         autoCorrect={false}
       />
 
-      <Text style={[styles.label, isDark && styles.labelDark]}>Password</Text>
+      <Text style={[styles.label, isDark && styles.labelDark]}>{t("connection.shared.password")}</Text>
       <TextInput
         style={[styles.input, isDark && styles.inputDark]}
         placeholder="password"
@@ -519,7 +540,9 @@ export default function AddConnectionScreen() {
         {isConnecting ? (
           <ActivityIndicator size="small" color={isDark ? "#0a0a0a" : "#ffffff"} />
         ) : (
-          <Text style={[styles.connectButtonText, isDark && styles.connectButtonTextDark]}>Save Connection</Text>
+          <Text style={[styles.connectButtonText, isDark && styles.connectButtonTextDark]}>
+            {t("connection.add.advanced.saveButton")}
+          </Text>
         )}
       </TouchableOpacity>
     </ScrollView>
