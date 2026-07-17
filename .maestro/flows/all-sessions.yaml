@@ -51,10 +51,12 @@ name: All sessions across directories - list + open-across-project (regression #
 - tapOn:
     id: "connect-submit-button"
 
+# 40s margin: see activation-positive.yaml — the connect handshake's own
+# fetches are individually capped at 30s (src/lib/sdk.ts REQUEST_TIMEOUT_MS).
 - extendedWaitUntil:
     visible:
       id: "connection-status-dot"
-    timeout: 20000
+    timeout: 40000
 - takeScreenshot: allsessions-S1_connected
 
 # Both seeded sessions must appear, even though only one belongs to the

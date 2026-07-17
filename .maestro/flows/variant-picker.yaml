@@ -36,10 +36,12 @@ name: Variant picker - reasoning-effort chip renders, selects, and still sends
 - tapOn:
     id: "connect-submit-button"
 
+# 40s margin: see activation-positive.yaml — the connect handshake's own
+# fetches are individually capped at 30s (src/lib/sdk.ts REQUEST_TIMEOUT_MS).
 - extendedWaitUntil:
     visible:
       id: "connection-status-dot"
-    timeout: 20000
+    timeout: 40000
 - takeScreenshot: variant-S1_connected
 
 - tapOn:

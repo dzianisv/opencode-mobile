@@ -39,10 +39,12 @@ name: Directory picker - browse server folders and create a session in one
 - tapOn:
     id: "connect-submit-button"
 
+# 40s margin: see activation-positive.yaml — the connect handshake's own
+# fetches are individually capped at 30s (src/lib/sdk.ts REQUEST_TIMEOUT_MS).
 - extendedWaitUntil:
     visible:
       id: "connection-status-dot"
-    timeout: 20000
+    timeout: 40000
 - takeScreenshot: dirpicker-S1_connected
 
 # Open the New Session modal (long-press the FAB for the full options sheet)
