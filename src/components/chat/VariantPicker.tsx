@@ -67,6 +67,7 @@ export function VariantPicker({ variants, selected, isDark, onSelect, sheetRef }
             <TouchableOpacity
               style={[s.row, isDark && s.rowDark, active && (isDark ? s.rowSelectedDark : s.rowSelected)]}
               onPress={() => handleSelect(item.id)}
+              testID={`variant-option-${item.id ?? "auto"}`}
             >
               <View style={s.rowText}>
                 <Text style={[s.rowName, isDark && s.textWhite]}>{item.label}</Text>

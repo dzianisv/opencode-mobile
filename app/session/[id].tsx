@@ -722,6 +722,7 @@ export default function SessionScreen() {
             <TouchableOpacity
               style={[s.variantChip, isDark && s.variantChipDark, variant && s.variantChipActive]}
               onPress={() => variantSheetRef.current?.expand()}
+              testID="variant-chip"
             >
               <Ionicons name="flash-outline" size={14} color={variant ? "#8b5cf6" : isDark ? "#888888" : "#666666"} />
               <Text style={[s.variantLabel, isDark && s.metaDark, variant && s.variantLabelActive]} numberOfLines={1}>

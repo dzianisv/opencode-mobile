@@ -11,9 +11,7 @@ set -uo pipefail
 
 ROOT="$(pwd)"                       # capture BEFORE any cd, so diag paths are absolute
 APK="android/app/build/outputs/apk/release/app-release.apk"
-# Only the flows that exist on main. directory-picker/all-sessions/variant-picker
-# land with the test/e2e-new-features PR.
-FLOWS=(activation-positive activation-negative-401)
+FLOWS=(activation-positive activation-negative-401 directory-picker all-sessions variant-picker)
 mkdir -p "$ROOT/artifacts/screenshots" "$ROOT/artifacts/diag"
 
 echo "== installing APK =="

@@ -5,6 +5,12 @@ name: Activation E2E (Maestro)
 # receive reply), including the connect-time-401 negative case tied to the
 # 0%-7-day-retention / GitHub issue #76 investigation.
 #
+# Also covers newer surfaces merged after the initial activation suite:
+# DirectoryBrowserSheet's server-folder picker, the directory-less
+# "all sessions across all projects" list (+ the #46/#48 open-across-project
+# regression), and VariantPicker's reasoning-effort chip. See
+# .maestro/flows/directory-picker.yaml, all-sessions.yaml, variant-picker.yaml.
+#
 # Runs against tests/fixtures/mock-opencode-server.ts (a small dependency-free
 # HTTP+SSE stub matching the REAL client protocol read from src/lib/sdk.ts —
 # NOT a live opencode server, NOT a WebSocket), so the suite is fast and fully

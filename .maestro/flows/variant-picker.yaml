@@ -1,0 +1,104 @@
+appId: cc.agentlabs.opencode
+name: Variant picker - reasoning-effort chip renders, selects, and still sends
+---
+# New-feature regression coverage for VariantPicker
+# (src/components/chat/VariantPicker.tsx): the reasoning-effort chip only
+# renders when the selected model's provider entry carries `variants`
+# (src/stores/catalog.ts / GET /provider), selecting an option updates the
+# chip label, and sending a message afterwards still works end-to-end
+# (variant flows into sendMessage -> client.session.prompt's `variant` field
+# — see src/stores/sessions.ts sendMessage).
+#
+# The CI job starts `node tests/fixtures/mock-opencode-server.ts --port 4099`
+# on the runner host BEFORE this flow runs (same fresh, non-seeded normal-mode
+# server used by directory-picker.yaml — GET /provider's mock-model carries
+# low/medium/high variants; see tests/fixtures/mock-opencode-server.ts).
+
+- launchApp:
+    clearState: true
+- assertVisible:
+    id: "telemetry-consent-card"
+- tapOn:
+    id: "telemetry-decline-button"
+
+- assertVisible:
+    text: "No Connection"
+- tapOn:
+    id: "add-connection-button"
+- tapOn:
+    id: "connect-ip-input"
+- inputText: "10.0.2.2"
+- tapOn:
+    id: "connect-port-input"
+- eraseText
+- inputText: "4099"
+- hideKeyboard
+- tapOn:
+    id: "connect-submit-button"
+
+- extendedWaitUntil:
+    visible:
+      id: "connection-status-dot"
+    timeout: 20000
+- takeScreenshot: variant-S1_connected
+
+- tapOn:
+    id: "new-session-fab"
+- extendedWaitUntil:
+    visible:
+      id: "chat-message-input"
+    timeout: 15000
+
+# The chip only appears once catalog.load() (triggered on connect, see
+# app/_layout.tsx) has resolved GET /provider and found variants for the
+# selected model — wait rather than assert immediately.
+- extendedWaitUntil:
+    visible:
+      id: "variant-chip"
+    timeout: 15000
+- assertVisible:
+    text: "Auto"
+- takeScreenshot: variant-S2_chip_default_auto
+
+- tapOn:
+    id: "variant-chip"
+- assertVisible:
+    text: "Reasoning Effort"
+- assertVisible:
+    id: "variant-option-low"
+- assertVisible:
+    id: "variant-option-medium"
+- assertVisible:
+    id: "variant-option-high"
+- takeScreenshot: variant-S3_picker_options
+
+- tapOn:
+    id: "variant-option-high"
+# Sheet closes and the chip label reflects the new selection.
+- assertVisible:
+    text: "High"
+- takeScreenshot: variant-S4_chip_shows_high
+
+# Sending a message must still work with a variant selected (regression: the
+# variant chip must not break the send path).
+- tapOn:
+    id: "chat-message-input"
+- inputText: "Message with reasoning effort set to high"
+- hideKeyboard
+- takeScreenshot: variant-S5_message_typed
+- tapOn:
+    id: "chat-send-button"
+
+- extendedWaitUntil:
+    visible:
+      text: "Hello from the mock opencode server"
+    timeout: 20000
+- assertVisible:
+    id: "chat-bubble-assistant"
+- assertVisible:
+    text: "Message with reasoning effort set to high"
+# The chip must still read "High" after the round trip (selection persists
+# across a send, it isn't reset by the reply landing).
+- assertVisible:
+    text: "High"
+- takeScreenshot: variant-S6_reply_received_variant_still_high

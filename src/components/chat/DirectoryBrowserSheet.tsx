@@ -140,7 +140,7 @@ export function DirectoryBrowserSheet({
       <View style={s.header}>
         <Text style={[s.title, isDark && s.white]}>Browse Folders</Text>
         <View style={s.pathRow}>
-          <TouchableOpacity onPress={goUp} disabled={!canGoUp} hitSlop={8}>
+          <TouchableOpacity onPress={goUp} disabled={!canGoUp} hitSlop={8} testID="directory-up-button">
             <Ionicons
               name="arrow-up-circle-outline"
               size={22}
@@ -164,6 +164,7 @@ export function DirectoryBrowserSheet({
           returnKeyType="go"
           autoCapitalize="none"
           autoCorrect={false}
+          testID="directory-jump-input"
         />
         {jumpPath.trim() && (
           <TouchableOpacity style={[s.goBtn, isDark && s.goBtnDark]} onPress={goJump}>
@@ -176,7 +177,11 @@ export function DirectoryBrowserSheet({
         data={entries}
         keyExtractor={(item: FileEntry) => item.absolute}
         renderItem={({ item }: { item: FileEntry }) => (
-          <TouchableOpacity style={[s.row, isDark && s.rowDark]} onPress={() => enter(item.absolute)}>
+          <TouchableOpacity
+            style={[s.row, isDark && s.rowDark]}
+            onPress={() => enter(item.absolute)}
+            testID={`directory-row-${item.name}`}
+          >
             <Ionicons
               name="folder-outline"
               size={20}
@@ -214,6 +219,7 @@ export function DirectoryBrowserSheet({
           style={[s.selectBtn, isDark && s.selectBtnDark, !browseDir && s.selectBtnDisabled]}
           onPress={handleUseFolder}
           disabled={!browseDir}
+          testID="directory-select-button"
         >
           <Ionicons name="checkmark-circle" size={18} color={isDark ? "#0a0a0a" : "#ffffff"} />
           <Text style={[s.selectBtnText, isDark && s.selectBtnTextDark]} numberOfLines={1}>

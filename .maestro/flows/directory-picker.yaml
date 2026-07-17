@@ -1,0 +1,119 @@
+appId: cc.agentlabs.opencode
+name: Directory picker - browse server folders and create a session in one
+---
+# New-feature regression coverage for DirectoryBrowserSheet
+# (src/components/chat/DirectoryBrowserSheet.tsx): New Session -> Browse
+# Folders -> the sheet lists the mock server's fake directory tree -> tapping
+# a folder navigates into it -> Up navigation returns to the parent -> tapping
+# "Use this folder" creates a session scoped to the chosen directory.
+#
+# The CI job starts `node tests/fixtures/mock-opencode-server.ts --port 4099`
+# (normal mode, no --fail-auth / --seed-sessions) on the runner host BEFORE
+# this flow runs. Its fake filesystem (FAKE_FILE_TREE in
+# tests/fixtures/mock-opencode-server.ts) is:
+#   /mock/project             -> frontend/ (dir), backend/ (dir), README.md (file)
+#   /mock/project/frontend    -> (empty)
+#   /mock/project/backend     -> (empty)
+# and GET /project (FAKE_SERVER_PROJECTS) additionally lists a "docs-project"
+# server-known project, exercised as a secondary assertion below.
+
+- launchApp:
+    clearState: true
+- assertVisible:
+    id: "telemetry-consent-card"
+- tapOn:
+    id: "telemetry-decline-button"
+
+- assertVisible:
+    text: "No Connection"
+- tapOn:
+    id: "add-connection-button"
+- tapOn:
+    id: "connect-ip-input"
+- inputText: "10.0.2.2"
+- tapOn:
+    id: "connect-port-input"
+- eraseText
+- inputText: "4099"
+- hideKeyboard
+- tapOn:
+    id: "connect-submit-button"
+
+- extendedWaitUntil:
+    visible:
+      id: "connection-status-dot"
+    timeout: 20000
+- takeScreenshot: dirpicker-S1_connected
+
+# Open the New Session modal (long-press the FAB for the full options sheet)
+- longPressOn:
+    id: "new-session-fab"
+- assertVisible:
+    text: "New Session"
+# GET /project surfaces "docs-project" under "Server Projects" (excludes the
+# current project, mock-project) — confirms the project-list endpoint wired up.
+# The modal fetches it async on open, so wait rather than assert immediately.
+- extendedWaitUntil:
+    visible:
+      text: "docs-project"
+    timeout: 10000
+- takeScreenshot: dirpicker-S2_new_session_modal
+
+# Open the folder browser
+- tapOn:
+    id: "browse-folders-button"
+- assertVisible:
+    text: "Browse Folders"
+- extendedWaitUntil:
+    visible:
+      id: "directory-row-frontend"
+    timeout: 10000
+- assertVisible:
+    id: "directory-row-backend"
+# README.md is a FILE, not a directory — DirectoryBrowserSheet filters entries
+# to type === "directory", so it must never appear as a row.
+- assertNotVisible:
+    text: "README.md"
+- takeScreenshot: dirpicker-S3_root_listing
+
+# Navigate into "frontend"
+- tapOn:
+    id: "directory-row-frontend"
+- extendedWaitUntil:
+    visible:
+      text: "No subfolders here"
+    timeout: 10000
+- takeScreenshot: dirpicker-S4_inside_frontend
+
+# Up navigation must return to the root listing
+- tapOn:
+    id: "directory-up-button"
+- extendedWaitUntil:
+    visible:
+      id: "directory-row-frontend"
+    timeout: 10000
+- assertVisible:
+    id: "directory-row-backend"
+- takeScreenshot: dirpicker-S5_up_navigation_back_to_root
+
+# Navigate into "backend" and select it
+- tapOn:
+    id: "directory-row-backend"
+- extendedWaitUntil:
+    visible:
+      text: "No subfolders here"
+    timeout: 10000
+- takeScreenshot: dirpicker-S6_inside_backend
+- tapOn:
+    id: "directory-select-button"
+
+# The app creates a session scoped to /mock/project/backend (mock POST
+# /session reads x-opencode-directory) and navigates straight to it — the
+# native header's directory badge must show "backend".
+- extendedWaitUntil:
+    visible:
+      id: "chat-message-input"
+    timeout: 15000
+- assertVisible:
+    text: "backend"
+- takeScreenshot: dirpicker-S7_session_created_in_backend

@@ -71,6 +71,7 @@ function SessionItem({
       style={[styles.sessionItem, isDark && styles.sessionItemDark]}
       onPress={onPress}
       onLongPress={onLongPress}
+      testID={`session-item-${session.id}`}
     >
       <View style={styles.sessionContent}>
         <View style={styles.sessionHeader}>
@@ -538,6 +539,7 @@ export default function SessionsScreen() {
                   openBrowser(currentProject?.path?.absolute || activeConnection?.directory || null, "create")
                 }
                 disabled={isCreating}
+                testID="browse-folders-button"
               >
                 <Ionicons name="folder-open-outline" size={18} color={isDark ? "#8b5cf6" : "#6d28d9"} />
                 <View style={styles.projectRowContent}>
