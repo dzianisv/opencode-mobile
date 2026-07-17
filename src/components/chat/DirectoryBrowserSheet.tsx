@@ -4,6 +4,7 @@ import { Ionicons } from "@expo/vector-icons"
 import BottomSheet, { BottomSheetBackdrop, BottomSheetFlatList, BottomSheetTextInput } from "@gorhom/bottom-sheet"
 import type { Client, FileEntry } from "../../lib/sdk"
 import { parentOf, nameOf } from "../../lib/path-utils"
+import { normalizeRoots, type FileRoot } from "../../lib/file-roots"
 
 interface Props {
   sheetRef: React.RefObject<BottomSheet | null>
@@ -31,6 +32,11 @@ export function DirectoryBrowserSheet({
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [jumpPath, setJumpPath] = useState("")
+  // Pinned top-level entries (drives, home dir) fetched from GET /file/roots.
+  // Stays empty on older servers that don't expose the endpoint, or while a
+  // fetch is in flight — the manual "Jump to path" input keeps working
+  // either way.
+  const [roots, setRoots] = useState<FileRoot[]>([])
   const loadToken = useRef(0)
 
   const load = useCallback(
@@ -71,6 +77,24 @@ export function DirectoryBrowserSheet({
     [load],
   )
 
+  // Fetch pinned filesystem roots for the current server. Silently falls
+  // back to no pinned roots (manual path entry still works) on older
+  // servers or any request failure.
+  const loadRoots = useCallback(
+    (dir: string) => {
+      const client = clientForDirectory(dir)
+      if (!client) {
+        setRoots([])
+        return
+      }
+      client.file
+        .roots()
+        .then((result) => setRoots(normalizeRoots(result)))
+        .catch(() => setRoots([]))
+    },
+    [clientForDirectory],
+  )
+
   // Reset to the starting directory when the sheet transitions from closed
   // to open (not on drags between snap points), and notify on full close.
   const wasOpen = useRef(false)
@@ -86,6 +110,7 @@ export function DirectoryBrowserSheet({
       setJumpPath("")
       if (startDirectory) {
         enter(startDirectory)
+        loadRoots(startDirectory)
       } else {
         // No starting directory known (e.g. server home not loaded yet):
         // show an explicit empty state instead of a previous open's entries.
@@ -94,9 +119,10 @@ export function DirectoryBrowserSheet({
         setEntries([])
         setError(null)
         setLoading(false)
+        setRoots([])
       }
     },
-    [startDirectory, enter, onDismiss],
+    [startDirectory, enter, loadRoots, onDismiss],
   )
 
   const goUp = useCallback(() => {
@@ -152,6 +178,35 @@ export function DirectoryBrowserSheet({
           </Text>
         </View>
       </View>
+
+      {roots.length > 0 && (
+        <View style={s.rootsRow}>
+          {roots.map((root) => (
+            <TouchableOpacity
+              key={root.path}
+              style={[s.rootChip, isDark && s.rootChipDark, browseDir === root.path && s.rootChipActive]}
+              onPress={() => enter(root.path)}
+              testID={`directory-root-${root.label}`}
+            >
+              <Ionicons
+                name={root.label === "Home" ? "home-outline" : "layers-outline"}
+                size={14}
+                color={browseDir === root.path ? "#ffffff" : isDark ? "#c4b5fd" : "#6d28d9"}
+              />
+              <Text
+                style={[
+                  s.rootChipText,
+                  isDark && s.rootChipTextDark,
+                  browseDir === root.path && s.rootChipTextActive,
+                ]}
+                numberOfLines={1}
+              >
+                {root.label}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      )}
 
       <View style={s.inputWrap}>
         <BottomSheetTextInput
@@ -248,6 +303,31 @@ const s = StyleSheet.create({
     color: "#666666",
   },
   dimDark: { color: "#888888" },
+  rootsRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    paddingHorizontal: 16,
+    paddingBottom: 10,
+  },
+  rootChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 14,
+    backgroundColor: "#e8e5f0",
+  },
+  rootChipDark: { backgroundColor: "#2a2040" },
+  rootChipActive: { backgroundColor: "#8b5cf6" },
+  rootChipText: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#6d28d9",
+  },
+  rootChipTextDark: { color: "#c4b5fd" },
+  rootChipTextActive: { color: "#ffffff" },
   inputWrap: {
     flexDirection: "row",
     alignItems: "center",

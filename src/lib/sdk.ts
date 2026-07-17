@@ -6,6 +6,7 @@ import { fetch as expoFetch } from "expo/fetch"
 import { buildRequestHeaders } from "./headers"
 import { SSEParser } from "./sse"
 import { apiErrorFor } from "./api-error"
+import type { FileRoot } from "./file-roots"
 
 export { ApiAuthError, isAuthError } from "./api-error"
 
@@ -297,6 +298,19 @@ export function createClient(config: ClientConfig) {
       list: (params: { path?: string } = {}) => {
         const query = new URLSearchParams({ path: params.path ?? "." })
         return request<FileEntry[]>(config, `/file?${query.toString()}`)
+      },
+      // Enumerate the server's filesystem roots (mounted drives, home dir)
+      // to seed the directory browser's pinned top-level entries. Resolves
+      // to null on servers that don't yet expose GET /file/roots (older
+      // opencode builds) so callers fall back to manual path entry instead
+      // of crashing; other errors propagate like any other request.
+      roots: async (): Promise<FileRoot[] | null> => {
+        try {
+          return await request<FileRoot[]>(config, "/file/roots")
+        } catch (err) {
+          if (err instanceof ApiError && err.status === 404) return null
+          throw err
+        }
       },
     },
 
