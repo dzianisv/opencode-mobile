@@ -5,6 +5,9 @@
 import { fetch as expoFetch } from "expo/fetch"
 import { buildRequestHeaders } from "./headers"
 import { SSEParser } from "./sse"
+import { apiErrorFor } from "./api-error"
+
+export { ApiAuthError, isAuthError } from "./api-error"
 
 export interface ClientConfig {
   baseUrl: string
@@ -196,7 +199,7 @@ async function request<T>(config: ClientConfig, path: string, options: RequestIn
 
   if (!response.ok) {
     const error = await response.text()
-    throw new ApiError(response.status, error)
+    throw apiErrorFor(response.status, `API Error: ${response.status} - ${error}`)
   }
 
   return response.json()
@@ -243,7 +246,7 @@ export function createClient(config: ClientConfig) {
         // Must use expo/fetch for ReadableStream support on native
         const response = await expoFetch(url, { headers, signal })
         if (!response.ok || !response.body) {
-          throw new Error(`Failed to connect to event stream: ${response.status}`)
+          throw apiErrorFor(response.status, `Failed to connect to event stream: ${response.status}`)
         }
 
         const reader = response.body.getReader()

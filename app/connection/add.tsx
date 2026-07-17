@@ -133,23 +133,59 @@ export default function AddConnectionScreen() {
     }
 
     track(AnalyticsEvent.ConnectionFormSubmitted, { mode: "advanced" })
-    // Advanced mode saves directly without a pre-flight health check (see
-    // useConnections.addConnection), so unlike quick-connect there is no
-    // success/failure signal to report here — only that an attempt was made.
-    track(AnalyticsEvent.ConnectionAttempted, { source: "onboarding" })
     setIsConnecting(true)
-    await addConnection(
+
+    // Pre-flight, mirroring Quick Connect: previously Advanced mode saved
+    // directly with no health check, so bad credentials (401/403) or an
+    // unreachable server silently became the active connection with zero
+    // feedback (issue #76). testConnection() also fires the
+    // connection_attempted/succeeded/failed analytics events.
+    const result = await testConnection(
       {
+        id: "",
         name: name.trim(),
         type,
         url: url.trim(),
         directory: directory.trim() || undefined,
         username: username.trim() || undefined,
       },
+      "onboarding",
       password || undefined,
     )
+
+    if (result.ok) {
+      await addConnection(
+        {
+          name: name.trim(),
+          type,
+          url: url.trim(),
+          directory: directory.trim() || undefined,
+          username: username.trim() || undefined,
+        },
+        password || undefined,
+      )
+      setIsConnecting(false)
+      router.back()
+      return
+    }
+
+    // Failed: same "Connection Failed" alert as Quick Connect — run active
+    // diagnostics, capture to Sentry, and offer a shareable report instead of
+    // silently persisting an unreachable/unauthorized connection.
+    const report = await probeConnection(
+      url.trim(),
+      username.trim() && password ? { username: username.trim(), password } : undefined,
+    )
+    captureDiagnostic(report)
     setIsConnecting(false)
-    router.back()
+    Alert.alert(
+      "Connection Failed",
+      `${report.summary}\n\nTarget: ${url.trim()}\nError: ${result.error || "Unknown error"}`,
+      [
+        { text: "OK", style: "cancel" },
+        { text: "Share report", onPress: () => shareReport(report) },
+      ],
+    )
   }
 
   const handleJoinWaitlist = async () => {

@@ -7,6 +7,7 @@ import { statusFromPart } from "../lib/status-labels"
 import { addBreadcrumb } from "../lib/sentry"
 import { AnalyticsEvent, track } from "../lib/analytics"
 import { recordSuccessfulSession } from "../lib/store-review"
+import { isAuthError } from "../lib/api-error"
 import type { Client, Part, Session, Message } from "../lib/sdk"
 
 // Session status from the server
@@ -14,6 +15,13 @@ type SessionStatus = { type: "idle" } | { type: "busy" } | { type: "retry"; atte
 
 interface EventsState {
   connected: boolean
+  // Set when the last connection attempt failed with 401/403 — the server
+  // rejected our credentials, not a transient network issue. The reconnect
+  // loop stops retrying in this case (see connect()) since hammering a
+  // fixed-credential auth failure forever just spams Sentry/battery with no
+  // path to recovery (issue #76). Cleared on the next connect() attempt,
+  // e.g. after the user fixes their credentials on the connection edit screen.
+  authError: boolean
   reconnectAttempts: number
   lastDisconnectAt: number | null
   sessionStatus: Record<string, SessionStatus>
@@ -82,6 +90,7 @@ export async function refreshPending(client: Client, sessionID: string) {
 
 export const useEvents = create<EventsState>((set, get) => ({
   connected: false,
+  authError: false,
   reconnectAttempts: 0,
   lastDisconnectAt: null,
   sessionStatus: {},
@@ -102,7 +111,7 @@ export const useEvents = create<EventsState>((set, get) => ({
 
     controller = new AbortController()
     const currentController = controller
-    set({ connected: true })
+    set({ connected: true, authError: false })
     console.log("[SSE] Connecting to event stream...")
     addBreadcrumb({ category: "sse", message: "connecting" })
 
@@ -364,7 +373,24 @@ export const useEvents = create<EventsState>((set, get) => ({
 
         scheduleReconnect(new Error("Event stream closed"))
       } catch (err) {
-        scheduleReconnect(err)
+        if (isAuthError(err) && !currentController.signal.aborted) {
+          // Bad credentials, not a transient failure — retrying forever just
+          // spams Sentry and drains the battery with zero path to recovery
+          // (issue #76: 309 events / 65 users). Stop and surface a distinct
+          // state instead; the sessions screen offers a link to fix
+          // credentials, which reconnects via connect() once saved.
+          console.warn("[SSE] Authentication failed — stopping reconnect loop:", err)
+          addBreadcrumb({
+            category: "sse",
+            level: "error",
+            message: "auth error - stopped retrying",
+            data: { status: err.status },
+          })
+          track(AnalyticsEvent.ConnectionFailed, { source: "sse", error_class: "unauthorized" })
+          set({ connected: false, authError: true })
+        } else {
+          scheduleReconnect(err)
+        }
       } finally {
         clearTimeout(stableTimer)
         if (currentController.signal.aborted) {
@@ -387,6 +413,7 @@ export const useEvents = create<EventsState>((set, get) => ({
     abortedSessions.clear()
     set({
       connected: false,
+      authError: false,
       reconnectAttempts: 0,
       lastDisconnectAt: null,
       sessionStatus: {},

@@ -19,6 +19,7 @@ import { router, useFocusEffect } from "expo-router"
 import { Ionicons } from "@expo/vector-icons"
 import { useSessions } from "../../src/stores/sessions"
 import { useConnections } from "../../src/stores/connections"
+import { useEvents } from "../../src/stores/events"
 import { useCatalog } from "../../src/stores/catalog"
 import type BottomSheet from "@gorhom/bottom-sheet"
 import type { Session, Project } from "../../src/lib/sdk"
@@ -133,6 +134,7 @@ export default function SessionsScreen() {
     addRecentDirectory,
     recentDirectories,
   } = useConnections()
+  const authError = useEvents((s) => s.authError)
   const loadCatalog = useCatalog((s) => s.load)
   const dirSheetRef = useRef<BottomSheet>(null)
   const browserSheetRef = useRef<BottomSheet>(null)
@@ -343,6 +345,29 @@ export default function SessionsScreen() {
           testID="add-connection-button"
         >
           <Text style={[styles.addButtonText, isDark && styles.addButtonTextDark]}>Add Connection</Text>
+        </TouchableOpacity>
+      </View>
+    )
+  }
+
+  // The SSE loop stopped retrying because the server rejected our
+  // credentials (401/403) — no amount of pull-to-refresh fixes that, so
+  // point the user straight at the fix instead of a spinner that never
+  // resolves (issue #76).
+  if (authError) {
+    return (
+      <View style={[styles.emptyContainer, isDark && styles.containerDark]}>
+        <Ionicons name="lock-closed-outline" size={64} color={isDark ? "#444444" : "#cccccc"} />
+        <Text style={[styles.emptyTitle, isDark && styles.textDark]}>Authentication Failed</Text>
+        <Text style={[styles.emptySubtitle, isDark && styles.metaDark]}>
+          {activeConnection.name} rejected your credentials. Check the username and password to reconnect.
+        </Text>
+        <TouchableOpacity
+          style={[styles.addButton, isDark && styles.addButtonDark]}
+          onPress={() => router.push(`/connection/${activeConnection.id}`)}
+          testID="fix-connection-button"
+        >
+          <Text style={[styles.addButtonText, isDark && styles.addButtonTextDark]}>Check Credentials</Text>
         </TouchableOpacity>
       </View>
     )

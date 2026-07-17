@@ -13,6 +13,7 @@ import {
 import { router, useLocalSearchParams } from "expo-router"
 import { Ionicons } from "@expo/vector-icons"
 import { useConnections } from "../../src/stores/connections"
+import { useEvents } from "../../src/stores/events"
 import type { ConnectionType } from "../../src/lib/types"
 import { probeConnection, shareReport } from "../../src/lib/diagnostics"
 import { captureDiagnostic } from "../../src/lib/sentry"
@@ -130,6 +131,13 @@ export default function EditConnectionScreen() {
       directory: directory.trim() || undefined,
       username: username.trim() || undefined,
     })
+    // If this was the active connection, the SSE loop may have stopped
+    // retrying after a prior 401 (see events.ts) — reconnect now with the
+    // freshly saved credentials instead of leaving the user stuck until
+    // they relaunch the app.
+    if (useConnections.getState().activeConnection?.id === connection.id) {
+      useEvents.getState().connect()
+    }
     setIsSaving(false)
     router.back()
   }
