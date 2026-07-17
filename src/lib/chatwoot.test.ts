@@ -1,7 +1,6 @@
 import { test, beforeEach, afterEach } from "node:test"
 import assert from "node:assert/strict"
 import { chatwootConfigured, sendSupportReport } from "./chatwoot.ts"
-import { redactHostAndUrls } from "./scrub.ts"
 
 const INBOX = "inbox-token-abc"
 const BASE = "https://support.example.com"
@@ -129,19 +128,4 @@ test("base url trailing slash is normalised", async () => {
   ])
   await sendSupportReport("hi", { fetchFn, loadSourceId: async () => "s" })
   assert.equal(calls[0].url, `${BASE}/public/api/v1/inboxes/${INBOX}/contacts/s/conversations`)
-})
-
-test("redactHostAndUrls strips URLs and bare host occurrences", () => {
-  const host = "my-dev-box.tail1234.ts.net"
-  const text = [
-    `Target URL:  https://user:pw@${host}:4096/api`,
-    `  scheme=https host=${host} port=4096 hostname=true`,
-    `probe start http://${host}:4096/global/health`,
-    "internet https://www.gstatic.com/generate_204 OK",
-  ].join("\n")
-  const out = redactHostAndUrls(text, host)
-  assert.ok(!out.includes(host), "host must not survive")
-  assert.ok(!out.includes("user:pw"), "credentials must not survive")
-  assert.ok(out.includes("<redacted-url>"))
-  assert.ok(out.includes("host=<redacted-host>"))
 })

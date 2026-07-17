@@ -1,6 +1,6 @@
 import { test } from "node:test"
 import assert from "node:assert/strict"
-import { scrubUrl, scrubString, scrubObject } from "./scrub.ts"
+import { scrubUrl, scrubString, scrubObject, redactHostAndUrls } from "./scrub.ts"
 
 // scrubUrl ----------------------------------------------------------------
 
@@ -102,4 +102,37 @@ test("scrubObject: preserves non-string, non-object values as-is", () => {
   assert.equal(result.flag, true)
   assert.deepEqual(result.items, [1, 2, 3])
   assert.equal(result.nothing, null)
+})
+
+// redactHostAndUrls -------------------------------------------------------
+
+test("redactHostAndUrls: strips URLs, bare host occurrences, credentials", () => {
+  const host = "my-dev-box.tail1234.ts.net"
+  const text = [
+    `Target URL:  https://user:pw@${host}:4096/api`,
+    `  scheme=https host=${host} port=4096 hostname=true`,
+    `probe start http://${host}:4096/global/health`,
+    "internet https://www.gstatic.com/generate_204 OK",
+  ].join("\n")
+  const out = redactHostAndUrls(text, [host])
+  assert.ok(!out.includes(host), "host must not survive")
+  assert.ok(!out.includes("user:pw"), "credentials must not survive")
+  assert.ok(out.includes("<redacted-url>"))
+  assert.ok(out.includes("host=<redacted-host>"))
+})
+
+test("redactHostAndUrls: redacts every session host, not just the report's own", () => {
+  // Crash-report case: report.host is undefined but earlier failed-connect
+  // log lines mention hosts without a scheme.
+  const text = ['{"host":"box-a.tailnet.ts.net","port":"4096"}', "server unreachable box-b.local:8080"].join("\n")
+  const out = redactHostAndUrls(text, [undefined, "box-a.tailnet.ts.net", "box-b.local"])
+  assert.ok(!out.includes("box-a.tailnet.ts.net"))
+  assert.ok(!out.includes("box-b.local"))
+})
+
+test("redactHostAndUrls: blanks bare IPv4 addresses even when unknown", () => {
+  const out = redactHostAndUrls("connect failed 192.168.1.50:4096 via 10.0.0.1", [])
+  assert.ok(!out.includes("192.168.1.50"))
+  assert.ok(!out.includes("10.0.0.1"))
+  assert.ok(out.includes("<redacted-ip>"))
 })

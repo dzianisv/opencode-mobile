@@ -9,7 +9,7 @@ import appJson from "../../app.json"
 import { log, formatLogLines } from "./logbuffer"
 import { type Classification, type ProbeAttempt, type ParsedUrl, parseUrl, classify } from "./diagnostics-classify"
 import { chatwootConfigured, sendSupportReport } from "./chatwoot"
-import { hasTelemetryConsent } from "./telemetry"
+import { hasTelemetryConsent, loadTelemetryConsent } from "./telemetry"
 import { redactHostAndUrls } from "./scrub"
 
 export type { Classification, ProbeAttempt } from "./diagnostics-classify"
@@ -59,8 +59,14 @@ async function timedFetch(name: string, target: string, init?: RequestInit): Pro
   }
 }
 
+// Every host probed this session. Log lines mention hosts without a scheme
+// (so URL-based scrubbing misses them), and a crash report has no host of its
+// own — this set lets formatReportForSupport redact them all regardless.
+const seenHosts = new Set<string>()
+
 export async function probeConnection(url: string, auth?: { username: string; password: string }): Promise<DiagnosticReport> {
   const parsed = parseUrl(url)
+  if (parsed.host) seenHosts.add(parsed.host)
   log.info("diag", "probe start", url, "parsed", JSON.stringify(parsed))
 
   const headers: Record<string, string> = {}
@@ -169,7 +175,7 @@ export function buildCrashReport(error: unknown, source: "react-boundary" | "glo
 // host is redacted. Classification, probe outcomes, device info and (URL-
 // scrubbed) logs survive — that is what support needs.
 export function formatReportForSupport(report: DiagnosticReport): string {
-  return redactHostAndUrls(formatReport(report), report.host)
+  return redactHostAndUrls(formatReport(report), [report.host, ...seenHosts])
 }
 
 const CHATWOOT_SOURCE_KEY = "opencode_chatwoot_source_id"
@@ -178,6 +184,9 @@ const CHATWOOT_SOURCE_KEY = "opencode_chatwoot_source_id"
 // Only runs when the user has granted telemetry consent (same flag that
 // gates Sentry/analytics) and the inbox is configured for this build.
 async function sendReportToSupport(report: DiagnosticReport): Promise<void> {
+  // Consent may not be loaded yet if a crash happens very early in startup —
+  // resolve it from the store rather than silently dropping the report.
+  if (hasTelemetryConsent() === null) await loadTelemetryConsent()
   if (hasTelemetryConsent() !== true || !chatwootConfigured()) return
   try {
     await sendSupportReport(formatReportForSupport(report), {
