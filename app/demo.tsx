@@ -86,6 +86,13 @@ export default function DemoScreen() {
               <Text style={s.connectButtonText}>{t("demo.connectButton")}</Text>
             </TouchableOpacity>
             <TouchableOpacity
+              style={s.hostedCtaLink}
+              onPress={handleConnectPress}
+              testID="demo-hosted-cta"
+            >
+              <Text style={s.hostedCtaLinkText}>{t("demo.hostedCtaLink")}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
               style={s.setupGuideLink}
               onPress={() => Linking.openURL(SETUP_GUIDE_URL)}
               testID="demo-setup-guide-link"
@@ -140,6 +147,8 @@ const s = StyleSheet.create({
     alignItems: "center",
   },
   connectButtonText: { color: "#ffffff", fontWeight: "600", fontSize: 15 },
+  hostedCtaLink: { marginTop: 14 },
+  hostedCtaLinkText: { fontSize: 14, fontWeight: "600", color: "#8b5cf6", textAlign: "center" },
   setupGuideLink: { marginTop: 14 },
   setupGuideLinkText: { fontSize: 14, fontWeight: "600", color: "#6366f1" },
 })

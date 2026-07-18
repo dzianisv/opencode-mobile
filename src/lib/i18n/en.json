@@ -432,6 +432,7 @@
     "ctaTitle": "Like what you see?",
     "ctaSubtitle": "This was a scripted demo. Connect your own opencode server to do this for real.",
     "connectButton": "Connect your own server",
-    "setupGuideLink": "How to set up a server"
+    "setupGuideLink": "How to set up a server",
+    "hostedCtaLink": "No server? Join the OpenCode Connect waitlist — hosted, no setup"
   }
 }

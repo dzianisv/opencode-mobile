@@ -432,6 +432,7 @@
     "ctaTitle": "喜欢这个体验吗？",
     "ctaSubtitle": "这是一个脚本化的演示。连接您自己的 opencode 服务器即可真正体验。",
     "connectButton": "连接您自己的服务器",
-    "setupGuideLink": "如何设置服务器"
+    "setupGuideLink": "如何设置服务器",
+    "hostedCtaLink": "没有服务器？加入 OpenCode Connect 候补名单 — 托管，无需搭建"
   }
 }
