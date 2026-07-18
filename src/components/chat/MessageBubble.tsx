@@ -113,17 +113,19 @@ export const MessageBubble = memo(
   },
   (prev, next) => {
     // Only re-render if message content actually changed
-    // This prevents completed messages from re-rendering during streaming
-    if (prev.message.id !== next.message.id) return false
+    // This prevents completed messages from re-rendering during streaming.
+    // The store replaces changed parts/messages with NEW object references,
+    // so a reference-equality sweep over every part catches every real change
+    // (including tool parts, which have no `.text`) while still skipping
+    // unchanged (completed) messages during other messages' streaming.
+    if (prev.message !== next.message) return false
     if (prev.isDark !== next.isDark) return false
     if (prev.onLongPress !== next.onLongPress) return false
     if (prev.parts.length !== next.parts.length) return false
-    // Compare the last part's text content - this is what changes during streaming
-    const prevLast = prev.parts[prev.parts.length - 1]
-    const nextLast = next.parts[next.parts.length - 1]
-    if (!prevLast && !nextLast) return true
-    if (!prevLast || !nextLast) return false
-    return prevLast.type === nextLast.type && prevLast.text === nextLast.text
+    for (let i = 0; i < prev.parts.length; i++) {
+      if (prev.parts[i] !== next.parts[i]) return false
+    }
+    return true
   },
 )
 

@@ -1,5 +1,6 @@
 import { View, Text, StyleSheet, Platform, ScrollView } from "react-native"
 import { WIDE_CONTENT_SCROLL_CONFIG } from "../../lib/scroll-config"
+import { computeDiff } from "./diff-compute"
 
 const mono = Platform.OS === "ios" ? "Menlo" : "monospace"
 
@@ -7,67 +8,6 @@ interface Props {
   before: string
   after: string
   isDark: boolean
-}
-
-interface DiffLine {
-  type: "add" | "remove" | "context"
-  text: string
-}
-
-function computeDiff(before: string, after: string): DiffLine[] {
-  const a = before.split("\n")
-  const b = after.split("\n")
-  const lines: DiffLine[] = []
-
-  // Simple LCS-based diff
-  const m = a.length
-  const n = b.length
-  const dp: number[][] = Array.from({ length: m + 1 }, () => Array(n + 1).fill(0))
-
-  for (let i = 1; i <= m; i++) {
-    for (let j = 1; j <= n; j++) {
-      dp[i][j] = a[i - 1] === b[j - 1] ? dp[i - 1][j - 1] + 1 : Math.max(dp[i - 1][j], dp[i][j - 1])
-    }
-  }
-
-  // Backtrack
-  const result: DiffLine[] = []
-  let i = m
-  let j = n
-  while (i > 0 || j > 0) {
-    if (i > 0 && j > 0 && a[i - 1] === b[j - 1]) {
-      result.push({ type: "context", text: a[i - 1] })
-      i--
-      j--
-    } else if (j > 0 && (i === 0 || dp[i][j - 1] >= dp[i - 1][j])) {
-      result.push({ type: "add", text: b[j - 1] })
-      j--
-    } else {
-      result.push({ type: "remove", text: a[i - 1] })
-      i--
-    }
-  }
-
-  result.reverse()
-
-  // Collapse long context runs (show max 3 context lines between changes)
-  const collapsed: DiffLine[] = []
-  let contextRun = 0
-  for (const line of result) {
-    if (line.type === "context") {
-      contextRun++
-      if (contextRun <= 3) {
-        collapsed.push(line)
-      } else if (contextRun === 4) {
-        collapsed.push({ type: "context", text: "..." })
-      }
-    } else {
-      contextRun = 0
-      collapsed.push(line)
-    }
-  }
-
-  return collapsed
 }
 
 export function DiffView({ before, after, isDark }: Props) {

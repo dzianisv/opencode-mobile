@@ -1,4 +1,4 @@
-import type { ReactNode } from "react"
+import { useMemo, type ReactNode } from "react"
 import { View, Text, useColorScheme, Platform, type StyleProp, type ViewStyle, type TextStyle } from "react-native"
 import { useMarkdown, Renderer } from "react-native-marked"
 import { CodeBlock } from "./CodeBlock"
@@ -56,16 +56,14 @@ class CustomRenderer extends Renderer {
   }
 }
 
-const renderer = new CustomRenderer()
-
 const mono = Platform.OS === "ios" ? "Menlo" : "monospace"
 
 const lightTheme = {
   text: { color: "#0a0a0a", fontSize: 15, lineHeight: 22 },
   paragraph: { marginTop: 0, marginBottom: 8 },
-  heading1: { fontSize: 22, fontWeight: "700" as const, color: "#0a0a0a", marginBottom: 8, marginTop: 12 },
-  heading2: { fontSize: 19, fontWeight: "600" as const, color: "#0a0a0a", marginBottom: 6, marginTop: 10 },
-  heading3: { fontSize: 16, fontWeight: "600" as const, color: "#0a0a0a", marginBottom: 4, marginTop: 8 },
+  h1: { fontSize: 22, fontWeight: "700" as const, color: "#0a0a0a", marginBottom: 8, marginTop: 12 },
+  h2: { fontSize: 19, fontWeight: "600" as const, color: "#0a0a0a", marginBottom: 6, marginTop: 10 },
+  h3: { fontSize: 16, fontWeight: "600" as const, color: "#0a0a0a", marginBottom: 4, marginTop: 8 },
   link: { color: "#8b5cf6" },
   blockquote: {
     backgroundColor: "transparent",
@@ -94,7 +92,7 @@ const lightTheme = {
     borderRadius: 3,
   },
   list: { marginBottom: 4 },
-  listItem: { marginBottom: 2 },
+  li: { marginBottom: 2 },
   hr: { backgroundColor: "#e5e5e5", height: 1, marginVertical: 12 },
   strong: { fontWeight: "700" as const },
   em: { fontStyle: "italic" as const },
@@ -105,9 +103,9 @@ const lightTheme = {
 const darkTheme = {
   ...lightTheme,
   text: { ...lightTheme.text, color: "#e5e5e5" },
-  heading1: { ...lightTheme.heading1, color: "#ffffff" },
-  heading2: { ...lightTheme.heading2, color: "#ffffff" },
-  heading3: { ...lightTheme.heading3, color: "#ffffff" },
+  h1: { ...lightTheme.h1, color: "#ffffff" },
+  h2: { ...lightTheme.h2, color: "#ffffff" },
+  h3: { ...lightTheme.h3, color: "#ffffff" },
   link: { color: "#a78bfa" },
   blockquote: {
     ...lightTheme.blockquote,
@@ -133,6 +131,17 @@ interface Props {
 export function Markdown({ children }: Props) {
   const isDark = useColorScheme() === "dark"
   const theme = isDark ? darkTheme : lightTheme
+
+  // A module-scope singleton renderer would share one CustomRenderer (and
+  // its underlying github-slugger) across every Markdown instance and every
+  // streamed token forever. github-slugger never resets, so its heading-slug
+  // keys only ever climb — which fed into useMarkdown's memoized parser and
+  // made the emitted React keys change on every token, remounting the whole
+  // subtree (resetting code-block scroll position, flashing content). Scoping
+  // the renderer to `children` resets the slugger per parse, so keys are
+  // deterministic (and stable) for a given value, while re-renders with an
+  // unchanged value stay memoized instead of creating a new renderer.
+  const renderer = useMemo(() => new CustomRenderer(), [children])
 
   // react-native-marked's default <RNMarkdown> export renders blocks inside a
   // FlatList. Chat messages are rendered inside app/session/[id].tsx's own
