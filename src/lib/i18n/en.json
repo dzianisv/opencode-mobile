@@ -189,8 +189,7 @@
       "alerts": {
         "enterIp": "Please enter your computer's IP address",
         "connectionFailedMessage": "{{summary}}\n\nTarget: {{target}}\nError: {{error}}"
-      },
-      "prerequisiteNotice": "Requires a computer running opencode serve, reachable on the same network or via Tailscale."
+      }
     },
     "edit": {
       "notFound": "Connection not found",

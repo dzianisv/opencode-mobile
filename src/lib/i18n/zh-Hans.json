@@ -189,8 +189,7 @@
       "alerts": {
         "enterIp": "请输入您电脑的 IP 地址",
         "connectionFailedMessage": "{{summary}}\n\n目标：{{target}}\n错误：{{error}}"
-      },
-      "prerequisiteNotice": "需要一台在同一网络（或通过 Tailscale）运行 opencode serve 的电脑。"
+      }
     },
     "edit": {
       "notFound": "未找到该连接",
