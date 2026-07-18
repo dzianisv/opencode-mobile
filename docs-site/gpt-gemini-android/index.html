@@ -1,0 +1,451 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Run GPT &amp; Gemini Coding Agents on Android — OpenCode Mobile</title>
+<meta name="description" content="Use OpenAI GPT or Google Gemini as your AI coding engine on Android. OpenCode Mobile connects to an opencode server powered by GPT or Gemini — streaming responses, diff viewer, from your phone." />
+<meta name="keywords" content="chatgpt coding agent android, run gpt on android phone, gemini coding agent android, google gemini android coding assistant, gpt-4o android coding, openai android coding app, opencode gemini android, opencode gpt android" />
+<meta name="theme-color" content="#3b82f6" />
+<link rel="canonical" href="https://dzianisv.github.io/opencode-mobile/gpt-gemini-android/" />
+<link rel="icon" type="image/png" href="../fdroid/repo/icons/icon.png" />
+
+<!-- Open Graph -->
+<meta property="og:type" content="article" />
+<meta property="og:site_name" content="OpenCode Mobile" />
+<meta property="og:title" content="Run GPT &amp; Gemini Coding Agents on Android — OpenCode Mobile" />
+<meta property="og:description" content="Use OpenAI GPT or Google Gemini as your AI coding engine on Android. OpenCode Mobile connects to an opencode server powered by GPT or Gemini — streaming responses, diff viewer, from your phone." />
+<meta property="og:url" content="https://dzianisv.github.io/opencode-mobile/gpt-gemini-android/" />
+<meta property="og:image" content="https://dzianisv.github.io/opencode-mobile/og.png" />
+
+<!-- Twitter -->
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content="Run GPT &amp; Gemini Coding Agents on Android — OpenCode Mobile" />
+<meta name="twitter:description" content="Use OpenAI GPT or Google Gemini as your AI coding engine on Android via OpenCode Mobile + an opencode server." />
+<meta name="twitter:image" content="https://dzianisv.github.io/opencode-mobile/og.png" />
+
+<!-- Structured data: BreadcrumbList -->
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  "itemListElement": [
+    { "@type": "ListItem", "position": 1, "name": "OpenCode Mobile", "item": "https://dzianisv.github.io/opencode-mobile/" },
+    { "@type": "ListItem", "position": 2, "name": "GPT & Gemini on Android", "item": "https://dzianisv.github.io/opencode-mobile/gpt-gemini-android/" }
+  ]
+}
+</script>
+
+<!-- Structured data: Article -->
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "Article",
+  "headline": "Run GPT & Gemini Coding Agents on Android — OpenCode Mobile",
+  "description": "How to use OpenAI GPT or Google Gemini as an AI coding agent on your Android phone via OpenCode Mobile and an opencode server.",
+  "url": "https://dzianisv.github.io/opencode-mobile/gpt-gemini-android/",
+  "datePublished": "2026-07-18",
+  "dateModified": "2026-07-18",
+  "author": { "@type": "Organization", "name": "VIBE TECHNOLOGIES, LLC" },
+  "publisher": { "@type": "Organization", "name": "OpenCode Mobile" }
+}
+</script>
+
+<!-- Structured data: FAQPage -->
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  "mainEntity": [
+    {
+      "@type": "Question",
+      "name": "Can I run a GPT or Gemini coding agent on Android?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Yes. OpenCode Mobile is a native Android app that connects to an opencode server configured to use OpenAI's GPT models or Google's Gemini models. You get streaming responses, file diffs, and tool call approval from your Android phone — neither OpenAI nor Google publishes an official mobile coding-agent app, so this is the practical route."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Do I need my own OpenAI or Gemini API key?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Yes. You configure your OpenAI or Google AI API key on the opencode server, not in the app. OpenCode Mobile never sees or stores provider API keys — they live on the machine running opencode serve."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Can I switch between GPT, Gemini, and Claude without reinstalling the app?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Yes. The model is chosen in the opencode server configuration, not in the mobile app. Change the provider or model on the server and the app simply streams whatever it produces — no app update or reinstall needed."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Is this an official Google or OpenAI app?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "No. OpenCode Mobile is an independent, open-source (MIT licensed) project built by VIBE TECHNOLOGIES, LLC. It is not affiliated with OpenAI, Google, or Anthropic. It connects to the open-source opencode agent (github.com/sst/opencode), which supports GPT, Gemini, Claude, and other models as configurable backends."
+      }
+    }
+  ]
+}
+</script>
+
+<style>
+:root{--bg:#0b0f17;--bg-soft:#121826;--card:#161d2e;--border:#243049;--text:#e6ebf5;--muted:#9aa6be;--accent:#3b82f6;--accent-2:#2563eb;}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Oxygen,Ubuntu,Cantarell,"Helvetica Neue",Arial,sans-serif;background:var(--bg);color:var(--text);line-height:1.6;-webkit-font-smoothing:antialiased;}
+a{color:var(--accent);text-decoration:none}
+a:hover{text-decoration:underline}
+.wrap{max-width:880px;margin:0 auto;padding:0 20px}
+section{padding:36px 0;border-top:1px solid var(--border)}
+section:first-of-type{border-top:none}
+h1,h2,h3{line-height:1.25;margin:0 0 .5em}
+h1{font-size:2.1rem}
+h2{font-size:1.4rem;margin-top:.2em}
+h3{font-size:1.1rem;margin-top:1.4em}
+code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;background:var(--bg-soft);border:1px solid var(--border);border-radius:6px;padding:2px 6px;font-size:.9em;word-break:break-all;}
+pre{background:var(--bg-soft);border:1px solid var(--border);border-radius:10px;padding:14px 16px;overflow-x:auto;}
+pre code{background:none;border:none;padding:0;word-break:normal}
+.crumbs{font-size:.9rem;color:var(--muted);padding-top:24px}
+.crumbs a{color:var(--muted)}
+.crumbs a:hover{color:var(--accent)}
+.lead{font-size:1.12rem;color:var(--muted)}
+.muted{color:var(--muted)}
+ul li,ol li{margin-bottom:6px}
+
+/* Feature list */
+.features{list-style:none;padding:0;margin:0;display:grid;gap:14px;grid-template-columns:1fr}
+.features li{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:16px 18px}
+.features b{color:var(--text)}
+.features span{color:var(--muted);display:block;font-size:.95rem}
+
+/* Cards */
+.card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:20px 22px;margin:16px 0}
+.card h3{margin-top:0;font-size:1.05rem}
+
+/* Steps block */
+.steps-block{background:var(--bg-soft);border:1px solid var(--border);border-radius:10px;padding:18px 22px;margin:16px 0}
+.steps-block h3{margin-top:0;font-size:1rem;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+.steps-block ol{margin:0;padding-left:1.3em}
+.steps-block li{margin-bottom:10px}
+
+/* Note */
+.note{background:var(--bg-soft);border:1px solid var(--border);border-left:3px solid var(--accent);border-radius:10px;padding:16px 18px;color:var(--muted)}
+.note strong{color:var(--text)}
+
+/* Provider table */
+.table-wrap{overflow-x:auto;margin:24px 0}
+table{width:100%;border-collapse:collapse;font-size:.97rem}
+thead tr{background:var(--card)}
+th,td{padding:11px 14px;border:1px solid var(--border);text-align:left;vertical-align:top}
+th{color:var(--muted);font-weight:600;font-size:.88rem;text-transform:uppercase;letter-spacing:.03em}
+td:first-child{font-weight:500}
+
+/* CTA */
+.cta-box{background:var(--card);border:1px solid var(--border);border-left:3px solid var(--accent);border-radius:12px;padding:22px 24px;margin:28px 0;display:flex;flex-wrap:wrap;align-items:center;gap:16px;justify-content:space-between}
+.cta-box p{margin:0;font-size:1.05rem}
+.btn{display:inline-block;background:var(--accent);color:#fff;font-weight:600;padding:10px 22px;border-radius:8px;font-size:.97rem;white-space:nowrap}
+.btn:hover{background:var(--accent-2);text-decoration:none}
+.btn-ghost{background:transparent;border:1px solid var(--border);color:var(--text)}
+.btn-ghost:hover{border-color:var(--accent);background:transparent}
+
+/* FAQ */
+.faq details{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:0 18px;margin-bottom:12px}
+.faq summary{cursor:pointer;padding:16px 0;font-weight:600;list-style:none}
+.faq summary::-webkit-details-marker{display:none}
+.faq summary::after{content:"+";float:right;color:var(--accent);font-weight:700}
+.faq details[open] summary::after{content:"\2212"}
+.faq details[open] summary{border-bottom:1px solid var(--border)}
+.faq details p{color:var(--muted);margin:14px 0 16px}
+
+footer{border-top:1px solid var(--border);padding:32px 0 48px;text-align:center;color:var(--muted);font-size:.9rem;}
+footer a{margin:0 8px}
+@media(min-width:680px){h1{font-size:2.5rem}.features{grid-template-columns:1fr 1fr}}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <nav class="crumbs" aria-label="Breadcrumb">
+    <a href="../">OpenCode Mobile</a> &rsaquo; GPT &amp; Gemini on Android
+  </nav>
+</div>
+
+<main>
+<section>
+  <div class="wrap">
+    <h1>Run GPT &amp; Gemini Coding Agents on Android</h1>
+    <p class="lead">
+      Prefer OpenAI's GPT models or Google's Gemini models for coding? Neither OpenAI nor Google
+      publishes an official Android app for agentic coding. OpenCode Mobile fills that gap: it
+      connects to an <a href="https://github.com/sst/opencode">opencode</a> server configured with
+      your own OpenAI or Google AI API key and gives you a full native Android interface to
+      whichever model you choose.
+    </p>
+    <div class="cta-box">
+      <p>Free and open-source. Bring your own OpenAI or Google API key.</p>
+      <a class="btn" href="../download/">Download for Android</a>
+    </div>
+  </div>
+</section>
+
+<section id="how-it-works">
+  <div class="wrap">
+    <h2>How GPT and Gemini coding agents work on Android</h2>
+    <p>
+      OpenCode Mobile itself never talks to OpenAI or Google directly — it's a thin client for the
+      opencode server, and opencode is what actually calls your chosen model provider. In plain terms:
+    </p>
+    <ol>
+      <li>You run <strong>opencode</strong> (the open-source AI coding agent) on a machine you control — laptop, desktop, or VPS.</li>
+      <li>You configure opencode to use <strong>OpenAI</strong> (with your OpenAI API key) or <strong>Google Gemini</strong> (with your Google AI API key) as the model provider.</li>
+      <li><strong>OpenCode Mobile</strong> on your Android phone connects to that server over the network.</li>
+      <li>You chat with the agent from your phone — responses stream in real time, file changes render as inline diffs, and shell/tool calls wait for your tap-to-approve before they run.</li>
+    </ol>
+
+    <div class="note">
+      <strong>Note on terminology:</strong> this is not an official OpenAI or Google product.
+      OpenCode Mobile connects to the open-source <em>opencode</em> agent (by SST), which supports
+      OpenAI and Google Gemini as two of its configurable AI backends, alongside Anthropic Claude
+      and local models via Ollama.
+    </div>
+  </div>
+</section>
+
+<section id="providers">
+  <div class="wrap">
+    <h2>Choosing between OpenAI and Gemini</h2>
+    <p>
+      Both are fully supported by opencode; you pick the provider and model in the server config,
+      and the app streams whatever it produces. Broad strokes for coding work:
+    </p>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Provider</th>
+            <th>Typical strengths</th>
+            <th>What you need</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>OpenAI GPT</td>
+            <td>Broad general coding ability, strong tool-use, reasoning-tier models for harder refactors</td>
+            <td>An API key from <a href="https://platform.openai.com" target="_blank" rel="noopener">platform.openai.com</a></td>
+          </tr>
+          <tr>
+            <td>Google Gemini</td>
+            <td>Very large context windows, competitive pricing, tight integration if you're already on Google Cloud</td>
+            <td>An API key from <a href="https://aistudio.google.com" target="_blank" rel="noopener">Google AI Studio</a> or Vertex AI</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="muted">
+      Exact model names and capabilities change frequently — check your provider's current model
+      list when configuring opencode. You are not locked in: opencode also supports Anthropic Claude
+      and local models via Ollama, and you can switch providers on the server at any time without
+      touching the app.
+    </p>
+  </div>
+</section>
+
+<section id="what-you-get">
+  <div class="wrap">
+    <h2>What you get on Android</h2>
+    <p>
+      Whichever provider you choose, OpenCode Mobile gives you the same full agent experience —
+      not a chat window where you paste code and copy suggestions back:
+    </p>
+    <ul class="features">
+      <li>
+        <b>Reads your entire codebase</b>
+        <span>The model gets full file-tree access via the opencode server. Ask it to trace a bug across many files — no pasting required.</span>
+      </li>
+      <li>
+        <b>Writes and applies changes</b>
+        <span>Proposed diffs render in the app's inline viewer; approve or reject per file. Changes apply to the real filesystem on your server.</span>
+      </li>
+      <li>
+        <b>Runs shell commands</b>
+        <span>Tests, builds, log checks — the agent can execute shell commands on your machine via opencode's tool-call system, gated by your approval.</span>
+      </li>
+      <li>
+        <b>Streams token by token</b>
+        <span>Responses stream live to your phone instead of a long wait followed by a wall of text.</span>
+      </li>
+      <li>
+        <b>Works across sessions</b>
+        <span>Sessions persist on the server — pick up a long conversation later, even after closing the app or switching networks.</span>
+      </li>
+      <li>
+        <b>Protects your API key</b>
+        <span>Your OpenAI or Google key lives on the server, not the phone. The app stores only your server URL and access password, in the Android Keystore.</span>
+      </li>
+    </ul>
+  </div>
+</section>
+
+<section id="setup">
+  <div class="wrap">
+    <h2>Setting up GPT or Gemini on Android: step by step</h2>
+
+    <div class="steps-block">
+      <h3>Step 1 — Install opencode on your machine</h3>
+      <ol>
+        <li>Install Node.js 20+ if you don't already have it.</li>
+        <li>Install opencode globally:
+          <pre style="margin-top:8px"><code>npm install -g opencode-ai</code></pre>
+        </li>
+      </ol>
+    </div>
+
+    <div class="steps-block">
+      <h3>Step 2 — Configure your provider</h3>
+      <ol>
+        <li>Get an API key — <a href="https://platform.openai.com" target="_blank" rel="noopener">platform.openai.com</a> for OpenAI, or <a href="https://aistudio.google.com" target="_blank" rel="noopener">Google AI Studio</a> for Gemini.</li>
+        <li>Set it as an environment variable before starting the server, e.g. for OpenAI:
+          <pre style="margin-top:8px"><code>export OPENAI_API_KEY=sk-your-key-here</code></pre>
+          or for Gemini:
+          <pre style="margin-top:8px"><code>export GEMINI_API_KEY=your-key-here</code></pre>
+        </li>
+        <li>Or add the key to <code>~/.config/opencode/config.json</code> under the matching provider — see the <a href="https://github.com/sst/opencode">opencode docs</a> for the exact config shape for your version.</li>
+      </ol>
+    </div>
+
+    <div class="steps-block">
+      <h3>Step 3 — Start the opencode server</h3>
+      <ol>
+        <li>Start the server, binding to all interfaces so your phone can reach it:
+          <pre style="margin-top:8px"><code>OPENCODE_SERVER_PASSWORD=yourpassword opencode serve --hostname 0.0.0.0 --port 4096</code></pre>
+        </li>
+        <li>From your phone's browser, verify: <code>http://&lt;machine-ip&gt;:4096/global/health</code> should return <code>{"healthy":true}</code>.</li>
+      </ol>
+    </div>
+
+    <div class="steps-block">
+      <h3>Step 4 — Make the server reachable from anywhere</h3>
+      <ol>
+        <li>Install <a href="https://tailscale.com" target="_blank" rel="noopener">Tailscale</a> on both your machine and your Android phone (free tier works).</li>
+        <li>Note your machine's Tailscale IP (e.g. <code>100.x.x.x</code>) from the Tailscale app.</li>
+        <li>Your server URL becomes: <code>http://100.x.x.x:4096</code></li>
+      </ol>
+      <p style="margin:8px 0 0;color:var(--muted)">Alternatives: same LAN Wi-Fi, Cloudflare Tunnel, ngrok. See the <a href="../guide/">full guide</a> for details on each.</p>
+    </div>
+
+    <div class="steps-block">
+      <h3>Step 5 — Install OpenCode Mobile and connect</h3>
+      <ol>
+        <li>On your phone, install OpenCode Mobile via <a href="../download/">F-Droid or direct APK</a>.</li>
+        <li>Tap <strong>Add Connection</strong>.</li>
+        <li>Enter your server URL (<code>http://100.x.x.x:4096</code>) and the password you set.</li>
+        <li>Tap <strong>Connect</strong>. You're now running GPT or Gemini as your coding agent, from Android.</li>
+      </ol>
+    </div>
+
+    <p>
+      Total setup time: about 15 minutes. Not ready to configure a server yet? Tap
+      <strong>Try a Demo</strong> in the app first to see the interface with
+      <a href="../try-demo/">zero setup</a>.
+    </p>
+  </div>
+</section>
+
+<section id="privacy">
+  <div class="wrap">
+    <h2>Privacy: where your code goes</h2>
+    <p>
+      When you use GPT or Gemini via OpenCode Mobile:
+    </p>
+    <ul>
+      <li>Your prompts and code go from your phone → to your opencode server → to OpenAI's or Google's API. <strong>OpenCode Mobile itself never sees or stores your code.</strong></li>
+      <li>The path from phone to server is over your private network (LAN or Tailscale) — not through any third-party relay.</li>
+      <li>The path from server to the model provider follows that provider's own terms — see <a href="https://openai.com/policies/privacy-policy" target="_blank" rel="noopener">OpenAI's privacy policy</a> or <a href="https://policies.google.com/privacy" target="_blank" rel="noopener">Google's privacy policy</a>.</li>
+      <li>If data privacy is critical, you can configure opencode to use a local model (e.g. Ollama) so no code ever leaves your network.</li>
+    </ul>
+    <p>
+      Your provider API key lives in the opencode server config on your machine — not in the app,
+      not in any cloud service. The app stores only your server URL and access password, encrypted
+      in the Android Keystore.
+    </p>
+  </div>
+</section>
+
+<section id="faq">
+  <div class="wrap">
+    <h2>Frequently asked questions</h2>
+    <div class="faq">
+      <details>
+        <summary>Can I run a GPT or Gemini coding agent on Android?</summary>
+        <p>Yes. OpenCode Mobile is a native Android app that connects to an opencode server configured to use OpenAI's GPT models or Google's Gemini models. You get streaming responses, file diffs, and tool call approval from your Android phone — neither OpenAI nor Google publishes an official mobile coding-agent app, so this is the practical route.</p>
+      </details>
+      <details>
+        <summary>Do I need my own OpenAI or Gemini API key?</summary>
+        <p>Yes. You configure your OpenAI or Google AI API key on the opencode server, not in the app. OpenCode Mobile never sees or stores provider API keys — they live on the machine running opencode serve.</p>
+      </details>
+      <details>
+        <summary>Can I switch between GPT, Gemini, and Claude without reinstalling the app?</summary>
+        <p>Yes. The model is chosen in the opencode server configuration, not in the mobile app. Change the provider or model on the server and the app simply streams whatever it produces — no app update or reinstall needed.</p>
+      </details>
+      <details>
+        <summary>Is this an official Google or OpenAI app?</summary>
+        <p>No. OpenCode Mobile is an independent, open-source (MIT licensed) project built by VIBE TECHNOLOGIES, LLC. It is not affiliated with OpenAI, Google, or Anthropic. It connects to the open-source opencode agent (github.com/sst/opencode), which supports GPT, Gemini, Claude, and other models as configurable backends.</p>
+      </details>
+      <details>
+        <summary>How much does it cost?</summary>
+        <p>OpenCode Mobile itself is free. Model usage is billed by your chosen provider (OpenAI or Google) based on tokens — the same pricing as using their API directly. Check each provider's pricing page for current rates.</p>
+      </details>
+    </div>
+  </div>
+</section>
+
+<section id="get-started">
+  <div class="wrap">
+    <h2>Get started on Android today</h2>
+    <p>
+      OpenCode Mobile is free, open-source, and available now on Android via F-Droid or direct APK.
+      You need a machine running <code>opencode serve</code> and an OpenAI or Google AI API key —
+      both of which you can set up in under 15 minutes by following the
+      <a href="../guide/">complete setup guide</a>.
+    </p>
+    <div class="cta-box">
+      <p>GPT or Gemini as your AI coding agent — from your Android phone.</p>
+      <div style="display:flex;gap:10px;flex-wrap:wrap">
+        <a class="btn" href="../download/">Download OpenCode Mobile</a>
+        <a class="btn btn-ghost" href="../guide/">Setup guide</a>
+      </div>
+    </div>
+    <p class="muted" style="margin-top:16px">
+      Also see: <a href="../claude-code-android/">Claude on Android</a> &middot;
+      <a href="../try-demo/">try the no-setup demo</a> &middot;
+      <a href="../comparison/">OpenCode Mobile vs ChatGPT &amp; Copilot</a> &middot;
+      <a href="../features/">full feature list</a>
+    </p>
+  </div>
+</section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <p>
+      <a href="../">Home</a>
+      <a href="../download/">Download</a>
+      <a href="../guide/">Setup guide</a>
+      <a href="../features/">Features</a>
+      <a href="../comparison/">Comparison</a>
+      <a href="../claude-code-android/">Claude on Android</a>
+      <a href="../troubleshooting/">Troubleshooting</a>
+      <a href="https://github.com/dzianisv/opencode-mobile">GitHub</a>
+      <a href="../privacy/">Privacy policy</a>
+    </p>
+    <p class="muted">Free and open-source. Built by VIBE TECHNOLOGIES, LLC. Not affiliated with OpenAI, Google, or Anthropic.</p>
+  </div>
+</footer>
+
+</body>
+</html>

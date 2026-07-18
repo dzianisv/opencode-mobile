@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Try an AI Coding Agent With No Server Setup — OpenCode Mobile Demo</title>
+<meta name="description" content="See a real AI coding agent walkthrough — reasoning, file search, a diff, a permission prompt — with zero server setup. Install OpenCode Mobile, tap Try a Demo, no account or API key needed." />
+<meta name="keywords" content="try AI coding agent no setup, AI coding assistant demo, test AI coding agent android no server, opencode mobile demo mode, AI coding agent demo no signup, try opencode without server, mobile AI coding assistant demo" />
+<meta name="theme-color" content="#3b82f6" />
+<link rel="canonical" href="https://dzianisv.github.io/opencode-mobile/try-demo/" />
+<link rel="icon" type="image/png" href="../fdroid/repo/icons/icon.png" />
+
+<!-- Open Graph -->
+<meta property="og:type" content="article" />
+<meta property="og:site_name" content="OpenCode Mobile" />
+<meta property="og:title" content="Try an AI Coding Agent With No Server Setup — OpenCode Mobile Demo" />
+<meta property="og:description" content="See a real AI coding agent walkthrough — reasoning, file search, a diff, a permission prompt — with zero server setup. Install OpenCode Mobile, tap Try a Demo, no account or API key needed." />
+<meta property="og:url" content="https://dzianisv.github.io/opencode-mobile/try-demo/" />
+<meta property="og:image" content="https://dzianisv.github.io/opencode-mobile/og.png" />
+
+<!-- Twitter -->
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content="Try an AI Coding Agent With No Server Setup — OpenCode Mobile Demo" />
+<meta name="twitter:description" content="A real AI coding agent walkthrough with zero server setup. Install the app, tap Try a Demo, no account or API key needed." />
+<meta name="twitter:image" content="https://dzianisv.github.io/opencode-mobile/og.png" />
+
+<!-- Structured data: BreadcrumbList -->
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  "itemListElement": [
+    { "@type": "ListItem", "position": 1, "name": "OpenCode Mobile", "item": "https://dzianisv.github.io/opencode-mobile/" },
+    { "@type": "ListItem", "position": 2, "name": "Try the demo", "item": "https://dzianisv.github.io/opencode-mobile/try-demo/" }
+  ]
+}
+</script>
+
+<!-- Structured data: Article -->
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "Article",
+  "headline": "Try an AI Coding Agent With No Server Setup — OpenCode Mobile Demo",
+  "description": "How to try a scripted, offline AI coding agent walkthrough in OpenCode Mobile with no opencode server, no account, and no API key.",
+  "url": "https://dzianisv.github.io/opencode-mobile/try-demo/",
+  "datePublished": "2026-07-18",
+  "dateModified": "2026-07-18",
+  "author": { "@type": "Organization", "name": "VIBE TECHNOLOGIES, LLC" },
+  "publisher": { "@type": "Organization", "name": "OpenCode Mobile" }
+}
+</script>
+
+<!-- Structured data: FAQPage -->
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  "mainEntity": [
+    {
+      "@type": "Question",
+      "name": "Can I try OpenCode Mobile without setting up a server?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Yes. Install the app and tap \"Try a Demo\" from the empty state. It plays a scripted AI coding agent session — no opencode server, no account, and no API key required."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Is the demo a real AI model answering my questions?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "No. The demo is a fixed, offline walkthrough — the same bug-fix example every time, using the app's real UI components (message bubbles, tool call cards, the diff viewer, permission prompts). It is not a live model call and does not talk to any server or API. It exists to show you the interface, not to answer arbitrary coding questions."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "What does the demo walkthrough show?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "A short bug report (\"the login button doesn't respond on Android when the keyboard is open\"), the agent's reasoning, a file search tool call, an inline diff proposing the fix, and a permission prompt asking to run the test suite — which you can approve or deny to see both outcomes."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Do I need an internet connection to try the demo?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "No. The demo is fully offline and hardcoded into the app — it works in airplane mode. Only connecting to your own real opencode server later requires network access."
+      }
+    }
+  ]
+}
+</script>
+
+<style>
+:root{--bg:#0b0f17;--bg-soft:#121826;--card:#161d2e;--border:#243049;--text:#e6ebf5;--muted:#9aa6be;--accent:#3b82f6;--accent-2:#2563eb;}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Oxygen,Ubuntu,Cantarell,"Helvetica Neue",Arial,sans-serif;background:var(--bg);color:var(--text);line-height:1.6;-webkit-font-smoothing:antialiased;}
+a{color:var(--accent);text-decoration:none}
+a:hover{text-decoration:underline}
+.wrap{max-width:880px;margin:0 auto;padding:0 20px}
+section{padding:36px 0;border-top:1px solid var(--border)}
+section:first-of-type{border-top:none}
+h1,h2,h3{line-height:1.25;margin:0 0 .5em}
+h1{font-size:2.1rem}
+h2{font-size:1.4rem;margin-top:.2em}
+h3{font-size:1.1rem;margin-top:1.4em}
+code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;background:var(--bg-soft);border:1px solid var(--border);border-radius:6px;padding:2px 6px;font-size:.9em;word-break:break-all;}
+pre{background:var(--bg-soft);border:1px solid var(--border);border-radius:10px;padding:14px 16px;overflow-x:auto;}
+pre code{background:none;border:none;padding:0;word-break:normal}
+.crumbs{font-size:.9rem;color:var(--muted);padding-top:24px}
+.crumbs a{color:var(--muted)}
+.crumbs a:hover{color:var(--accent)}
+.lead{font-size:1.12rem;color:var(--muted)}
+.muted{color:var(--muted)}
+ul li,ol li{margin-bottom:6px}
+
+/* Cards */
+.card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:20px 22px;margin:16px 0}
+.card h3{margin-top:0;font-size:1.05rem}
+
+/* Steps */
+.steps-block{background:var(--bg-soft);border:1px solid var(--border);border-radius:10px;padding:18px 22px;margin:16px 0}
+.steps-block h3{margin-top:0;font-size:1rem;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+.steps-block ol{margin:0;padding-left:1.3em}
+.steps-block li{margin-bottom:10px}
+
+/* Timeline */
+.timeline{list-style:none;margin:0;padding:0;counter-reset:step}
+.timeline li{counter-increment:step;position:relative;padding:0 0 20px 44px;border-left:2px solid var(--border);margin-left:16px}
+.timeline li:last-child{border-left-color:transparent;padding-bottom:0}
+.timeline li::before{content:counter(step);position:absolute;left:-17px;top:0;width:32px;height:32px;border-radius:50%;background:var(--accent);color:#fff;font-weight:700;font-size:.9rem;display:flex;align-items:center;justify-content:center}
+.timeline b{display:block;margin-bottom:2px}
+.timeline span{color:var(--muted);font-size:.95rem}
+
+/* Note */
+.note{background:var(--bg-soft);border:1px solid var(--border);border-left:3px solid var(--accent);border-radius:10px;padding:16px 18px;color:var(--muted)}
+.note strong{color:var(--text)}
+
+/* CTA */
+.cta-box{background:var(--card);border:1px solid var(--border);border-left:3px solid var(--accent);border-radius:12px;padding:22px 24px;margin:28px 0;display:flex;flex-wrap:wrap;align-items:center;gap:16px;justify-content:space-between}
+.cta-box p{margin:0;font-size:1.05rem}
+.btn{display:inline-block;background:var(--accent);color:#fff;font-weight:600;padding:10px 22px;border-radius:8px;font-size:.97rem;white-space:nowrap}
+.btn:hover{background:var(--accent-2);text-decoration:none}
+.btn-ghost{background:transparent;border:1px solid var(--border);color:var(--text)}
+.btn-ghost:hover{border-color:var(--accent);background:transparent}
+
+/* FAQ */
+.faq details{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:0 18px;margin-bottom:12px}
+.faq summary{cursor:pointer;padding:16px 0;font-weight:600;list-style:none}
+.faq summary::-webkit-details-marker{display:none}
+.faq summary::after{content:"+";float:right;color:var(--accent);font-weight:700}
+.faq details[open] summary::after{content:"\2212"}
+.faq details[open] summary{border-bottom:1px solid var(--border)}
+.faq details p{color:var(--muted);margin:14px 0 16px}
+
+footer{border-top:1px solid var(--border);padding:32px 0 48px;text-align:center;color:var(--muted);font-size:.9rem;}
+footer a{margin:0 8px}
+@media(min-width:680px){h1{font-size:2.5rem}}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <nav class="crumbs" aria-label="Breadcrumb">
+    <a href="../">OpenCode Mobile</a> &rsaquo; Try the demo
+  </nav>
+</div>
+
+<main>
+<section>
+  <div class="wrap">
+    <h1>Try an AI Coding Agent With No Server Setup</h1>
+    <p class="lead">
+      Curious what an AI coding agent actually looks like on a phone before you set up a server,
+      an API key, or an account? OpenCode Mobile ships an offline demo — install the app, tap
+      <strong>Try a Demo</strong> from the empty state, and watch a full bug-fix walkthrough play
+      out using the app's real interface. No opencode server, no sign-up, no cost.
+    </p>
+    <div class="cta-box">
+      <p>Zero setup. Zero accounts. See the real UI in under a minute.</p>
+      <a class="btn" href="../download/">Download &amp; try the demo</a>
+    </div>
+  </div>
+</section>
+
+<section id="why-a-demo">
+  <div class="wrap">
+    <h2>Why bother with a demo at all?</h2>
+    <p>
+      Most "AI coding agent on your phone" apps have a chicken-and-egg problem: to find out if the
+      app is any good, you first have to install <code>opencode</code>, run a server, get an API
+      key, and wire up a network tunnel — 10 to 15 minutes of setup before you've seen a single
+      screen. That's a lot to ask before someone even knows if they want the thing.
+    </p>
+    <p>
+      OpenCode Mobile's demo mode removes that barrier entirely. It's a scripted, fully offline
+      session baked into the app that exercises the same message bubbles, tool call cards, diff
+      viewer, and permission prompts a real session uses — so you see exactly what driving a real
+      AI coding agent from your phone feels like, before you touch a terminal.
+    </p>
+  </div>
+</section>
+
+<section id="what-you-see">
+  <div class="wrap">
+    <h2>What the demo walkthrough shows</h2>
+    <p class="muted">
+      The demo replays the same fixed scenario every time — a small, realistic Android bug fix:
+    </p>
+    <ol class="timeline">
+      <li>
+        <b>A bug report</b>
+        <span>"The login button doesn't respond on Android when the keyboard is open — can you fix it?"</span>
+      </li>
+      <li>
+        <b>Visible reasoning</b>
+        <span>The agent explains its hypothesis: the scroll view is likely swallowing the first tap instead of forwarding it to the button.</span>
+      </li>
+      <li>
+        <b>A file search tool call</b>
+        <span>A <code>grep</code> call locates the relevant handler in <code>LoginButton.tsx</code>, rendered in the same tool call card real sessions use.</span>
+      </li>
+      <li>
+        <b>An inline diff</b>
+        <span>The agent proposes adding <code>keyboardShouldPersistTaps="handled"</code> to the scroll view — shown in the app's real side-by-side diff viewer.</span>
+      </li>
+      <li>
+        <b>A permission prompt</b>
+        <span>The agent asks to run <code>npm test -- LoginButton</code> before finishing. Tap Allow or Deny — the demo shows a different, accurate follow-up for each choice.</span>
+      </li>
+    </ol>
+    <div class="note">
+      <strong>Honesty check:</strong> this is not a live AI model answering your questions. It is a
+      fixed, hardcoded scenario that runs entirely offline — the point is to show you the actual
+      screens and interactions (streaming bubbles, diffs, tool calls, permission prompts), not to
+      let you chat freely. For that, you connect a real opencode server afterward.
+    </div>
+  </div>
+</section>
+
+<section id="how-to-try">
+  <div class="wrap">
+    <h2>How to try it</h2>
+    <div class="steps-block">
+      <h3>Three taps, no account</h3>
+      <ol>
+        <li>Install OpenCode Mobile from <a href="../download/">F-Droid or a direct APK</a> — no sign-up required.</li>
+        <li>Open the app. On the first-run empty state, tap <strong>Try a Demo</strong>.</li>
+        <li>Watch the scripted session play out, then tap Allow or Deny on the permission prompt to see how the agent responds either way.</li>
+      </ol>
+    </div>
+    <p>
+      That's the whole thing — no server URL, no password, no API key, and it works in airplane
+      mode since nothing leaves the device.
+    </p>
+  </div>
+</section>
+
+<section id="after-the-demo">
+  <div class="wrap">
+    <h2>After the demo: connect a real server</h2>
+    <p>
+      Once you've seen the interface, the natural next step is pointing the app at a real
+      <a href="https://github.com/sst/opencode">opencode</a> server so you can actually chat with a
+      live AI model (Claude, GPT, Gemini, or a local model) about your own codebase.
+    </p>
+    <div class="card">
+      <h3>Bring your own server</h3>
+      <p>
+        On any machine with Node.js:
+      </p>
+      <pre><code>npm install -g opencode-ai
+OPENCODE_SERVER_PASSWORD=yourpassword opencode serve --hostname 0.0.0.0 --port 4096</code></pre>
+      <p class="muted">
+        Then in the app, tap <strong>Add Connection</strong>, enter your server's URL and password
+        (over the same Wi-Fi, or via <a href="https://tailscale.com" target="_blank" rel="noopener">Tailscale</a>
+        for remote access) — and you're driving a real agent instead of the scripted one.
+        The <a href="../guide/">full setup guide</a> walks through every step.
+      </p>
+    </div>
+  </div>
+</section>
+
+<section id="faq">
+  <div class="wrap">
+    <h2>Frequently asked questions</h2>
+    <div class="faq">
+      <details>
+        <summary>Can I try OpenCode Mobile without setting up a server?</summary>
+        <p>Yes. Install the app and tap "Try a Demo" from the empty state. It plays a scripted AI coding agent session — no opencode server, no account, and no API key required.</p>
+      </details>
+      <details>
+        <summary>Is the demo a real AI model answering my questions?</summary>
+        <p>No. The demo is a fixed, offline walkthrough — the same bug-fix example every time, using the app's real UI components (message bubbles, tool call cards, the diff viewer, permission prompts). It is not a live model call and does not talk to any server or API. It exists to show you the interface, not to answer arbitrary coding questions.</p>
+      </details>
+      <details>
+        <summary>What does the demo walkthrough show?</summary>
+        <p>A short bug report ("the login button doesn't respond on Android when the keyboard is open"), the agent's reasoning, a file search tool call, an inline diff proposing the fix, and a permission prompt asking to run the test suite — which you can approve or deny to see both outcomes.</p>
+      </details>
+      <details>
+        <summary>Do I need an internet connection to try the demo?</summary>
+        <p>No. The demo is fully offline and hardcoded into the app — it works in airplane mode. Only connecting to your own real opencode server later requires network access.</p>
+      </details>
+      <details>
+        <summary>Does trying the demo cost anything?</summary>
+        <p>No. OpenCode Mobile is free and open-source, and the demo doesn't call any AI model or API, so there's no usage cost either. Costs only start if and when you connect your own opencode server with your own provider API key.</p>
+      </details>
+    </div>
+  </div>
+</section>
+
+<section id="get-started">
+  <div class="wrap">
+    <h2>See it for yourself</h2>
+    <p>
+      No server, no account, no risk — just install and tap Try a Demo. If you like what you see,
+      the <a href="../guide/">setup guide</a> gets a real opencode server running in about 15 minutes.
+    </p>
+    <div class="cta-box">
+      <p>Free and open-source. The demo works before you've configured anything.</p>
+      <div style="display:flex;gap:10px;flex-wrap:wrap">
+        <a class="btn" href="../download/">Download for Android</a>
+        <a class="btn btn-ghost" href="../features/">See all features</a>
+      </div>
+    </div>
+    <p class="muted" style="margin-top:16px">
+      Also see: <a href="../guide/">full setup guide</a> &middot;
+      <a href="../opencode-on-phone/">using opencode on your phone</a> &middot;
+      <a href="../comparison/">OpenCode Mobile vs ChatGPT &amp; Copilot</a>
+    </p>
+  </div>
+</section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <p>
+      <a href="../">Home</a>
+      <a href="../download/">Download</a>
+      <a href="../guide/">Setup guide</a>
+      <a href="../features/">Features</a>
+      <a href="../comparison/">Comparison</a>
+      <a href="../troubleshooting/">Troubleshooting</a>
+      <a href="https://github.com/dzianisv/opencode-mobile">GitHub</a>
+      <a href="../privacy/">Privacy policy</a>
+    </p>
+    <p class="muted">Free and open-source. Built by VIBE TECHNOLOGIES, LLC. Not affiliated with the OpenCode upstream project beyond using its open API.</p>
+  </div>
+</footer>
+
+</body>
+</html>

@@ -62,6 +62,18 @@
     <lastmod>2026-06-08</lastmod>
   </url>
   <url>
+    <loc>https://dzianisv.github.io/opencode-mobile/try-demo/</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+    <lastmod>2026-07-18</lastmod>
+  </url>
+  <url>
+    <loc>https://dzianisv.github.io/opencode-mobile/gpt-gemini-android/</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+    <lastmod>2026-07-18</lastmod>
+  </url>
+  <url>
     <loc>https://dzianisv.github.io/opencode-mobile/privacy/</loc>
     <changefreq>yearly</changefreq>
     <priority>0.3</priority>
