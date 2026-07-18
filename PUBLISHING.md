@@ -42,6 +42,20 @@ The publish workflow runs on:
 
 It builds an AAB (Android App Bundle), signs it with the release keystore, and uploads to the **internal** track. Promote to production via Play Console.
 
+## Releasing (proven runbook)
+
+1. Bump `version` in `package.json` **and** `app.json`, and `android.versionCode` in `app.json` (must be higher than the current Play build). Add a changelog at `fastlane/metadata/android/en-US/changelogs/<versionCode>.txt`. Merge to `main`.
+2. Tag the release: `git tag -a vX.Y.Z <sha> -m "..." && git push origin vX.Y.Z`. This triggers the publish workflow → **internal** track.
+3. Verify the publish run is green, then confirm the build on the internal track.
+4. **Promote to production** (see below).
+
+## Promoting to production
+
+Production is **not** published by CI by default — the service account is scoped to the internal track only, which is intentional (a human gate before a build reaches all users).
+
+- **Recommended — Play Console:** Production → Create release → **Add from library** → select the `versionCode` already uploaded to internal → review → roll out. No rebuild.
+- **Fully automated (optional):** grant the CI service account **"Release to production"** for this app in Play Console → Users & permissions, then run the workflow's `workflow_dispatch` with `track=production`, `status=completed`. **Without that permission the production dispatch fails with `The caller does not have permission` after building** — so don't dispatch `track=production` until the service account has been granted production access.
+
 ## Fastlane (Alternative)
 
 A Fastlane setup is included for local publishing:
