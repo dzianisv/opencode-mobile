@@ -362,7 +362,7 @@ footer a{margin:0 8px}
       <p><strong>You need your own OpenCode server.</strong> OpenCode Mobile is a client, not a hosted service. Before it is useful you must run an OpenCode server somewhere you control and make it reachable from your phone.</p>
       <ol class="steps" style="margin-bottom:0">
         <li>Install and run OpenCode on your machine:<br>
-          <pre style="margin-top:8px"><code>npm install -g opencode
+          <pre style="margin-top:8px"><code>npm install -g opencode-ai
 OPENCODE_SERVER_PASSWORD=yourpassword opencode serve --hostname 0.0.0.0 --port 4096</code></pre>
         </li>
         <li>Make it reachable from your phone — the simplest secure option is <strong>Tailscale</strong> (connect to your machine's Tailscale IP, e.g. <code>http://100.x.x.x:4096</code>). A Cloudflare Tunnel, ngrok, or the same local network also work.</li>
