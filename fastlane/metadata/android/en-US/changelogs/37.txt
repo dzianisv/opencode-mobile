@@ -1,0 +1,9 @@
+v0.4.10 — try it instantly, plus reliability & security fixes
+
+- New: "Try a demo" on the home screen — see OpenCode in action (chat, tool calls, diffs, approvals) without setting up a server first
+- Clearer first-time setup: the app explains it needs a computer running `opencode serve` (on your network or via Tailscale) and links to a setup guide
+- Security: "Require Biometric to Open" now re-locks the app every time it goes to the background (previously it stayed unlocked after the first unlock)
+- Fixed: editing a connection's password now actually saves it
+- More reliable notifications, and no false "task completed" pushes for cancelled or failed runs
+- Fixed messages occasionally disappearing when sent quickly, the session view sometimes showing another session, and a stuck "processing" spinner after a network drop
+- Faster feedback when a server can't be reached
