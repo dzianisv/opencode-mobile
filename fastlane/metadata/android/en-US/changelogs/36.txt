@@ -1,0 +1,8 @@
+v0.4.9 — smoother, more reliable, easier to start
+
+- New: "Try a demo" on the home screen — see OpenCode in action (chat, tool calls, diffs, approvals) without setting up a server first
+- Clearer first-time setup: the app now explains it needs a computer running `opencode serve` (on your network or via Tailscale) and links to a setup guide
+- More reliable notifications: you're now correctly asked for notification permission, and "task completed" pushes no longer fire for cancelled or failed runs
+- Fixed messages occasionally disappearing when you sent a second one quickly
+- Fixed the session view sometimes showing another session's messages after navigating back
+- Faster feedback when a server can't be reached, and a fix for the directory browser getting stuck
