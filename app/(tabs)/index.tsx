@@ -444,6 +444,18 @@ export default function SessionsScreen() {
         >
           <Text style={styles.setupGuideLinkText}>{t("sessionsList.empty.setupGuideLink")}</Text>
         </TouchableOpacity>
+        {/* No-server activation path (retention): a fully offline scripted
+            demo, isolated from real connect/session state — see app/demo.tsx. */}
+        <TouchableOpacity
+          style={[styles.tryDemoButton, isDark && styles.tryDemoButtonDark]}
+          onPress={() => router.push("/demo")}
+          testID="try-demo-button"
+        >
+          <Ionicons name="play-circle-outline" size={16} color={isDark ? "#a78bfa" : "#6d28d9"} />
+          <Text style={[styles.tryDemoButtonText, isDark && styles.tryDemoButtonTextDark]}>
+            {t("sessionsList.empty.tryDemoButton")}
+          </Text>
+        </TouchableOpacity>
       </View>
     )
   }
@@ -1029,6 +1041,28 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "600",
     color: "#6366f1",
+  },
+  tryDemoButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginTop: 20,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#8b5cf6",
+  },
+  tryDemoButtonDark: {
+    borderColor: "#a78bfa",
+  },
+  tryDemoButtonText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#6d28d9",
+  },
+  tryDemoButtonTextDark: {
+    color: "#a78bfa",
   },
   loadingContainer: {
     flex: 1,

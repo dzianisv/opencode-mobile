@@ -1,0 +1,94 @@
+appId: cc.agentlabs.opencode
+name: Demo mode - offline scripted walkthrough (no server, zero-server activation)
+---
+# Covers the "Try a demo" activation path added for the ~0% 7-day retention
+# problem: an installer with no self-hosted `opencode serve` server used to
+# hit a dead end at the no-connection empty state (see activation-positive.yaml
+# / activation-negative-401.yaml for the "has a server" paths). This flow
+# never starts a mock opencode server and never taps add-connection-button —
+# app/demo.tsx (src/lib/demo-script.ts) is fully offline, hardcoded, local
+# data rendered through the same chat components a real session uses.
+#
+# Verifies: the empty-state CTA exists and doesn't disturb the pre-existing
+# add-connection-button (same testID, same position — activation-positive.yaml
+# still taps it first), the demo screen renders a scripted conversation
+# (reasoning -> tool call -> diff -> permission prompt) through the real
+# MessageBubble/ToolCallCard/DiffView/PermissionPrompt components, the
+# permission step responds locally (no network — there is no server to talk
+# to), and the closing CTA actually routes to the real connect form
+# (app/connection/add.tsx), not a fake/dead link.
+
+- launchApp:
+    clearState: true
+- assertVisible:
+    id: "telemetry-consent-card"
+- tapOn:
+    id: "telemetry-decline-button"
+
+- assertVisible:
+    text: "No Connection"
+- takeScreenshot: demo-S1_empty_state
+# add-connection-button must still be the first/only thing tapped here — this
+# flow only ever taps it in this reachability check (visible, not tapped),
+# to lock in that its position wasn't disturbed by the new button.
+- assertVisible:
+    id: "add-connection-button"
+- tapOn:
+    id: "try-demo-button"
+
+- assertVisible:
+    id: "demo-screen"
+- assertVisible:
+    id: "demo-banner"
+- takeScreenshot: demo-S2_demo_screen_opened
+
+# Scripted conversation renders through the real chat components.
+- assertVisible:
+    id: "chat-bubble-user"
+- assertVisible:
+    text: "login button"
+- assertVisible:
+    id: "chat-bubble-assistant"
+- assertVisible:
+    text: "Thinking"
+- takeScreenshot: demo-S3_conversation
+
+# Tool call card is collapsed by default (same behavior as a real session) —
+# expand it to reveal the diff.
+- scrollUntilVisible:
+    element:
+      text: "Edit src/components/LoginButton.tsx"
+    direction: DOWN
+    timeout: 10000
+- tapOn:
+    text: "Edit src/components/LoginButton.tsx"
+- assertVisible:
+    id: "diff-view-scroll"
+- takeScreenshot: demo-S4_diff_view
+
+# Permission prompt (approve/permission step) — replying only updates local
+# demo state, never a real sessionClient.permission.reply() network call.
+- scrollUntilVisible:
+    element:
+      text: "Permission Required"
+    direction: DOWN
+    timeout: 10000
+- takeScreenshot: demo-S5_permission_prompt
+- tapOn:
+    text: "Allow"
+- assertVisible:
+    text: "Tests passed"
+- takeScreenshot: demo-S6_permission_approved
+
+# Closing CTA routes to the REAL connect form, not a dead link.
+- scrollUntilVisible:
+    element:
+      id: "demo-connect-button"
+    direction: DOWN
+    timeout: 10000
+- takeScreenshot: demo-S7_cta
+- tapOn:
+    id: "demo-connect-button"
+- assertVisible:
+    id: "connect-ip-input"
+- takeScreenshot: demo-S8_connect_form_reached

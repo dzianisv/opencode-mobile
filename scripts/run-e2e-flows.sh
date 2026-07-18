@@ -27,7 +27,9 @@ APK="android/app/build/outputs/apk/release/app-release.apk"
 # selectors/seeding surface) and moving each back into CORE once confirmed
 # green.
 CORE_FLOWS=(activation-positive activation-negative-401)
-NEWER_FLOWS=(directory-picker all-sessions variant-picker diff-scroll)
+# demo.yaml (offline "Try a demo" mode) needs no mock server — it never
+# connects — so it's safe to run alongside the others here unmodified.
+NEWER_FLOWS=(directory-picker all-sessions variant-picker diff-scroll demo)
 mkdir -p "$ROOT/artifacts/screenshots" "$ROOT/artifacts/diag"
 
 echo "== installing APK =="

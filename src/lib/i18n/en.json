@@ -259,6 +259,7 @@
       "noConnectionSubtitle": "Connect to a computer running opencode serve on your network or via Tailscale to get started.",
       "setupGuideLink": "How to set up a server",
       "addConnectionButton": "Add Connection",
+      "tryDemoButton": "Try a demo (no server needed)",
       "authFailedTitle": "Authentication Failed",
       "authFailedSubtitle": "{{name}} rejected your credentials. Check the username and password to reconnect.",
       "checkCredentialsButton": "Check Credentials",
@@ -424,5 +425,13 @@
         "daysAgo": "{{count}}d ago"
       }
     }
+  },
+  "demo": {
+    "title": "Demo",
+    "banner": "Demo — sample conversation, no server connected",
+    "ctaTitle": "Like what you see?",
+    "ctaSubtitle": "This was a scripted demo. Connect your own opencode server to do this for real.",
+    "connectButton": "Connect your own server",
+    "setupGuideLink": "How to set up a server"
   }
 }
