@@ -25,17 +25,31 @@ name: "DiffView + CodeBlock horizontal scroll - wide diff/code line reachable by
 # NOT delivered over SSE — issue #90 (a separate SSE-render bug) is being
 # fixed independently, and this flow must not depend on it landing first.
 #
-# Caveat for whoever debugs a flake here: assertVisible/assertNotVisible on
-# a substring deep inside ONE very wide, unwrapped Text node is coarser than
-# it looks — Maestro (like most accessibility-tree-based mobile test
-# frameworks) determines visibility per ELEMENT, not per glyph, and there are
-# open Maestro issues about partially-visible elements being reported as
-# fully visible (mobile-dev-inc/maestro #1275, #2411). The filler is made
-# very wide (~220 chars, comfortably wider than any emulator screen at this
-# monospace font size) specifically to keep the marker's actual rendered
-# position off past the right edge at rest. Screenshots are taken at every
-# step so a flake here can be diagnosed visually, not just from the
-# assertion's pass/fail.
+# Caveat for whoever debugs a flake here, in two parts (both root-caused via
+# issue #104's investigation, using a maestro debug hierarchy dump — only
+# obtainable after fixing the CI workflow's artifact upload to include
+# hidden files, since maestro nests it under a dot-directory that
+# actions/upload-artifact excludes by default):
+#
+# 1. Maestro's text/textRegex matching requires the pattern to match an
+#    element's ENTIRE accessible text (see
+#    docs.maestro.dev/reference/commands-available/assertvisible), not
+#    "contains" — a bare substring like the markers below will silently
+#    never match. Every assertion against a marker living inside one of the
+#    wide filler lines below is wrapped in `.*...*.` for exactly this
+#    reason; don't drop the wildcards even though the marker "looks unique
+#    enough" on its own.
+# 2. Bounds-based on/off-screen visibility (whether the wildcarded match
+#    above is actually within the horizontal ScrollView's visible, clipped
+#    viewport) is a SEPARATE concern from #1's string matching, and per
+#    open Maestro issues about partially-visible elements being reported as
+#    fully visible (mobile-dev-inc/maestro #1275, #2411) it's coarser than
+#    it looks — determined per ELEMENT, not per glyph. The filler is made
+#    very wide (~220 chars, comfortably wider than any emulator screen at
+#    this monospace font size) specifically to keep the marker's actual
+#    rendered position off past the right edge at rest. Screenshots are
+#    taken at every step so a flake here can be diagnosed visually, not
+#    just from the assertion's pass/fail.
 
 - launchApp:
     clearState: true
@@ -80,32 +94,31 @@ name: "DiffView + CodeBlock horizontal scroll - wide diff/code line reachable by
 # render both the tool card and the markdown code block.
 - assertVisible:
     text: "Edit wide_diff_target.ts"
-# Diagnostic screenshot (issue #104): the tool-card title above renders via
-# plain Text, while the paragraph below renders via react-native-marked's
-# nested FlatList inside this screen's own *inverted* FlatList. If this ever
-# regresses again, check whether this frame shows blank space between the
-# message header and the tool card (nested-FlatList-in-inverted-list content
-# not laying out) vs. genuinely missing/incorrect text.
+# Diagnostic screenshot (issue #104).
 - takeScreenshot: diffscroll-S1b_before_markdown_text_check
+# Trailing colon required — see the file-level caveat above (point 1): the
+# actual seeded text is "...sample:" (mock-opencode-server.ts's textPart),
+# and Maestro requires a full match, not "contains".
 - extendedWaitUntil:
     visible:
-      text: "Here is a wide code sample"
+      text: "Here is a wide code sample:"
     timeout: 20000
 - takeScreenshot: diffscroll-S2_history_loaded
 
 # --- CodeBlock: the wide fenced code block is already expanded (no tap
 # needed — Markdown renders it immediately, unlike the collapsible tool card).
+# `.*marker.*` wrapping below: see the file-level caveat above (point 1).
 - assertVisible:
     id: "code-block-scroll"
 - assertNotVisible:
-    text: "ZZZ_CODE_SCROLL_TARGET_ZZZ"
+    text: ".*ZZZ_CODE_SCROLL_TARGET_ZZZ.*"
 - takeScreenshot: diffscroll-S3_codeblock_marker_offscreen
 - swipe:
     from:
       id: "code-block-scroll"
     direction: LEFT
 - assertVisible:
-    text: "ZZZ_CODE_SCROLL_TARGET_ZZZ"
+    text: ".*ZZZ_CODE_SCROLL_TARGET_ZZZ.*"
 - takeScreenshot: diffscroll-S4_codeblock_marker_revealed
 
 # --- DiffView: lives inside the collapsible tool card's detail section, so
@@ -117,12 +130,12 @@ name: "DiffView + CodeBlock horizontal scroll - wide diff/code line reachable by
 - assertVisible:
     id: "diff-view-scroll"
 - assertNotVisible:
-    text: "ZZZ_DIFF_SCROLL_TARGET_ZZZ"
+    text: ".*ZZZ_DIFF_SCROLL_TARGET_ZZZ.*"
 - takeScreenshot: diffscroll-S5_diffview_marker_offscreen
 - swipe:
     from:
       id: "diff-view-scroll"
     direction: LEFT
 - assertVisible:
-    text: "ZZZ_DIFF_SCROLL_TARGET_ZZZ"
+    text: ".*ZZZ_DIFF_SCROLL_TARGET_ZZZ.*"
 - takeScreenshot: diffscroll-S6_diffview_marker_revealed

@@ -11,23 +11,17 @@ set -uo pipefail
 
 ROOT="$(pwd)"                       # capture BEFORE any cd, so diag paths are absolute
 APK="android/app/build/outputs/apk/release/app-release.apk"
-# CORE = the activation coverage issue #90 verified green (consent -> connect
-# -> send, and the connect-time-401 visible-error case). A failure here fails
-# the job — this is the suite's actual regression gate.
-#
-# NEWER = flows added after the initial activation suite (#82's
-# directory-picker/all-sessions/variant-picker, #101's diff-scroll) that have
-# never once run to completion in CI: they always sat behind the positive
-# flow's stale SSE-reply assertion (issue #90 mode B, now fixed) or the
-# negative-401 flow's stale "401" assertion (also now fixed), both of which
-# made the job fail before reaching them — so they were merged and have been
-# running unverified against the current UI/mock ever since. Run them for
-# visibility (each flow's pass/fail is reported below) but don't block on
-# them yet — see issue #104 for hardening them (fixing whatever stale
-# selectors/seeding surface) and moving each back into CORE once confirmed
-# green.
-CORE_FLOWS=(activation-positive activation-negative-401)
-NEWER_FLOWS=(directory-picker all-sessions variant-picker diff-scroll)
+# CORE = the full activation E2E suite. Originally just the issue #90
+# coverage (consent -> connect -> send, and the connect-time-401 visible-
+# error case); issue #104 hardened and confirmed green (via real CI runs,
+# reading maestro debug hierarchy dumps rather than guessing) the four flows
+# added after that in #82/#101 (directory-picker, all-sessions,
+# variant-picker, diff-scroll), which had never once run to completion in CI
+# — they always sat behind the positive/negative flows' own stale
+# assertions (both now fixed), so they were merged and ran unverified
+# against the current UI/mock the whole time. All six are now blocking: a
+# failure in any of them fails the job.
+CORE_FLOWS=(activation-positive activation-negative-401 directory-picker all-sessions variant-picker diff-scroll)
 mkdir -p "$ROOT/artifacts/screenshots" "$ROOT/artifacts/diag"
 
 echo "== installing APK =="
@@ -107,19 +101,6 @@ for f in "${CORE_FLOWS[@]}"; do
     echo "::error::Maestro flow failed: $f"
     rc=1
     break
-  fi
-done
-
-# Newer flows: always run all of them (no `break` on failure) and never
-# affect $rc — see the CORE_FLOWS/NEWER_FLOWS comment above for why. Each
-# flow's own pass/fail is still clearly reported, just non-blocking.
-echo "== newer flows (non-blocking, tracked for hardening) =="
-for f in "${NEWER_FLOWS[@]}"; do
-  echo "--- flow (newer, non-blocking): $f ---"
-  if maestro test --debug-output "$ROOT/artifacts/diag/maestro-$f" "$ROOT/.maestro/flows/$f.yaml"; then
-    echo "== newer flow PASSED: $f =="
-  else
-    echo "::warning::newer flow FAILED (non-blocking): $f"
   fi
 done
 
