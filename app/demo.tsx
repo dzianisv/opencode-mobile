@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import { View, Text, ScrollView, TouchableOpacity, StyleSheet, useColorScheme, Linking } from "react-native"
 import { Stack, useRouter } from "expo-router"
 import { Ionicons } from "@expo/vector-icons"
@@ -6,6 +6,13 @@ import { useTranslation } from "react-i18next"
 import { MessageBubble, PermissionPrompt } from "../src/components/chat"
 import { buildDemoScript, buildDemoCompletionMessage, buildDemoDenialMessage } from "../src/lib/demo-script"
 import { SETUP_GUIDE_URL } from "../src/lib/links"
+import { track, AnalyticsEvent } from "../src/lib/analytics"
+import {
+  demoStepAdvancedProps,
+  demoCompletedOutcome,
+  demoExitedToConnectProps,
+  type DemoPermissionReply,
+} from "../src/lib/demo-analytics"
 
 // Fully offline, scripted walkthrough for installers with no self-hosted
 // opencode server. ISOLATION: every message/part below is hardcoded local
@@ -22,11 +29,25 @@ export default function DemoScreen() {
 
   // Built once per mount from pure, hardcoded data (src/lib/demo-script.ts).
   const script = useMemo(() => buildDemoScript(), [])
-  const [reply, setReply] = useState<"once" | "always" | "reject" | null>(null)
+  const [reply, setReply] = useState<DemoPermissionReply | null>(null)
 
-  const handleReply = useCallback((r: "once" | "always" | "reject") => {
-    setReply(r)
+  // Fires once per screen mount — this is a fully offline, consent-gated
+  // event (track() is a no-op without telemetry consent, same as every
+  // other analytics call site).
+  useEffect(() => {
+    track(AnalyticsEvent.DemoStarted)
   }, [])
+
+  const handleReply = useCallback((r: DemoPermissionReply) => {
+    setReply(r)
+    track(AnalyticsEvent.DemoStepAdvanced, demoStepAdvancedProps(r))
+    track(AnalyticsEvent.DemoCompleted, { outcome: demoCompletedOutcome(r) })
+  }, [])
+
+  const handleConnectPress = useCallback(() => {
+    track(AnalyticsEvent.DemoExitedToConnect, demoExitedToConnectProps(reply !== null))
+    router.push("/connection/add")
+  }, [reply, router])
 
   const completion = useMemo(() => {
     if (!reply) return null
@@ -59,7 +80,7 @@ export default function DemoScreen() {
             <Text style={[s.ctaSubtitle, isDark && s.metaDark]}>{t("demo.ctaSubtitle")}</Text>
             <TouchableOpacity
               style={s.connectButton}
-              onPress={() => router.push("/connection/add")}
+              onPress={handleConnectPress}
               testID="demo-connect-button"
             >
               <Text style={s.connectButtonText}>{t("demo.connectButton")}</Text>

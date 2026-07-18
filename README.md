@@ -1,12 +1,12 @@
 # OpenCode Mobile
 
 **The open-source Android client for the [opencode](https://github.com/sst/opencode) AI coding agent.**
-AI-assisted coding from your phone — Android, via F-Droid or a direct APK.
+AI-assisted coding from your phone — Android, via Google Play, F-Droid, or a direct APK.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![F-Droid repo](https://img.shields.io/badge/F--Droid-add_our_repo-1976D2?logo=f-droid)](https://dzianisv.github.io/opencode-mobile/fdroid/repo)
 [![Download APK](https://img.shields.io/badge/Download-APK-green?logo=android)](https://github.com/dzianisv/opencode-mobile/releases/latest)
-[![Google Play](https://img.shields.io/badge/Google_Play-coming_soon-lightgrey?logo=google-play)](#)
+[![Google Play](https://img.shields.io/badge/Google_Play-Available-4CAF50?logo=google-play)](https://play.google.com/store/apps/details?id=cc.agentlabs.opencode)
 
 > **Not affiliated with opencode.** OpenCode Mobile is an independent, community-built client and is
 > not made by, endorsed by, or affiliated with the opencode / Anomaly team. It talks to an opencode
@@ -14,20 +14,26 @@ AI-assisted coding from your phone — Android, via F-Droid or a direct APK.
 
 ---
 
+**New: tap "Try a Demo" in the app to see the agent fix a real bug — reasoning, a grep, a diff, a permission prompt — in about 30 seconds, no server needed.**
+
+---
+
 ## Install (Android)
 
-There are **two working ways** to install OpenCode Mobile today, both for Android:
+There are **three working ways** to install OpenCode Mobile today, all for Android:
 
-1. **F-Droid (recommended)** — add our self-hosted repo to any F-Droid client, then install/update from there:
+1. **Google Play** — **https://play.google.com/store/apps/details?id=cc.agentlabs.opencode**
+
+2. **F-Droid (self-hosted repo)** — add our self-hosted repo to any F-Droid client, then install/update from there:
    ```
    https://dzianisv.github.io/opencode-mobile/fdroid/repo
    ```
    In the F-Droid app: **Settings → Repositories → + (add)** and paste the URL above. Current version: **v0.4.3**.
 
-2. **Direct signed APK** — download the latest release and install it manually:
+3. **Direct signed APK** — download the latest release and install it manually:
    **https://github.com/dzianisv/opencode-mobile/releases/latest**
 
-> iOS is not available (see [Roadmap](#roadmap)). Google Play is in internal testing only (no public listing yet). IzzyOnDroid submission is pending.
+> iOS is not available (see [Roadmap](#roadmap)). IzzyOnDroid submission is pending.
 
 ---
 
@@ -45,6 +51,7 @@ OpenCode Mobile is a React Native / Expo app that brings the power of the [openc
 
 ## Features
 
+- **Offline demo mode** — tap "Try a Demo" to see a full bug-fix walkthrough (reasoning → grep → diff → permission prompt) with zero setup, right from the empty state
 - **Multi-connection** — manage multiple opencode servers (local network, Cloudflare Tunnel, ngrok, or Tailscale)
 - **Biometric unlock** — Face ID, Touch ID, or Android fingerprint protects the app and individual message sends
 - **Streaming chat** — token-by-token streaming responses directly from your opencode server
@@ -61,17 +68,19 @@ Package: `cc.agentlabs.opencode` · Android only · current version v0.4.3
 
 | Channel | Status | How |
 |---|---|---|
+| **Google Play** | **Live** | [play.google.com/store/apps/details?id=cc.agentlabs.opencode](https://play.google.com/store/apps/details?id=cc.agentlabs.opencode) |
 | **F-Droid (self-hosted repo)** | **Live** | Add [`https://dzianisv.github.io/opencode-mobile/fdroid/repo`](https://dzianisv.github.io/opencode-mobile/fdroid/repo) in your F-Droid client |
 | **Direct APK** | **Live** | [github.com/dzianisv/opencode-mobile/releases/latest](https://github.com/dzianisv/opencode-mobile/releases/latest) |
-| Google Play | Internal testing / coming soon | No public listing yet |
 | IzzyOnDroid | Submission pending | Not live yet |
 | Apple App Store / iOS | Not available | See [Roadmap](#roadmap) |
 
-> The two live, supported install channels are the **F-Droid self-hosted repo** and the **direct signed APK**, both Android. Google Play is internal-testing only, IzzyOnDroid is pending, and there is no iOS build.
+> The three live, supported install channels are **Google Play**, the **F-Droid self-hosted repo**, and the **direct signed APK**, all Android. IzzyOnDroid is pending, and there is no iOS build.
 
 ---
 
 ## Quick Start
+
+**Don't have a server yet?** Install the app and tap **Try a Demo** on the Sessions screen first — no setup required. It plays back a scripted bug-fix session through the app's real chat, diff, and permission-approval UI, offline, in about 30 seconds.
 
 **Step 1 — Start opencode on your machine**
 
@@ -83,7 +92,7 @@ npm install -g opencode
 OPENCODE_SERVER_PASSWORD=yourpassword opencode serve --hostname 0.0.0.0 --port 4096
 ```
 
-**Step 2 — Install OpenCode Mobile** via the [F-Droid self-hosted repo or direct APK](#install-android) (or build from source — see [CONTRIBUTING.md](CONTRIBUTING.md)).
+**Step 2 — Install OpenCode Mobile** via [Google Play, F-Droid, or a direct APK](#install-android) (or build from source — see [CONTRIBUTING.md](CONTRIBUTING.md)).
 
 **Step 3 — Add a connection in the app**
 
@@ -132,6 +141,8 @@ OpenCode Mobile is a thin client. It speaks the opencode HTTP + SSE API: listing
 
 | Feature | Status |
 |---|---|
+| Offline demo mode | Stable |
+| First-run onboarding clarity | Stable |
 | Multi-connection management | Stable |
 | Session list + creation | Stable |
 | Streaming chat | Stable |

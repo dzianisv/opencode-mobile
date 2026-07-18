@@ -26,7 +26,7 @@ and reach first value (message sent → response received)?** Nothing else is tr
 | Destination | PostHog **EU region** — `https://eu.i.posthog.com` (override: `EXPO_PUBLIC_POSTHOG_HOST`) |
 | API key | `EXPO_PUBLIC_POSTHOG_KEY` (CI secret; unset ⇒ analytics is a strict no-op) |
 | Identity | PostHog's random app-generated anonymous ID only; no `identify()` calls, no user IDs |
-| Code | `src/lib/analytics.ts` (wrapper), `src/lib/analytics-classify.ts` (error bucketing), `src/lib/telemetry.ts` (consent gate) |
+| Code | `src/lib/analytics.ts` (wrapper), `src/lib/analytics-classify.ts` (error bucketing), `src/lib/demo-analytics.ts` (demo-funnel property derivation), `src/lib/telemetry.ts` (consent gate) |
 
 ## Event schema
 
@@ -42,6 +42,10 @@ section 3a of `distribution/privacy-policy.md`.
 | `connection_failed` | Health check fails | `source`, `error_class` | `src/stores/connections.ts` |
 | `message_sent` | User sends a prompt to an agent session (excludes slash commands) | — | `src/stores/sessions.ts` |
 | `response_received` | Agent response finishes streaming (busy → idle), excluding user-aborted runs | — | `src/stores/events.ts` |
+| `demo_started` | The offline `/demo` screen mounts (no server, no network) | — | `app/demo.tsx` |
+| `demo_step_advanced` | User advances a step in the scripted demo (currently: replies to the demo's permission prompt) | `step_index`, `step_name`, `reply` (`"once"` \| `"always"` \| `"reject"`) | `app/demo.tsx`, `src/lib/demo-analytics.ts` |
+| `demo_completed` | The scripted demo reaches its end (completion or denial message shown) — the key demo activation metric | `outcome` (`"completed"` \| `"denied"`) | `app/demo.tsx`, `src/lib/demo-analytics.ts` |
+| `demo_exited_to_connect` | User taps "Connect your own server" on the demo's CTA card | `reached_completion` (boolean) | `app/demo.tsx` |
 
 `error_class` is one of a fixed enum — `malformed-url`, `no-internet`, `server-unreachable`,
 `unauthorized`, `tls-error`, `timeout`, `unknown` (`src/lib/analytics-classify.ts`). The raw

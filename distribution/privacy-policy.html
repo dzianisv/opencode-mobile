@@ -88,7 +88,7 @@
 <header>
   <h1>OpenCode Mobile — Privacy Policy</h1>
   <p class="meta">
-    Effective date: 2026-05-24 &nbsp;|&nbsp;
+    Effective date: 2026-07-18 &nbsp;|&nbsp;
     Operator: VIBE TECHNOLOGIES, LLC &nbsp;|&nbsp;
     App: OpenCode Mobile (<code>cc.agentlabs.opencode</code>)
   </p>
@@ -232,6 +232,27 @@
       <td>An agent response finishes</td>
       <td>—</td>
     </tr>
+    <tr>
+      <td><code>demo_started</code></td>
+      <td>You open the offline "Try a Demo" screen (no server, no network)</td>
+      <td>—</td>
+    </tr>
+    <tr>
+      <td><code>demo_step_advanced</code></td>
+      <td>You reply to the demo's scripted permission prompt</td>
+      <td><code>step_index</code>, <code>step_name</code>, <code>reply</code> ("once", "always", or
+          "reject")</td>
+    </tr>
+    <tr>
+      <td><code>demo_completed</code></td>
+      <td>The scripted demo reaches its end</td>
+      <td><code>outcome</code> ("completed" or "denied")</td>
+    </tr>
+    <tr>
+      <td><code>demo_exited_to_connect</code></td>
+      <td>You tap "Connect your own server" on the demo's CTA</td>
+      <td><code>reached_completion</code> (true/false)</td>
+    </tr>
   </tbody>
 </table>
 
@@ -239,7 +260,8 @@
   What analytics events <strong>never</strong> contain: your server URL, hostname, IP address,
   or port; prompts, messages, or AI responses; code or file contents; tokens or credentials;
   raw error messages. Connection failures are reduced to a fixed list of coarse categories
-  before being sent.
+  before being sent. The demo screen is fully offline and hardcoded — these events describe
+  interaction with the scripted walkthrough, never real session content.
 </p>
 <p>
   Analytics data is sent to PostHog's <strong>EU region</strong> (<code>eu.i.posthog.com</code>)
@@ -462,7 +484,7 @@
 
 <footer>
   &copy; 2026 VIBE TECHNOLOGIES, LLC. OpenCode Mobile is MIT-licensed open-source software.
-  Privacy policy effective 2026-05-24.
+  Privacy policy effective 2026-07-18.
 </footer>
 
 </body>

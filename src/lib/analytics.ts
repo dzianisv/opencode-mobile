@@ -85,6 +85,17 @@ export enum AnalyticsEvent {
   /** An agent response finished streaming (session transitioned busy -> idle),
    *  excluding user-aborted runs. */
   ResponseReceived = "response_received",
+  /** Fired once when the offline `/demo` screen mounts. */
+  DemoStarted = "demo_started",
+  /** User advanced a step in the scripted demo (currently: replied to the
+   *  demo's permission prompt). Always paired with `step_index`/`step_name`. */
+  DemoStepAdvanced = "demo_step_advanced",
+  /** The scripted demo reached its end (completion or denial message shown
+   *  after the permission reply). The key activation metric for the demo —
+   *  see distribution/retention-analysis.md. Always paired with `outcome`. */
+  DemoCompleted = "demo_completed",
+  /** User tapped "Connect your own server" on the demo's CTA card. */
+  DemoExitedToConnect = "demo_exited_to_connect",
 }
 
 /** Where a connection test/failure was initiated from. The activation funnel

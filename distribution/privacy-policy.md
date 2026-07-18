@@ -1,6 +1,6 @@
 # OpenCode Mobile — Privacy Policy
 
-**Effective date:** 2026-05-24
+**Effective date:** 2026-07-18
 **Operator:** VIBE TECHNOLOGIES, LLC
 **App:** OpenCode Mobile (`cc.agentlabs.opencode`)
 
@@ -63,8 +63,12 @@ Events collected, with their only properties:
 | `connection_failed` | The connection test fails | `source`, `error_class` (a coarse category such as "timeout" or "unauthorized" — never the raw error text) |
 | `message_sent` | You send a message to an agent session | — |
 | `response_received` | An agent response finishes | — |
+| `demo_started` | You open the offline "Try a Demo" screen (no server, no network) | — |
+| `demo_step_advanced` | You reply to the demo's scripted permission prompt | `step_index`, `step_name`, `reply` ("once", "always", or "reject") |
+| `demo_completed` | The scripted demo reaches its end | `outcome` ("completed" or "denied") |
+| `demo_exited_to_connect` | You tap "Connect your own server" on the demo's CTA | `reached_completion` (true/false) |
 
-What analytics events **never** contain: your server URL, hostname, IP address, or port; prompts, messages, or AI responses; code or file contents; tokens or credentials; raw error messages. Connection failures are reduced to a fixed list of coarse categories before being sent.
+What analytics events **never** contain: your server URL, hostname, IP address, or port; prompts, messages, or AI responses; code or file contents; tokens or credentials; raw error messages. Connection failures are reduced to a fixed list of coarse categories before being sent. The demo screen is fully offline and hardcoded — these events describe interaction with the scripted walkthrough, never real session content.
 
 Analytics data is sent to PostHog's **EU region** (`eu.i.posthog.com`) and is identified only by a random, app-generated anonymous ID — not linked to your name, email, or any account.
 

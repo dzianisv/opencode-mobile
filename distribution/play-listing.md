@@ -1,7 +1,13 @@
 # Google Play Store Listing — OpenCode Mobile
 
-Copy-paste reference for completing the Play Console store listing for `cc.agentlabs.opencode`.
+Copy-paste reference for the Play Console store listing for `cc.agentlabs.opencode`.
 Paste these values directly into Play Console. Fields are validated against Play limits.
+
+> **Status: live.** The app is publicly available on the production track —
+> https://play.google.com/store/apps/details?id=cc.agentlabs.opencode (1K+ installs;
+> see `distribution/retention-analysis.md`). The "First release strategy" and "Pending
+> before first publish" sections below are kept as a historical record of how it got
+> there — do not read them as the current state.
 
 ---
 
@@ -322,25 +328,28 @@ Bump this file before tagging a release. Keep it under 500 chars. Per-language v
 
 ---
 
-## First release strategy
+## First release strategy (historical — completed)
 
-1. **Internal testing** track first (up to 100 testers, no review) — what CI is wired for.
+1. **Internal testing** track first (up to 100 testers, no review) — what CI was wired for.
 2. **Closed testing** — 14+ days, 12+ testers required for new org accounts before promoting to production (Google's 2023 policy).
 3. **Open testing** — optional intermediate step.
 4. **Production** — only after Closed testing requirements met.
 
-CI currently publishes to `internal` track. ✅
+Result: the app cleared this path and is now live on the production track (see the
+status note at the top of this file). CI's default dispatch track (`internal`) is
+still used for routine test builds; production releases are dispatched explicitly
+(`track=production`) — see `.github/workflows/publish-play-store.yml`.
 
 ---
 
-## Pending before first publish
+## Pending before first publish (historical — resolved)
 
-- [ ] Identity verification (government ID upload, Google review)
-- [ ] App icon (real PNG, not placeholder)
-- [ ] Adaptive icon (real PNG)
-- [ ] Feature graphic 1024×500
-- [ ] At least 2 phone screenshots
-- [ ] Privacy policy live at https://dzianisv.github.io/opencode-mobile/privacy/
-- [ ] Decide pricing model
-- [ ] Run IARC content rating questionnaire (after app created in Play Console)
-- [ ] Complete Data safety form (after app created in Play Console)
+- [x] Identity verification (government ID upload, Google review)
+- [x] App icon (real PNG, not placeholder)
+- [x] Adaptive icon (real PNG)
+- [x] Feature graphic 1024×500
+- [x] At least 2 phone screenshots
+- [x] Privacy policy live at https://dzianisv.github.io/opencode-mobile/privacy/
+- [x] Decide pricing model (free, no ads, no IAP)
+- [x] Run IARC content rating questionnaire (after app created in Play Console)
+- [x] Complete Data safety form (after app created in Play Console)
