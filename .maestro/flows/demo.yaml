@@ -90,8 +90,14 @@ name: Demo mode - offline scripted walkthrough (no server, zero-server activatio
 - takeScreenshot: demo-S5_permission_prompt
 - tapOn:
     text: "Allow"
-# Completion message is a full sentence beginning "Tests passed — …", so
-# match it as a substring regex too.
+# Approving swaps the prompt for a completion message that renders below the
+# fold; scroll to it (full sentence begins "Tests passed — …", matched as a
+# substring regex).
+- scrollUntilVisible:
+    element:
+      text: ".*Tests passed.*"
+    direction: DOWN
+    timeout: 10000
 - assertVisible:
     text: ".*Tests passed.*"
 - takeScreenshot: demo-S6_permission_approved
