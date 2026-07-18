@@ -7,6 +7,13 @@ const DAY = 24 * 60 * 60 * 1000
 const WEEK = 7 * DAY
 const GITHUB_API = "https://api.github.com"
 const SENTRY_API = "https://sentry.io/api/0"
+// This workflow's own runs must never feed the "repeated-workflow-failure"
+// signal it files issues for — otherwise a known, human-gated gap (the
+// missing Sentry read token) turns into a self-sustaining feedback loop
+// where the job flags its own failures as a product signal. Matched by both
+// path and name so a workflow file rename doesn't silently reopen the loop.
+const SELF_WORKFLOW_PATH = ".github/workflows/product-intelligence.yml"
+const SELF_WORKFLOW_NAME = "Daily Product Intelligence"
 
 function args(values) {
   const result = {}
@@ -25,6 +32,20 @@ function unavailable(reason) {
 
 function available(data) {
   return { status: "available", data }
+}
+
+// Sentry access for this pipeline is gated on a dedicated read token
+// (SENTRY_PRODUCT_INTELLIGENCE_TOKEN / SENTRY_AUTH_TOKEN, see #60) that is
+// provisioned by a human, not by this job. Until that happens, Sentry is
+// unavailable either because no credentials are configured at all, or
+// because the configured token is rejected (401/403). That is a known,
+// persistent gap — not a transient mid-run error — so it must not fail the
+// whole job; the report already renders it as "unavailable" and that's the
+// correct, honest signal. Any other unavailability (5xx, network error,
+// unexpected payload) is treated as a genuine problem and still hard-fails.
+function isSentryProvisioningGap(sentry) {
+  if (sentry.status !== "unavailable") return false
+  return /is not set/.test(sentry.reason) || /HTTP 401/.test(sentry.reason) || /HTTP 403/.test(sentry.reason)
 }
 
 async function request(source, url, headers) {
@@ -80,8 +101,12 @@ async function collectGithub(token, repo, now) {
   const issueCount = Number(issues.data.total_count ?? 0)
   const runs = workflows.data.workflow_runs ?? []
   const failedWorkflowRuns7d = recent(runs, "created_at", now - WEEK).filter((run) => {
+    if (run.conclusion !== "failure") return false
     const path = String(run.path ?? "")
-    return run.conclusion === "failure" && path !== ".github/workflows/product-intelligence.yml"
+    const name = String(run.name ?? "")
+    // Exclude this workflow itself (see SELF_WORKFLOW_* above).
+    if (path === SELF_WORKFLOW_PATH || name === SELF_WORKFLOW_NAME) return false
+    return true
   }).length
 
   return available({
@@ -136,9 +161,10 @@ async function collectSentry(token, organization, project, now) {
   })
 }
 
-function sourceLine(name, source) {
+function sourceLine(name, source, degraded) {
   if (source.status === "available") return `| ${name} | available | current run |`
-  return `| ${name} | unavailable | ${source.reason} |`
+  const detail = degraded ? `token not provisioned — ${source.reason}` : source.reason
+  return `| ${name} | unavailable | ${detail} |`
 }
 
 function metric(value) {
@@ -154,17 +180,20 @@ function render(report) {
   const github = report.github.status === "available" ? report.github.data : null
   const sentry = report.sentry.status === "available" ? report.sentry.data : null
   const state = report.material ? "material signal detected" : "no material signal detected"
+  const degradedNote = report.sentryDegraded
+    ? "\n\n_Sentry is degraded, not failed: the dedicated read token (SENTRY_PRODUCT_INTELLIGENCE_TOKEN) is not provisioned. This is a known, human-gated gap — see #60 — and does not fail the job._"
+    : ""
   const lines = [
     `# Daily Product Intelligence - ${report.date}`,
     "",
-    `**Status:** ${state}`,
+    `**Status:** ${state}${degradedNote}`,
     "",
     "## Source freshness",
     "",
     "| Source | Status | Detail |",
     "| --- | --- | --- |",
     sourceLine("GitHub", report.github),
-    sourceLine("Sentry", report.sentry),
+    sourceLine("Sentry", report.sentry, report.sentryDegraded),
     "",
     "## Current aggregate signals",
     "",
@@ -217,6 +246,7 @@ async function main() {
   ])
   const githubData = github.status === "available" ? github.data : null
   const sentryData = sentry.status === "available" ? sentry.data : null
+  const sentryDegraded = isSentryProvisioningGap(sentry)
   const signals = []
   if (sentryData?.newIssues24h >= 1) signals.push("new-sentry-issue")
   if (githubData?.failedWorkflowRuns7d >= 2) signals.push("repeated-workflow-failure")
@@ -227,6 +257,7 @@ async function main() {
     repo,
     github,
     sentry,
+    sentryDegraded,
     material: signals.length > 0,
     signals,
   }
@@ -237,8 +268,18 @@ async function main() {
   if (process.env.GITHUB_STEP_SUMMARY) await write(process.env.GITHUB_STEP_SUMMARY, markdown)
 
   console.log(`Product intelligence report written for ${date}.`)
-  if (github.status !== "available" || sentry.status !== "available") {
+  // GitHub is required: this job has no way to compute either signal without
+  // it, so its unavailability is a genuine failure. Sentry unavailability is
+  // only a genuine failure when it isn't the known token-provisioning gap
+  // (see isSentryProvisioningGap above) — a missing/rejected Sentry token
+  // must not fail the job, or the job's own daily failure gets fed back in
+  // as a "the pipeline is broken" signal.
+  if (github.status !== "available") {
     process.exitCode = 1
+  } else if (sentry.status !== "available" && !sentryDegraded) {
+    process.exitCode = 1
+  } else if (sentryDegraded) {
+    console.log("Sentry data source degraded (token not provisioned) — continuing without failing the job.")
   }
 }
 

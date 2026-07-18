@@ -126,6 +126,16 @@ jobs:
           if-no-files-found: error
 
       - name: Fail when a required source is unavailable
+        # scripts/product-intelligence.mjs only sets a non-zero exit code for
+        # genuinely required-source failures (GitHub unavailable, or Sentry
+        # unavailable for a reason other than the known missing/rejected
+        # SENTRY_PRODUCT_INTELLIGENCE_TOKEN gap). A Sentry-token-missing run
+        # is reported as "degraded" and this step does not fire for it — see
+        # isSentryProvisioningGap() in the collector. This avoids the job
+        # failing on its own known, human-gated gap and that failure being
+        # counted as a "repeated-workflow-failure" product signal on a later
+        # run (also guarded against directly via SELF_WORKFLOW_* exclusion
+        # in the collector's workflow-failure count).
         if: steps.collect.outcome == 'failure'
         run: |
           echo "::error::A required product-intelligence source was unavailable. See the report summary for the exact source and error."
