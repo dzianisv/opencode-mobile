@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react"
 import { Stack, router } from "expo-router"
 import { StatusBar } from "expo-status-bar"
-import { useColorScheme, View, ActivityIndicator } from "react-native"
+import { useColorScheme, View, ActivityIndicator, AppState } from "react-native"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { GestureHandlerRootView } from "react-native-gesture-handler"
 import { BottomSheetModalProvider } from "@gorhom/bottom-sheet"
@@ -75,6 +75,24 @@ function RootLayout() {
       })
 
     return unsubNotifications
+  }, [])
+
+  // Re-arm the biometric app-lock when the app leaves the foreground. Without
+  // this, "Require Biometric to Open" is bypassable: authenticate() sets
+  // isAuthenticated=true once at cold start and nothing ever resets it, so the
+  // app stays unlocked for the whole JS-process lifetime — anyone with brief
+  // physical access can reopen a backgrounded app straight into session
+  // history and connection details. lock() flips isAuthenticated back to false
+  // so AuthGate shows the lock screen (and re-prompts) on next foreground.
+  // Fire on "background" only (not the transient "inactive" that the biometric
+  // prompt / app switcher / control center produce) to avoid spurious re-locks.
+  useEffect(() => {
+    const sub = AppState.addEventListener("change", (next) => {
+      if (next === "background" && useAuth.getState().settings.requireBiometric) {
+        useAuth.getState().lock()
+      }
+    })
+    return () => sub.remove()
   }, [])
 
   // Connect/disconnect SSE and load catalog when client changes

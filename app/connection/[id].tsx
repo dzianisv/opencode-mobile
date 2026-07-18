@@ -136,13 +136,19 @@ export default function EditConnectionScreen() {
     }
 
     setIsSaving(true)
-    await updateConnection(connection.id, {
-      name: name.trim(),
-      type,
-      url: url.trim(),
-      directory: directory.trim() || undefined,
-      username: username.trim() || undefined,
-    })
+    await updateConnection(
+      connection.id,
+      {
+        name: name.trim(),
+        type,
+        url: url.trim(),
+        directory: directory.trim() || undefined,
+        username: username.trim() || undefined,
+      },
+      // Empty = keep existing password (the field loads blank); a typed value
+      // rotates it in SecureStore.
+      password || undefined,
+    )
     // If this was the active connection, the SSE loop may have stopped
     // retrying after a prior 401 (see events.ts) — reconnect now with the
     // freshly saved credentials instead of leaving the user stuck until

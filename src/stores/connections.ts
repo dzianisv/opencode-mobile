@@ -47,7 +47,7 @@ interface ConnectionsState {
     source: ConnectionTestSource,
     password?: string,
   ) => Promise<{ ok: boolean; error?: string }>
-  updateConnection: (id: string, updates: Partial<ServerConnection>) => Promise<void>
+  updateConnection: (id: string, updates: Partial<ServerConnection>, password?: string) => Promise<void>
   refreshProject: () => Promise<void>
   // Create a one-off client pointing at a specific directory (for cross-project operations).
   // Pass undefined to get a directory-less client that queries the server without project scope.
@@ -275,10 +275,18 @@ export const useConnections = create<ConnectionsState>((set, get) => ({
     }
   },
 
-  updateConnection: async (id, updates) => {
+  updateConnection: async (id, updates, password) => {
     const connections = get().connections.map((c) => (c.id === id ? { ...c, ...updates } : c))
 
     await SecureStore.setItemAsync(CONNECTIONS_KEY, JSON.stringify(connections))
+
+    // Persist a new password only when one was entered. The edit form loads the
+    // password field blank (passwords aren't read back for security), so an
+    // empty value means "keep the existing password", not "clear it". Written
+    // before the active-client rebuild below so the rebuilt client picks it up.
+    if (password) {
+      await SecureStore.setItemAsync(`${PASSWORDS_PREFIX}${id}`, password)
+    }
 
     // If updating active connection, recreate client
     if (get().activeConnection?.id === id) {
