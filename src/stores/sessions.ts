@@ -5,6 +5,7 @@ import { useSettings } from "./settings"
 import { addBreadcrumb } from "../lib/sentry"
 import { AnalyticsEvent, track } from "../lib/analytics"
 import { extractPromptFromParts, type PromptFromParts } from "../lib/prompt-from-parts"
+import { mergeIncomingMessage } from "../lib/message-merge"
 
 // Helper to convert API response to our internal format
 function parseMessages(response: MessageWithParts[]): { messages: Message[]; parts: Record<string, Part[]> } {
@@ -69,6 +70,12 @@ export type RevertResult = ({ ok: true } & PromptFromParts) | { ok: false; reaso
 // this module) clears entries on busy and checks them on busy -> idle.
 export const abortedSessions = new Set<string>()
 
+// Monotonic token guarding selectSession against out-of-order resolution: a
+// slow fetch for a session the user has already navigated away from must not
+// overwrite the messages/currentSession of a newer selection. Each call takes
+// the next value and only commits its result if still the latest.
+let selectSeq = 0
+
 // Get the right client for a session's directory
 function clientFor(directory?: string): Client | null {
   const connState = useConnections.getState()
@@ -119,6 +126,7 @@ export const useSessions = create<SessionsState>((set, get) => ({
       return
     }
 
+    const seq = ++selectSeq
     addBreadcrumb({ category: "session", message: "select", data: { sessionID, hasDirectory: Boolean(directory) } })
     try {
       // Reset optimistic sending — SSE sessionStatus is the source of truth
@@ -135,6 +143,10 @@ export const useSessions = create<SessionsState>((set, get) => ({
         client.session.messages(sessionID, { limit: pageSize() }),
       ])
 
+      // A newer selectSession started while we were fetching — discard this
+      // stale result so it can't clobber the newer selection.
+      if (seq !== selectSeq) return
+
       // Parse the API response format: array of { info, parts }
       const { messages, parts } = parseMessages(messagesResponse)
 
@@ -147,6 +159,7 @@ export const useSessions = create<SessionsState>((set, get) => ({
         hasMore: messagesResponse.length >= pageSize(),
       })
     } catch (err) {
+      if (seq !== selectSeq) return
       console.error("Failed to load session:", err)
       set({ error: "Failed to load session", isLoading: false })
     }
@@ -407,14 +420,7 @@ export const useSessions = create<SessionsState>((set, get) => ({
         const message = (props.info || props.message) as Message | undefined
         if (!message || message.sessionID !== currentSession.id) return
 
-        set((state) => {
-          // Remove temp messages when real ones arrive
-          const filtered = state.messages.filter((m) => !m.id.startsWith("temp-") || m.id === message.id)
-          const exists = filtered.some((m) => m.id === message.id)
-          return {
-            messages: exists ? filtered.map((m) => (m.id === message.id ? message : m)) : [...filtered, message],
-          }
-        })
+        set((state) => ({ messages: mergeIncomingMessage(state.messages, message) }))
         break
       }
 
