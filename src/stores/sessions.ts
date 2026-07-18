@@ -306,20 +306,10 @@ export const useSessions = create<SessionsState>((set, get) => ({
         }
       }
 
-      // Fire and forget - SSE events will update messages/parts/status in real-time
-      client.session.prompt(session.id, { parts: promptParts, model, agent, variant }).catch((err) => {
-        console.error("Failed to send message:", err)
-        // The user may have switched sessions while this send was in flight. Clear
-        // the sending flag for the session we actually sent to (keyed by id, safe),
-        // but only surface the error / refresh messages if it's still on screen —
-        // otherwise we'd flash an error on, and refetch, the wrong session.
-        const stillCurrent = get().currentSession?.id === session.id
-        set((state) => ({
-          ...(stillCurrent ? { error: String(err) } : {}),
-          sending: { ...state.sending, [session.id]: false },
-        }))
-        if (stillCurrent) get().refreshMessages()
-      })
+      // Await submission (POST to /prompt_async resolves fast, well before the
+      // streamed response) so a failure here can propagate to the caller — SSE
+      // events still update messages/parts/status in real-time on success.
+      await client.session.prompt(session.id, { parts: promptParts, model, agent, variant })
     } catch (err) {
       console.error("[sendMessage] error:", err)
       const stillCurrent = get().currentSession?.id === session.id
@@ -328,6 +318,7 @@ export const useSessions = create<SessionsState>((set, get) => ({
         sending: { ...state.sending, [session.id]: false },
       }))
       if (stillCurrent) get().refreshMessages()
+      throw err
     }
   },
 

@@ -118,7 +118,11 @@
       "replyFailedTitle": "回复失败",
       "replyFailedMessage": "无法发送您的回复。请重试。",
       "rejectFailedTitle": "拒绝失败",
-      "rejectFailedMessage": "无法发送您的回复。请重试。"
+      "rejectFailedMessage": "无法发送您的回复。请重试。",
+      "imageFailedTitle": "图片未添加",
+      "imageFailedMessage": "一张或多张图片无法处理。请尝试其他照片。",
+      "speechErrorTitle": "语音输入失败",
+      "speechErrorMessage": "无法使用语音输入。请检查麦克风权限后重试。"
     }
   },
   "connection": {

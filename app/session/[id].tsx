@@ -145,6 +145,14 @@ export default function SessionScreen() {
     }, []),
   )
 
+  // Surface speech recognition failures (e.g. mic permission denied). Keyed
+  // on the error value itself so it only fires once per distinct error, not
+  // on every re-render while it remains set.
+  useEffect(() => {
+    if (!speech.error) return
+    Alert.alert(t("session.alerts.speechErrorTitle"), t("session.alerts.speechErrorMessage"))
+  }, [speech.error, t])
+
   // Slash command state
   const slashActive = input.startsWith("/") && !input.includes(" ")
   const slashQuery = slashActive ? input.slice(1) : ""
@@ -335,12 +343,21 @@ export default function SessionScreen() {
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ["images"],
       allowsMultipleSelection: true,
+      selectionLimit: 10,
       quality: 1, // full quality - we compress in manipulator
     })
     if (result.canceled) return
-    const items = await Promise.all(result.assets.map((a) => toJpeg(a.uri, a.width, a.height)))
-    setAttachments((prev) => [...prev, ...items])
-  }, [])
+    const settled = await Promise.allSettled(result.assets.map((a) => toJpeg(a.uri, a.width, a.height)))
+    const items = settled.filter((r) => r.status === "fulfilled").map((r) => r.value)
+    if (items.length) setAttachments((prev) => [...prev, ...items])
+    if (settled.some((r) => r.status === "rejected")) {
+      console.error(
+        "Failed to process image(s):",
+        settled.filter((r) => r.status === "rejected").map((r) => r.reason),
+      )
+      Alert.alert(t("session.alerts.imageFailedTitle"), t("session.alerts.imageFailedMessage"))
+    }
+  }, [t])
 
   const pickFromCamera = useCallback(async () => {
     const perm = await ImagePicker.requestCameraPermissionsAsync()
@@ -351,8 +368,13 @@ export default function SessionScreen() {
     const result = await ImagePicker.launchCameraAsync({ quality: 1 })
     if (result.canceled) return
     const a = result.assets[0]
-    const item = await toJpeg(a.uri, a.width, a.height)
-    setAttachments((prev) => [...prev, item])
+    try {
+      const item = await toJpeg(a.uri, a.width, a.height)
+      setAttachments((prev) => [...prev, item])
+    } catch (err) {
+      console.error("Failed to process photo:", err)
+      Alert.alert(t("session.alerts.imageFailedTitle"), t("session.alerts.imageFailedMessage"))
+    }
   }, [t])
 
   const pasteFromClipboard = useCallback(async () => {
@@ -362,16 +384,8 @@ export default function SessionScreen() {
       const img = await Clipboard.getImageAsync({ format: "png" })
       if (img?.data) {
         const uri = img.data.startsWith("data:") ? img.data : `data:image/png;base64,${img.data}`
-        setAttachments((prev) => [
-          ...prev,
-          {
-            uri,
-            mime: "image/png",
-            filename: "clipboard.png",
-            width: img.size.width,
-            height: img.size.height,
-          },
-        ])
+        const item = await toJpeg(uri, img.size.width, img.size.height)
+        setAttachments((prev) => [...prev, item])
         return
       }
     }
@@ -617,7 +631,17 @@ export default function SessionScreen() {
         {revertMessageID && (
           <View style={[s.banner, s.bannerRevert]}>
             <Text style={s.bannerText}>{t("session.banners.reverted")}</Text>
-            <TouchableOpacity onPress={() => unrevertSession()} hitSlop={8}>
+            <TouchableOpacity
+              onPress={() => {
+                unrevertSession()
+                // The composer was prefilled with the reverted message's text/
+                // attachments (see applyRevertResult) — clear it so Undo doesn't
+                // leave a stale draft that could be sent as a duplicate.
+                setInput("")
+                setAttachments([])
+              }}
+              hitSlop={8}
+            >
               <Text style={s.bannerAction}>{t("session.banners.undo")}</Text>
             </TouchableOpacity>
           </View>

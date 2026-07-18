@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from "react"
+import { useState, useCallback, useRef, useEffect } from "react"
 import { ExpoSpeechRecognitionModule, useSpeechRecognitionEvent } from "expo-speech-recognition"
 
 interface SpeechState {
@@ -74,6 +74,14 @@ export function useSpeech(onResult: (text: string) => void): SpeechState & Speec
     ExpoSpeechRecognitionModule.abort()
     setListening(false)
     setTranscript("")
+  }, [])
+
+  // Stop the native recognition session when the screen unmounts — otherwise
+  // the mic stays hot in the background. abort() is a no-op when not listening.
+  useEffect(() => {
+    return () => {
+      ExpoSpeechRecognitionModule.abort()
+    }
   }, [])
 
   return { listening, transcript, error, start, stop, cancel }

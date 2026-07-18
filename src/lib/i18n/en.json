@@ -118,7 +118,11 @@
       "replyFailedTitle": "Reply Failed",
       "replyFailedMessage": "Could not send your response. Please try again.",
       "rejectFailedTitle": "Reject Failed",
-      "rejectFailedMessage": "Could not send your response. Please try again."
+      "rejectFailedMessage": "Could not send your response. Please try again.",
+      "imageFailedTitle": "Image not attached",
+      "imageFailedMessage": "One or more images could not be processed. Please try a different photo.",
+      "speechErrorTitle": "Voice input failed",
+      "speechErrorMessage": "Could not use voice input. Check your microphone permission and try again."
     }
   },
   "connection": {
