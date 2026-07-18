@@ -8,6 +8,7 @@ import { addBreadcrumb } from "../lib/sentry"
 import { AnalyticsEvent, track } from "../lib/analytics"
 import { recordSuccessfulSession } from "../lib/store-review"
 import { isAuthError } from "../lib/api-error"
+import { isSessionActuallyIdle } from "../lib/session-status-reconcile"
 import type { Client, Part, Session, Message } from "../lib/sdk"
 
 // Session status from the server
@@ -88,6 +89,62 @@ export async function refreshPending(client: Client, sessionID: string) {
   }
 }
 
+// Re-sync any session currently marked "busy" against the server after an
+// SSE reconnect. sessionStatus/sending are SSE-driven and there is normally
+// no other path to idle — if the server's busy -> idle `session.status`
+// event fired while the network was down, SSE reconnect resumes the stream
+// from "now" (it does not replay missed events), so without this the busy
+// flag would never clear and the UI would show a stuck 'processing' spinner
+// forever (issue #123).
+//
+// Only ever CLEARS a busy flag the server confirms is stale via
+// isSessionActuallyIdle — it never marks a session busy, so it can't
+// clobber a genuinely still-busy session. Also re-checks sessionStatus right
+// before writing, so a real session.status event that lands while the fetch
+// is in flight (e.g. the session went busy again) wins over this resync.
+async function resyncBusySessions() {
+  const busySessionIDs = Object.entries(useEvents.getState().sessionStatus)
+    .filter(([, status]) => status.type === "busy")
+    .map(([sessionID]) => sessionID)
+  if (busySessionIDs.length === 0) return
+
+  await Promise.all(
+    busySessionIDs.map(async (sessionID) => {
+      try {
+        const sessionsState = useSessions.getState()
+        const session =
+          sessionsState.sessions.find((s) => s.id === sessionID) ??
+          (sessionsState.currentSession?.id === sessionID ? sessionsState.currentSession : undefined)
+        const connState = useConnections.getState()
+        const client = session?.directory
+          ? connState.clientForDirectory(session.directory) ?? connState.client
+          : connState.client
+        if (!client) return
+
+        const response = await client.session.messages(sessionID)
+        const messages = (response || []).map((m) => m.info)
+        if (!isSessionActuallyIdle(messages)) return // server says still busy - leave it alone
+
+        // A fresh session.status event may have landed on the SSE stream
+        // while this fetch was in flight — that's authoritative, don't
+        // stomp on it.
+        if (useEvents.getState().sessionStatus[sessionID]?.type !== "busy") return
+
+        useEvents.setState((state) => ({
+          sessionStatus: { ...state.sessionStatus, [sessionID]: { type: "idle" } },
+          statusText: { ...state.statusText, [sessionID]: "" },
+        }))
+        useSessions.setState((state) => ({ sending: { ...state.sending, [sessionID]: false } }))
+        if (useSessions.getState().currentSession?.id === sessionID) {
+          useSessions.getState().refreshMessages()
+        }
+      } catch (err) {
+        console.warn("[Events] Failed to resync session status for", sessionID, err)
+      }
+    }),
+  )
+}
+
 export const useEvents = create<EventsState>((set, get) => ({
   connected: false,
   authError: false,
@@ -118,6 +175,12 @@ export const useEvents = create<EventsState>((set, get) => ({
     // Run in background
     ;(async () => {
       let reconnectScheduled = false
+      // True if this connect() call is resuming after a prior disconnect —
+      // gates the one-time busy-session resync below so a cold app start
+      // (sessionStatus is always empty then) never triggers it, and a run of
+      // failed retries can't re-arm the check on every attempt.
+      const isReconnect = get().reconnectAttempts > 0
+      let resyncedAfterReconnect = false
       const stableTimer = setTimeout(() => {
         if (!currentController.signal.aborted) {
           set({ reconnectAttempts: 0, lastDisconnectAt: null })
@@ -162,6 +225,14 @@ export const useEvents = create<EventsState>((set, get) => ({
       try {
         for await (const event of client.global.events(currentController.signal)) {
           if (currentController.signal.aborted) break
+
+          // The stream is genuinely live again (we're actually receiving
+          // data, not just optimistically marked "connected") — resync once
+          // per reconnect, not on every event.
+          if (isReconnect && !resyncedAfterReconnect) {
+            resyncedAfterReconnect = true
+            void resyncBusySessions()
+          }
 
           const payload = (event as any).payload || event
           const type = payload.type as string
