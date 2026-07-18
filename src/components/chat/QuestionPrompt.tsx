@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useRef, useState } from "react"
 import { View, Text, TextInput, TouchableOpacity, StyleSheet } from "react-native"
 import { Ionicons } from "@expo/vector-icons"
 import { useTranslation } from "react-i18next"
@@ -33,6 +33,22 @@ export function QuestionPrompt({ request, isDark, onReply, onReject }: Props) {
   const [showCustom, setShowCustom] = useState(false)
   const [current, setCurrent] = useState(0)
 
+  // A question is answered exactly once. Without this guard, a double-tap on a
+  // single-select option schedules two `onReply` timers; the second reply hits
+  // an already-resolved request server-side and surfaces a spurious
+  // "Reply failed" alert even though the answer went through.
+  const replied = useRef(false)
+  const reply = (a: string[][]) => {
+    if (replied.current) return
+    replied.current = true
+    onReply(a)
+  }
+  const reject = () => {
+    if (replied.current) return
+    replied.current = true
+    onReject()
+  }
+
   const q = request.questions[current]
   if (!q) return null
 
@@ -45,7 +61,7 @@ export function QuestionPrompt({ request, isDark, onReply, onReject }: Props) {
       } else {
         copy[current] = [label]
         if (request.questions.length === 1) {
-          setTimeout(() => onReply(copy), 100)
+          setTimeout(() => reply(copy), 100)
         }
       }
       return copy
@@ -60,7 +76,7 @@ export function QuestionPrompt({ request, isDark, onReply, onReject }: Props) {
     setCustom("")
     setShowCustom(false)
     if (request.questions.length === 1) {
-      onReply(copy)
+      reply(copy)
     }
   }
 
@@ -116,7 +132,7 @@ export function QuestionPrompt({ request, isDark, onReply, onReject }: Props) {
       </View>
 
       <View style={s.footer}>
-        <TouchableOpacity onPress={onReject}>
+        <TouchableOpacity onPress={reject}>
           <Text style={[s.dismiss, isDark && s.metaDark]}>{t("chat.questionPrompt.dismiss")}</Text>
         </TouchableOpacity>
         {(request.questions.length > 1 || q.multiple) && (
@@ -126,7 +142,7 @@ export function QuestionPrompt({ request, isDark, onReply, onReject }: Props) {
               if (current < request.questions.length - 1) {
                 setCurrent(current + 1)
               } else {
-                onReply(answers)
+                reply(answers)
               }
             }}
           >

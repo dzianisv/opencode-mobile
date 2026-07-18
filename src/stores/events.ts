@@ -206,13 +206,21 @@ export const useEvents = create<EventsState>((set, get) => ({
                 // as a received response or a review-worthy success.
                 const aborted = abortedSessions.has(sessionID)
                 if (!aborted) track(AnalyticsEvent.ResponseReceived)
-                const match = useSessions.getState().sessions.find((s) => s.id === sessionID)
-                notify({
-                  category: "completed",
-                  title: "Task completed",
-                  body: sanitizeBody(match?.title, "Session finished processing"),
-                  sessionId: sessionID,
-                })
+                // Only notify "Task completed" for a genuine completion — a
+                // user-cancelled run didn't complete, and an errored run
+                // already fired its own "Session error" notification (session.error
+                // doesn't touch sessionStatus, so an errored session still lands
+                // here via busy→idle). Without this guard the user gets a
+                // misleading — or duplicate, contradictory — completion push.
+                if (!aborted && !erroredSessions.has(sessionID)) {
+                  const match = useSessions.getState().sessions.find((s) => s.id === sessionID)
+                  notify({
+                    category: "completed",
+                    title: "Task completed",
+                    body: sanitizeBody(match?.title, "Session finished processing"),
+                    sessionId: sessionID,
+                  })
+                }
                 // Genuinely positive moment — count it toward the one-time
                 // store review prompt, but only if this run never errored
                 // (session.error doesn't touch sessionStatus, so an errored

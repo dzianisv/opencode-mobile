@@ -30,6 +30,7 @@ function RootLayout() {
   const { initialize: initAuth, isLoading: authLoading } = useAuth()
   const { loadConnections, isLoading: connectionsLoading, client } = useConnections()
   const sseStarted = useRef(false)
+  const notifPermissionRequested = useRef(false)
 
   // Telemetry consent state: null = loading, 'unknown' = show modal, else decided
   const [consentState, setConsentState] = useState<"loading" | "unknown" | "decided">("loading")
@@ -42,9 +43,12 @@ function RootLayout() {
     // Connect notification preferences to the notification module
     notifications.configure(() => useSettings.getState().notifications)
 
-    // Navigate to session when user taps a notification
+    // Navigate to session when user taps a notification. Connection-drop
+    // notifications carry no sessionId (they aren't about a session) — route
+    // to the home tab instead of "/session/" (an empty, dead-end route).
     const unsubNotifications = notifications.onTap((data) => {
-      router.push(`/session/${data.sessionId}`)
+      if (data.sessionId) router.push(`/session/${data.sessionId}`)
+      else router.push("/")
     })
 
     // Load telemetry consent — initialise Sentry only if previously granted
@@ -79,6 +83,18 @@ function RootLayout() {
       sseStarted.current = true
       useEvents.getState().connect()
       useCatalog.getState().load()
+      // Request OS notification permission once we have a live connection —
+      // the in-context moment the user will start running agent tasks they'll
+      // want to be pinged about. Previously this was only ever requested when
+      // a user manually toggled a notification switch off→on in Settings; since
+      // most categories default on, that path never fired for typical users
+      // and send() silently no-op'd on every notification (permission stayed
+      // "undetermined"). setup() is idempotent — it won't re-prompt once the
+      // OS has a decision — so the ref just avoids redundant calls per session.
+      if (!notifPermissionRequested.current) {
+        notifPermissionRequested.current = true
+        void notifications.setup()
+      }
     } else if (!client && sseStarted.current) {
       sseStarted.current = false
       useEvents.getState().disconnect()

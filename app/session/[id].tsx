@@ -12,7 +12,7 @@ import {
   ActivityIndicator,
   Alert,
 } from "react-native"
-import { useLocalSearchParams, Stack, useRouter } from "expo-router"
+import { useLocalSearchParams, Stack, useRouter, useFocusEffect } from "expo-router"
 import { Ionicons } from "@expo/vector-icons"
 import { useSafeAreaInsets } from "react-native-safe-area-context"
 import { useTranslation } from "react-i18next"
@@ -247,16 +247,25 @@ export default function SessionScreen() {
     flatListRef.current?.scrollToOffset({ offset: 0, animated })
   }, [])
 
-  useEffect(() => {
-    if (!id) return
-    selectSession(id, directory).then(() => {
-      // Re-fetch pending permissions/questions from the server to recover from
-      // missed SSE events or failed optimistic removals
-      const connState = useConnections.getState()
-      const c = directory ? (connState.clientForDirectory(directory) ?? connState.client) : connState.client
-      if (c) refreshPending(c, id)
-    })
-  }, [id, directory])
+  // Re-select on every focus, not just mount. currentSession/messages/
+  // permissions are a single global store, and the native stack keeps screens
+  // underneath a pushed one mounted. Without re-selecting on focus, navigating
+  // to another session and back would leave this screen bound to the *other*
+  // session's data (and its permission/question prompts) — so a user could
+  // approve the wrong session's tool call. useFocusEffect re-binds this screen
+  // to its own session whenever it becomes visible again.
+  useFocusEffect(
+    useCallback(() => {
+      if (!id) return
+      selectSession(id, directory).then(() => {
+        // Re-fetch pending permissions/questions from the server to recover from
+        // missed SSE events or failed optimistic removals
+        const connState = useConnections.getState()
+        const c = directory ? (connState.clientForDirectory(directory) ?? connState.client) : connState.client
+        if (c) refreshPending(c, id)
+      })
+    }, [id, directory]),
+  )
 
   // Sync model chip from latest assistant message
   useEffect(() => {
