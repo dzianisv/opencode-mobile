@@ -1,3 +1,3 @@
-v0.4.7 — Reconnecting banner + push notifications for approvals
+v0.4.10 — Try it instantly, plus reliability & security fixes
 
-See a live status banner when your server connection drops ("Reconnecting...") and a confirmation when it recovers. Agent approval requests and questions now send an OS push notification when the app is in the background. Privacy improvements: URL credential scrubbing is now covered by automated tests.
+New: tap "Try a demo" to see OpenCode in action with no server needed. Clearer setup explaining the app connects to a computer running "opencode serve". Security: "Require Biometric to Open" now re-locks whenever the app is backgrounded, and editing a connection's password now saves. Plus more reliable notifications and fixes for disappearing messages, the session view, and a stuck spinner after a network drop.

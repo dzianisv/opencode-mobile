@@ -44,16 +44,17 @@ It builds an AAB (Android App Bundle), signs it with the release keystore, and u
 
 ## Releasing (proven runbook)
 
-1. Bump `version` in `package.json` **and** `app.json`, and `android.versionCode` in `app.json` (must be higher than the current Play build). Add a changelog at `fastlane/metadata/android/en-US/changelogs/<versionCode>.txt`. Merge to `main`.
-2. Tag the release: `git tag -a vX.Y.Z <sha> -m "..." && git push origin vX.Y.Z`. This triggers the publish workflow → **internal** track.
-3. Verify the publish run is green, then confirm the build on the internal track.
-4. **Promote to production** (see below).
+1. Bump `version` in `package.json` **and** `app.json` (`expo.version`). Do **not** bother hand-bumping `android.versionCode` for Play — the publish workflow overrides it with `github.run_number + 100` at build time (so the Play `versionCode` is e.g. `142`, unrelated to the number in `app.json`; that field only matters for local/other builds).
+2. Update the **Play** release notes in `distribution/whatsnew/whatsnew-en-US` (single file, applied to the build being uploaded; **max 500 chars**). This — not the `fastlane/metadata/android/en-US/changelogs/*.txt` files — is what the Play publish uses (`whatsNewDirectory` in the workflow). The fastlane `changelogs/*.txt` files feed **F-Droid**, not Play; keep them for F-Droid but don't expect Play to read them. Merge to `main`.
+3. Tag the release: `git tag -a vX.Y.Z <sha> -m "..." && git push origin vX.Y.Z`. This triggers the publish workflow → **internal** track.
+4. Verify the publish run is green, then confirm the build on the internal track. Note its real Play `versionCode` (run_number+100) — that's what you promote, not the `app.json` number.
+5. **Promote to production** (see below).
 
 ## Promoting to production
 
 Production is **not** published by CI by default — the service account is scoped to the internal track only, which is intentional (a human gate before a build reaches all users).
 
-- **Recommended — Play Console:** Production → Create release → **Add from library** → select the `versionCode` already uploaded to internal → review → roll out. No rebuild.
+- **Recommended — Play Console:** Production → Create release → **Add from library** → select the build by its **versionName** (e.g. `0.4.10`) and confirm its `versionCode` (the run_number-derived one, e.g. `142` — not the `app.json` number) → review → roll out. If the "What's new" field is empty, paste from `distribution/whatsnew/whatsnew-en-US`. No rebuild.
 - **Fully automated (optional):** grant the CI service account **"Release to production"** for this app in Play Console → Users & permissions, then run the workflow's `workflow_dispatch` with `track=production`, `status=completed`. **Without that permission the production dispatch fails with `The caller does not have permission` after building** — so don't dispatch `track=production` until the service account has been granted production access.
 
 ## Fastlane (Alternative)
