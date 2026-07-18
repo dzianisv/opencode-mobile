@@ -43,10 +43,14 @@ name: Demo mode - offline scripted walkthrough (no server, zero-server activatio
 - takeScreenshot: demo-S2_demo_screen_opened
 
 # Scripted conversation renders through the real chat components.
+# Maestro `text` matches the element's FULL text as a regex, so a phrase
+# taken from a longer message must be wrapped in `.*…*` (the user message is
+# a full sentence, not the bare phrase). Verified against a CI run where the
+# demo screen rendered correctly but this bare-substring assert failed.
 - assertVisible:
     id: "chat-bubble-user"
 - assertVisible:
-    text: "login button"
+    text: ".*login button.*"
 - assertVisible:
     id: "chat-bubble-assistant"
 - assertVisible:
@@ -57,11 +61,11 @@ name: Demo mode - offline scripted walkthrough (no server, zero-server activatio
 # expand it to reveal the diff.
 - scrollUntilVisible:
     element:
-      text: "Edit src/components/LoginButton.tsx"
+      text: ".*Edit src/components/LoginButton.tsx.*"
     direction: DOWN
     timeout: 10000
 - tapOn:
-    text: "Edit src/components/LoginButton.tsx"
+    text: ".*Edit src/components/LoginButton.tsx.*"
 - assertVisible:
     id: "diff-view-scroll"
 - takeScreenshot: demo-S4_diff_view
@@ -76,8 +80,10 @@ name: Demo mode - offline scripted walkthrough (no server, zero-server activatio
 - takeScreenshot: demo-S5_permission_prompt
 - tapOn:
     text: "Allow"
+# Completion message is a full sentence beginning "Tests passed — …", so
+# match it as a substring regex too.
 - assertVisible:
-    text: "Tests passed"
+    text: ".*Tests passed.*"
 - takeScreenshot: demo-S6_permission_approved
 
 # Closing CTA routes to the REAL connect form, not a dead link.
