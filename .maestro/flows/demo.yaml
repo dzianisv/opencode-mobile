@@ -58,7 +58,12 @@ name: Demo mode - offline scripted walkthrough (no server, zero-server activatio
 - takeScreenshot: demo-S3_conversation
 
 # Tool call card is collapsed by default (same behavior as a real session) —
-# expand it to reveal the diff.
+# tapping it expands the card, which renders the diff DOWNWARD below the
+# header. Because the card is scrolled to near the bottom of the viewport to
+# tap it, the expanded diff opens off-screen — so scroll again to bring the
+# diff into view before asserting (assertVisible does not auto-scroll).
+# Verified from a CI failure screenshot where the demo rendered correctly but
+# diff-view-scroll sat below the fold.
 - scrollUntilVisible:
     element:
       text: ".*Edit src/components/LoginButton.tsx.*"
@@ -66,6 +71,11 @@ name: Demo mode - offline scripted walkthrough (no server, zero-server activatio
     timeout: 10000
 - tapOn:
     text: ".*Edit src/components/LoginButton.tsx.*"
+- scrollUntilVisible:
+    element:
+      id: "diff-view-scroll"
+    direction: DOWN
+    timeout: 10000
 - assertVisible:
     id: "diff-view-scroll"
 - takeScreenshot: demo-S4_diff_view
