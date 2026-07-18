@@ -19,6 +19,7 @@ import type { ConnectionType } from "../../src/lib/types"
 import { probeConnection, shareReport } from "../../src/lib/diagnostics"
 import { captureDiagnostic } from "../../src/lib/sentry"
 import { parseUrl } from "../../src/lib/diagnostics-classify"
+import { buildAuth } from "../../src/lib/auth"
 
 // labelKey (not literal text): this is a module-level constant evaluated
 // before i18next is guaranteed ready, so the label is resolved with t() at
@@ -101,10 +102,7 @@ export default function EditConnectionScreen() {
     }
 
     // Failed: run active diagnostics, capture to Sentry, offer a shareable report.
-    const report = await probeConnection(
-      url.trim(),
-      username.trim() && password ? { username: username.trim(), password } : undefined,
-    )
+    const report = await probeConnection(url.trim(), buildAuth(username, password))
     captureDiagnostic(report)
     setIsTesting(false)
 
@@ -136,28 +134,36 @@ export default function EditConnectionScreen() {
     }
 
     setIsSaving(true)
-    await updateConnection(
-      connection.id,
-      {
-        name: name.trim(),
-        type,
-        url: url.trim(),
-        directory: directory.trim() || undefined,
-        username: username.trim() || undefined,
-      },
-      // Empty = keep existing password (the field loads blank); a typed value
-      // rotates it in SecureStore.
-      password || undefined,
-    )
-    // If this was the active connection, the SSE loop may have stopped
-    // retrying after a prior 401 (see events.ts) — reconnect now with the
-    // freshly saved credentials instead of leaving the user stuck until
-    // they relaunch the app.
-    if (useConnections.getState().activeConnection?.id === connection.id) {
-      useEvents.getState().connect()
+    try {
+      await updateConnection(
+        connection.id,
+        {
+          name: name.trim(),
+          type,
+          url: url.trim(),
+          directory: directory.trim() || undefined,
+          username: username.trim() || undefined,
+        },
+        // Empty = keep existing password (the field loads blank); a typed value
+        // rotates it in SecureStore.
+        password || undefined,
+      )
+      // If this was the active connection, the SSE loop may have stopped
+      // retrying after a prior 401 (see events.ts) — reconnect now with the
+      // freshly saved credentials instead of leaving the user stuck until
+      // they relaunch the app.
+      if (useConnections.getState().activeConnection?.id === connection.id) {
+        useEvents.getState().connect()
+      }
+      setIsSaving(false)
+      router.back()
+    } catch {
+      setIsSaving(false)
+      Alert.alert(
+        t("connection.shared.alerts.saveFailedTitle"),
+        t("connection.shared.alerts.saveFailedMessage"),
+      )
     }
-    setIsSaving(false)
-    router.back()
   }
 
   const handleDelete = () => {

@@ -110,6 +110,19 @@ test("internet up, root unreachable, no timeout -> server-unreachable", () => {
   assert.equal(r.classification, "server-unreachable")
 })
 
+test("root reachable but internet probe down still classifies as health-failed, not no-internet", () => {
+  // Regression: the user's own server responded (proving the path to it
+  // works — e.g. captive portal or no WAN but Tailscale LAN still up), so
+  // this must not be misreported as "no internet".
+  const r = classify(
+    okUrl,
+    probe({ ok: false, error: "HTTP 401", status: 401 }), // health
+    probe({ ok: false }), // internet (down)
+    probe({ ok: true }), // root (reachable)
+  )
+  assert.equal(r.classification, "health-failed")
+})
+
 test("server-unreachable adds MagicDNS hint only for hostnames, not IPs", () => {
   const fail = { internet: probe({ ok: true }), root: probe({ ok: false }) }
   const hostR = classify(parseUrl("http://box.ts.net:8080"), probe({ error: "refused" }), fail.internet, fail.root)

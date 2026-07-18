@@ -62,13 +62,17 @@ export function classify(
   if (isTls) {
     return { classification: "tls-error", summary: "TLS/certificate problem. Try http:// instead of https://, or fix the server certificate." }
   }
+  // The user's own server responded to *something* (even a 401/403/404) —
+  // that proves the path to the server works, so a failed public-internet
+  // probe (captive portal, no WAN but Tailscale LAN still up, etc.) must not
+  // override it and misreport a reachable server as "no internet".
+  if (root.ok) {
+    return { classification: "health-failed", summary: `Server is reachable but /global/health failed (HTTP ${health.status ?? "error"}). Likely wrong path, auth, or an old server version.` }
+  }
   if (!internet.ok) {
     return { classification: "no-internet", summary: "The device has no working internet/network at all (public check also failed). Check Wi-Fi/data and Tailscale (VPN) status." }
   }
   // Internet works, server does not.
-  if (root.ok) {
-    return { classification: "health-failed", summary: `Server is reachable but /global/health failed (HTTP ${health.status ?? "error"}). Likely wrong path, auth, or an old server version.` }
-  }
   if (isTimeout) {
     return { classification: "timeout", summary: "Connection to the server timed out (dropped, not refused). Likely a firewall, wrong port, or Tailscale ACL blocking the device." }
   }

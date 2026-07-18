@@ -146,7 +146,9 @@
         "invalidUrlTitle": "地址无效",
         "invalidUrlMessage": "请输入包含 http:// 或 https:// 的完整地址，例如 http://192.168.1.100:4096",
         "connectionFailedTitle": "连接失败",
-        "unknownError": "未知错误"
+        "unknownError": "未知错误",
+        "saveFailedTitle": "无法保存连接",
+        "saveFailedMessage": "连接测试成功，但保存失败，请重试。"
       }
     },
     "add": {

@@ -19,6 +19,7 @@ import type { ConnectionType } from "../../src/lib/types"
 import { probeConnection, shareReport } from "../../src/lib/diagnostics"
 import { captureDiagnostic } from "../../src/lib/sentry"
 import { parseUrl } from "../../src/lib/diagnostics-classify"
+import { buildAuth } from "../../src/lib/auth"
 import { AnalyticsEvent, track } from "../../src/lib/analytics"
 import { submitWaitlistSignup, buildWaitlistMailtoUrl } from "../../src/lib/waitlist"
 
@@ -75,14 +76,17 @@ export default function AddConnectionScreen() {
     track(AnalyticsEvent.ConnectionFormSubmitted, { mode: "quick" })
     setIsConnecting(true)
 
-    // Test connection first
+    // Test connection first. Quick Connect has no username field, so the
+    // connection is intentionally saved without one — buildAuth() defaults
+    // it to "opencode" wherever auth is built. Sending the `username` state
+    // here would leak a value typed earlier in Advanced mode (issue: Back to
+    // Quick silently overriding the default).
     const result = await testConnection(
       {
         id: "",
         name: name || t("connection.shared.namePlaceholder"),
         type: "local",
         url: serverUrl,
-        username: username.trim() || undefined,
       },
       "onboarding",
       password || undefined,
@@ -90,23 +94,27 @@ export default function AddConnectionScreen() {
 
     if (result.ok) {
       // Save and go back
-      await addConnection(
-        {
-          name: name.trim() || t("connection.shared.namePlaceholder"),
-          type: "local",
-          url: serverUrl,
-          username: username.trim() || undefined,
-        },
-        password || undefined,
-      )
-      setIsConnecting(false)
-      router.back()
+      try {
+        await addConnection(
+          {
+            name: name.trim() || t("connection.shared.namePlaceholder"),
+            type: "local",
+            url: serverUrl,
+          },
+          password || undefined,
+        )
+        setIsConnecting(false)
+        router.back()
+      } catch {
+        setIsConnecting(false)
+        Alert.alert(
+          t("connection.shared.alerts.saveFailedTitle"),
+          t("connection.shared.alerts.saveFailedMessage"),
+        )
+      }
     } else {
       // Failed: run active diagnostics, capture to Sentry, offer a shareable report.
-      const report = await probeConnection(
-        serverUrl,
-        username.trim() && password ? { username: username.trim(), password } : undefined,
-      )
+      const report = await probeConnection(serverUrl, buildAuth(undefined, password))
       captureDiagnostic(report)
       setIsConnecting(false)
       Alert.alert(
@@ -160,28 +168,33 @@ export default function AddConnectionScreen() {
     )
 
     if (result.ok) {
-      await addConnection(
-        {
-          name: name.trim(),
-          type,
-          url: url.trim(),
-          directory: directory.trim() || undefined,
-          username: username.trim() || undefined,
-        },
-        password || undefined,
-      )
-      setIsConnecting(false)
-      router.back()
+      try {
+        await addConnection(
+          {
+            name: name.trim(),
+            type,
+            url: url.trim(),
+            directory: directory.trim() || undefined,
+            username: username.trim() || undefined,
+          },
+          password || undefined,
+        )
+        setIsConnecting(false)
+        router.back()
+      } catch {
+        setIsConnecting(false)
+        Alert.alert(
+          t("connection.shared.alerts.saveFailedTitle"),
+          t("connection.shared.alerts.saveFailedMessage"),
+        )
+      }
       return
     }
 
     // Failed: same "Connection Failed" alert as Quick Connect — run active
     // diagnostics, capture to Sentry, and offer a shareable report instead of
     // silently persisting an unreachable/unauthorized connection.
-    const report = await probeConnection(
-      url.trim(),
-      username.trim() && password ? { username: username.trim(), password } : undefined,
-    )
+    const report = await probeConnection(url.trim(), buildAuth(username, password))
     captureDiagnostic(report)
     setIsConnecting(false)
     Alert.alert(

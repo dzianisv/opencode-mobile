@@ -57,3 +57,31 @@ test("empty-string directory is treated as absent (falsy)", () => {
   const h = buildRequestHeaders({ directory: "" })
   assert.equal("x-opencode-directory" in h, false)
 })
+
+// Hermes' `btoa` is Latin1-only and throws a RangeError on non-ASCII input.
+// The auth header must be built with a UTF-8-safe base64 helper so a
+// non-ASCII username/password never throws (which otherwise surfaces as an
+// unhandled rejection and a stuck connect spinner).
+
+test("ASCII credentials produce the exact same header as plain btoa (no behavior change)", () => {
+  const h = buildRequestHeaders({ auth: { username: "alice", password: "s3cret" } })
+  assert.equal(h["Authorization"], `Basic ${btoa("alice:s3cret")}`)
+})
+
+test("non-ASCII username does not throw and round-trips back to the credentials", () => {
+  const auth = { username: "usér", password: "s3cret" }
+  assert.doesNotThrow(() => buildRequestHeaders({ auth }))
+  const h = buildRequestHeaders({ auth })
+  const b64 = h["Authorization"].replace("Basic ", "")
+  const decoded = decodeURIComponent(escape(atob(b64)))
+  assert.equal(decoded, `${auth.username}:${auth.password}`)
+})
+
+test("non-ASCII password does not throw and round-trips back to the credentials", () => {
+  const auth = { username: "admin", password: "pässwörd123" }
+  assert.doesNotThrow(() => buildRequestHeaders({ auth }))
+  const h = buildRequestHeaders({ auth })
+  const b64 = h["Authorization"].replace("Basic ", "")
+  const decoded = decodeURIComponent(escape(atob(b64)))
+  assert.equal(decoded, `${auth.username}:${auth.password}`)
+})

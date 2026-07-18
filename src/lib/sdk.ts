@@ -245,6 +245,13 @@ async function fetchWithTimeout(url: string, options: RequestInit = {}, timeoutM
 }
 
 export function createClient(config: ClientConfig) {
+  // Normalize once: a trailing slash on baseUrl (e.g. pasted into Advanced
+  // mode or the Edit screen) would otherwise survive into every
+  // `${config.baseUrl}${path}` concatenation below as a double slash, which
+  // every request then fails against (while the diagnostics probe, which
+  // reconstructs a clean URL, reports "works now"). A bare URL with no
+  // trailing slash is untouched.
+  config = { ...config, baseUrl: config.baseUrl.replace(/\/+$/, "") }
   return {
     global: {
       // `timeoutMs` overrides the default REQUEST_TIMEOUT_MS — used by the
