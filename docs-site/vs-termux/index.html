@@ -436,9 +436,9 @@ OPENCODE_SERVER_PASSWORD=yourpassword opencode serve --hostname 0.0.0.0 --port 4
       happens:
     </p>
     <ol>
-      <li>The app opens an SSE stream to your opencode server's <code>/session/{id}/events</code> endpoint.</li>
-      <li>You type a prompt — the app posts it to <code>/session/{id}/chat</code>.</li>
-      <li>The server forwards the prompt to your configured LLM (Claude, GPT-4, a local model, whatever you set up).</li>
+      <li>The app opens an SSE stream to your opencode server's <code>/global/event</code> endpoint.</li>
+      <li>You type a prompt — the app posts it to <code>/session/{id}/prompt_async</code>.</li>
+      <li>The server forwards the prompt to your configured LLM (Claude, GPT, a local model, whatever you set up).</li>
       <li>Tokens stream back from the LLM to the server, and from the server over SSE to the app.</li>
       <li>When the agent proposes a file change, the app renders the diff and waits for your approve/reject tap.</li>
       <li>Your approval goes back to the server, which applies the change to the real filesystem.</li>

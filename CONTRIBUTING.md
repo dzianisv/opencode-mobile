@@ -84,7 +84,7 @@ You need a running [opencode](https://github.com/sst/opencode) server to test th
 
 ```bash
 # Install opencode
-npm install -g opencode
+npm install -g opencode-ai
 
 # Start it in server mode on all interfaces
 OPENCODE_SERVER_PASSWORD=devpassword opencode serve --hostname 0.0.0.0 --port 4096

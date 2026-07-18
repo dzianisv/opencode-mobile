@@ -36,13 +36,20 @@ export interface DiagnosticReport {
   timestamp: string
 }
 
-async function timedFetch(name: string, target: string, init?: RequestInit): Promise<ProbeAttempt> {
+// requireOk: whether a non-2xx HTTP response counts as a probe failure.
+// The health probe must actually succeed (2xx) to mean "the server works" —
+// otherwise a 401/403/404/500 response was being reported as ok:true, which
+// made classify() short-circuit to "connection actually works now" even when
+// auth failed or the server errored. The root probe only checks reachability
+// (any HTTP response, even an error status, proves something is listening).
+async function timedFetch(name: string, target: string, init?: RequestInit, opts?: { requireOk?: boolean }): Promise<ProbeAttempt> {
+  const requireOk = opts?.requireOk ?? true
   const start = Date.now()
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), PROBE_TIMEOUT_MS)
   try {
     const res = await fetch(target, { ...init, signal: controller.signal })
-    return { name, target, ok: true, status: res.status, durationMs: Date.now() - start }
+    return { name, target, ok: requireOk ? res.ok : true, status: res.status, durationMs: Date.now() - start }
   } catch (error: unknown) {
     const err = error as { name?: string; message?: string; cause?: unknown }
     const aborted = err?.name === "AbortError"
@@ -80,7 +87,7 @@ export async function probeConnection(url: string, auth?: { username: string; pa
     const base = `${parsed.scheme}://${parsed.host}:${parsed.port}`
     ;[health, root, internet] = await Promise.all([
       timedFetch("health", `${base}/global/health`, { headers }),
-      timedFetch("server-root", `${base}/`, { headers }),
+      timedFetch("server-root", `${base}/`, { headers }, { requireOk: false }),
       timedFetch("internet", INTERNET_CHECK_URL),
     ])
   } else {
