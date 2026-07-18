@@ -1,0 +1,6 @@
+v0.4.8 — Try it before you connect
+
+- New: tap "Try a demo" on the home screen to see OpenCode in action — chat, tool calls, code diffs, and approvals — without setting up a server first
+- Clearer first-time setup: the home and connect screens now explain that OpenCode needs a computer running `opencode serve` on your network (or via Tailscale), with a link to the setup guide
+- Faster feedback when a server can't be reached — no more long waits on a wrong address
+- Fixed the directory browser occasionally getting stuck on an empty "enter a path" state
