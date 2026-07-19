@@ -258,7 +258,7 @@
       "deleteMessage": "删除 \"{{title}}\"？",
       "deleteFailedTitle": "删除失败",
       "deleteFailedMessage": "无法删除该会话。请重试。",
-      "createFailedMessage": "无法在该目录中创建会话。"
+      "createFailedMessage": "创建会话失败。请检查网络连接后重试。"
     },
     "empty": {
       "noConnectionTitle": "无连接",

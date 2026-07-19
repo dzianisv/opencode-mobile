@@ -258,7 +258,7 @@
       "deleteMessage": "Delete \"{{title}}\"?",
       "deleteFailedTitle": "Delete failed",
       "deleteFailedMessage": "Could not delete the session. Please try again.",
-      "createFailedMessage": "Failed to create session in that directory."
+      "createFailedMessage": "Failed to create session. Check your connection and try again."
     },
     "empty": {
       "noConnectionTitle": "No Connection",

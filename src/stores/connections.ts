@@ -6,6 +6,7 @@ import { createClient, type Client, type Project } from "../lib/sdk"
 import { addBreadcrumb } from "../lib/sentry"
 import { AnalyticsEvent, classifyConnectionError, track, type ConnectionTestSource } from "../lib/analytics"
 import { buildAuth } from "../lib/auth"
+import { stripTrailingSlash } from "../lib/path-utils"
 
 const CONNECTIONS_KEY = "opencode_connections"
 const PASSWORDS_PREFIX = "opencode_password_"
@@ -345,8 +346,11 @@ export const useConnections = create<ConnectionsState>((set, get) => ({
   switchDirectory: async (directory) => {
     const active = get().activeConnection
     if (!active) return
-    // Update connection directory and recreate client
-    const dir = directory?.trim() || undefined
+    // Update connection directory and recreate client. Normalize trailing
+    // slashes so "/home/user" and "/home/user/" don't diverge (recent-dir
+    // duplicates + a mismatched "current directory" highlight).
+    const trimmed = directory?.trim()
+    const dir = trimmed ? stripTrailingSlash(trimmed) : undefined
     await get().updateConnection(active.id, { directory: dir })
     // Record in recents if it's a real directory
     if (dir) await get().addRecentDirectory(dir)
@@ -354,6 +358,9 @@ export const useConnections = create<ConnectionsState>((set, get) => ({
 
   addRecentDirectory: async (directory) => {
     const current = get().recentDirectories
+    // Normalize trailing slashes so the same dir entered as ".../x" and
+    // ".../x/" dedups to one recent-list entry instead of two.
+    directory = stripTrailingSlash(directory.trim())
     // Move to front, dedup, cap at MAX
     const updated = [directory, ...current.filter((d) => d !== directory)].slice(0, MAX_RECENT_DIRS)
     set({ recentDirectories: updated })

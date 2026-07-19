@@ -166,6 +166,10 @@ export default function SessionsScreen() {
   const [renaming, setRenaming] = useState<Session | null>(null)
   const [renameText, setRenameText] = useState("")
   const renamingInFlight = useRef(false)
+  // Synchronous re-entrancy guard: `isCreating` state lags by a render, so a
+  // fast double-tap on the FAB / "Use this folder" would fire two session
+  // creates before the disabled state lands. This blocks the second call.
+  const creatingInFlight = useRef(false)
   const [serverProjects, setServerProjects] = useState<Project[]>([])
 
   const { sessions, isLoading, error, loadSessions, createSession, deleteSession } = useSessions()
@@ -316,57 +320,67 @@ export default function SessionsScreen() {
   )
 
   const onCreateSession = async () => {
-    const session = await createSession()
-    if (session) {
-      router.push({
-        pathname: `/session/[id]`,
-        params: { id: session.id, ...(session.directory ? { directory: session.directory } : {}) },
-      })
+    if (creatingInFlight.current) return
+    creatingInFlight.current = true
+    try {
+      const session = await createSession()
+      if (session) {
+        router.push({
+          pathname: `/session/[id]`,
+          params: { id: session.id, ...(session.directory ? { directory: session.directory } : {}) },
+        })
+      } else {
+        Alert.alert(t("common.error"), t("sessionsList.alerts.createFailedMessage"))
+      }
+    } finally {
+      creatingInFlight.current = false
     }
   }
 
   const onCreateInDirectory = async (dir?: string) => {
     if (!activeConnection) return
-
+    if (creatingInFlight.current) return
+    creatingInFlight.current = true
     setIsCreating(true)
 
-    // If a custom directory is specified, use a one-off client for that directory
-    // so we don't mutate the connection's default project
-    if (dir && dir.trim()) {
-      const dirClient = clientForDirectory(dir.trim())
-      if (!dirClient) {
-        setIsCreating(false)
+    try {
+      // If a custom directory is specified, use a one-off client for that directory
+      // so we don't mutate the connection's default project
+      if (dir && dir.trim()) {
+        const dirClient = clientForDirectory(dir.trim())
+        if (!dirClient) return
+        try {
+          const session = await dirClient.session.create({})
+          addRecentDirectory(dir.trim())
+          setShowNewSession(false)
+          setCustomDir("")
+          if (session) {
+            router.push({
+              pathname: `/session/[id]`,
+              params: { id: session.id, ...(session.directory ? { directory: session.directory } : {}) },
+            })
+          }
+        } catch (error) {
+          console.error("Failed to create session in directory:", error)
+          Alert.alert(t("common.error"), t("sessionsList.alerts.createFailedMessage"))
+        }
         return
       }
-      try {
-        const session = await dirClient.session.create({})
-        addRecentDirectory(dir.trim())
-        setIsCreating(false)
-        setShowNewSession(false)
-        setCustomDir("")
-        if (session) {
-          router.push({
-            pathname: `/session/[id]`,
-            params: { id: session.id, ...(session.directory ? { directory: session.directory } : {}) },
-          })
-        }
-      } catch (error) {
-        console.error("Failed to create session in directory:", error)
-        Alert.alert(t("common.error"), t("sessionsList.alerts.createFailedMessage"))
-        setIsCreating(false)
-      }
-      return
-    }
 
-    const session = await createSession()
-    setIsCreating(false)
-    setShowNewSession(false)
-    setCustomDir("")
-    if (session) {
-      router.push({
-        pathname: `/session/[id]`,
-        params: { id: session.id, ...(session.directory ? { directory: session.directory } : {}) },
-      })
+      const session = await createSession()
+      setShowNewSession(false)
+      setCustomDir("")
+      if (session) {
+        router.push({
+          pathname: `/session/[id]`,
+          params: { id: session.id, ...(session.directory ? { directory: session.directory } : {}) },
+        })
+      } else {
+        Alert.alert(t("common.error"), t("sessionsList.alerts.createFailedMessage"))
+      }
+    } finally {
+      creatingInFlight.current = false
+      setIsCreating(false)
     }
   }
 

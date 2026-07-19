@@ -108,7 +108,11 @@ export const useAuth = create<AuthState>((set, get) => ({
     const { settings, hasBiometrics, isAuthenticated } = get()
 
     if (!isAuthenticated) return false
-    if (!settings.requireBiometricForMessages || !hasBiometrics) return true
+    // The per-message lock is a sub-feature of the app-lock: only enforce it
+    // when the parent "Require biometric to open" is also on. Otherwise, after
+    // turning the parent off, the (now-disabled) messages toggle could stay
+    // stuck ON and keep prompting on every send with no way to clear it.
+    if (!settings.requireBiometric || !settings.requireBiometricForMessages || !hasBiometrics) return true
 
     try {
       const result = await LocalAuthentication.authenticateAsync({
