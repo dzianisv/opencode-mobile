@@ -188,19 +188,20 @@ jobs:
           path: artifacts/screenshots/*.png
           if-no-files-found: warn
 
+      - name: Package maestro debug + logcat
+        if: always()
+        run: |
+          if [ -d artifacts/diag ]; then
+            tar -C artifacts -czf artifacts/activation-e2e-debug.tar.gz diag
+          fi
+
       - name: Upload maestro debug + logcat
         if: always()
         uses: actions/upload-artifact@v7
         with:
           name: activation-e2e-debug-${{ github.run_number }}
-          path: |
-            artifacts/diag/**
+          path: artifacts/activation-e2e-debug.tar.gz
           if-no-files-found: warn
-          # Maestro's --debug-output nests the UI-hierarchy dump under a
-          # hidden `.maestro/tests/<timestamp>/` directory. upload-artifact
-          # excludes dotfiles/dot-directories by default, so every prior run
-          # silently uploaded only logcat.txt/probe.txt and dropped the
-          # actual hierarchy dumps we need to diagnose flow failures (issue
-          # #104) — this was invisible because if-no-files-found: warn
-          # doesn't fail the step when SOME files still match.
-          include-hidden-files: true
+          # Archiving preserves Maestro's hidden `.maestro` hierarchy and
+          # prevents upload-artifact from validating generated directory names
+          # such as "consent -> connect", whose `>` character is rejected.
