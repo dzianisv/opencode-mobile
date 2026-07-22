@@ -1,0 +1,5 @@
+v0.4.11 — Release reliability fix
+
+• Aligns Android version metadata across every build path.
+• Ensures Google Play, direct APK, and F-Droid packages report the same version.
+• No runtime behavior changed.
