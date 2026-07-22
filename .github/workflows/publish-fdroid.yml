@@ -46,6 +46,9 @@ jobs:
       - name: Install dependencies
         run: npm install --legacy-peer-deps
 
+      - name: Check release version metadata
+        run: npm run check:versions
+
       - name: Set Sentry release identifiers
         # sentry.gradle (applied from android/app/build.gradle) defaults the
         # upload's --release/--dist to `${applicationId}@${versionName}+${versionCode}`,

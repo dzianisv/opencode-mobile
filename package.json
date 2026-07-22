@@ -9,6 +9,7 @@
     "ios": "expo run:ios",
     "android": "expo run:android",
     "typecheck": "tsc --noEmit",
+    "check:versions": "node scripts/check-version-parity.mjs",
     "test": "node --test 'src/**/*.test.ts'"
   },
   "dependencies": {

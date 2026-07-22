@@ -23,6 +23,9 @@ jobs:
       - name: Install dependencies
         run: npm install --legacy-peer-deps
 
+      - name: Check release version metadata
+        run: npm run check:versions
+
       - name: Typecheck
         run: npm run typecheck
 
