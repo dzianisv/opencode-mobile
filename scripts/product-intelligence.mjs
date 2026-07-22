@@ -15,11 +15,12 @@ const SENTRY_API = "https://sentry.io/api/0"
 const SELF_WORKFLOW_PATH = ".github/workflows/product-intelligence.yml"
 const SELF_WORKFLOW_NAME = "Daily Product Intelligence"
 
-export function workflowFailures(runs, now) {
+export function workflowFailures(runs, now, branch) {
   const recentRuns = recent(runs, "created_at", now - WEEK).filter((run) => {
     const path = String(run.path ?? "").split("@")[0]
     const name = String(run.name ?? "")
-    return run.conclusion && path !== SELF_WORKFLOW_PATH && name !== SELF_WORKFLOW_NAME
+    const selectedBranch = !branch || run.head_branch === branch
+    return run.conclusion && selectedBranch && path !== SELF_WORKFLOW_PATH && name !== SELF_WORKFLOW_NAME
   })
   const workflows = new Map()
   for (const run of recentRuns) {
@@ -127,7 +128,7 @@ export async function collectGithub(token, repo, now) {
   )
   const issueCount = Number(issues.data.total_count ?? 0)
   const runs = workflows.data.workflow_runs ?? []
-  const failures = workflowFailures(runs, now)
+  const failures = workflowFailures(runs, now, repository.data.default_branch)
 
   return available({
     stars: Number(repository.data.stargazers_count ?? 0),

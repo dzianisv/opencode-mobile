@@ -6,7 +6,7 @@ import { collectSentry, workflowFailures } from "./product-intelligence.mjs"
 const now = Date.parse("2026-07-22T12:00:00Z")
 
 function run(path, conclusion, hours) {
-  return { path, conclusion, created_at: new Date(now - hours * 60 * 60 * 1000).toISOString() }
+  return { path, conclusion, head_branch: "main", created_at: new Date(now - hours * 60 * 60 * 1000).toISOString() }
 }
 
 test("recovered workflow failures do not remain active", () => {
@@ -36,6 +36,16 @@ test("self-monitor runs with ref-qualified paths are excluded", () => {
   ], now)
 
   assert.deepEqual(result, { failedRuns7d: 0, activeFailureStreaks: 0 })
+})
+
+test("failures outside the monitored default branch are ignored", () => {
+  const first = { ...run(".github/workflows/android.yml", "failure", 1), head_branch: "feature" }
+  const second = { ...run(".github/workflows/android.yml", "failure", 2), head_branch: "feature" }
+
+  assert.deepEqual(workflowFailures([first, second], now, "main"), {
+    failedRuns7d: 0,
+    activeFailureStreaks: 0,
+  })
 })
 
 test("Sentry zero issues is available data, not unavailable", async (context) => {
