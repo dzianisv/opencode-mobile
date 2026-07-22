@@ -15,6 +15,33 @@ const SENTRY_API = "https://sentry.io/api/0"
 const SELF_WORKFLOW_PATH = ".github/workflows/product-intelligence.yml"
 const SELF_WORKFLOW_NAME = "Daily Product Intelligence"
 
+export function workflowFailures(runs, now) {
+  const recentRuns = recent(runs, "created_at", now - WEEK).filter((run) => {
+    const path = String(run.path ?? "").split("@")[0]
+    const name = String(run.name ?? "")
+    return run.conclusion && path !== SELF_WORKFLOW_PATH && name !== SELF_WORKFLOW_NAME
+  })
+  const workflows = new Map()
+  for (const run of recentRuns) {
+    const key = String(run.workflow_id ?? run.path ?? run.name ?? "unknown")
+    const values = workflows.get(key) ?? []
+    values.push(run)
+    workflows.set(key, values)
+  }
+
+  let failedRuns7d = 0
+  let activeFailureStreaks = 0
+  for (const values of workflows.values()) {
+    values.sort((left, right) => Date.parse(right.created_at ?? "") - Date.parse(left.created_at ?? ""))
+    failedRuns7d += values.filter((run) => run.conclusion === "failure").length
+    const streak = values.findIndex((run) => run.conclusion !== "failure")
+    const failures = streak === -1 ? values.length : streak
+    if (failures >= 2) activeFailureStreaks += 1
+  }
+
+  return { failedRuns7d, activeFailureStreaks }
+}
+
 function args(values) {
   const result = {}
   for (let index = 0; index < values.length; index += 2) {
@@ -76,7 +103,7 @@ function recent(values, key, since) {
   return values.filter((value) => Date.parse(value[key] ?? "") >= since)
 }
 
-async function collectGithub(token, repo, now) {
+export async function collectGithub(token, repo, now) {
   if (!token) return unavailable("GITHUB_TOKEN is not set")
   const headers = githubHeaders(token)
   const base = `${GITHUB_API}/repos/${repo}`
@@ -100,21 +127,15 @@ async function collectGithub(token, repo, now) {
   )
   const issueCount = Number(issues.data.total_count ?? 0)
   const runs = workflows.data.workflow_runs ?? []
-  const failedWorkflowRuns7d = recent(runs, "created_at", now - WEEK).filter((run) => {
-    if (run.conclusion !== "failure") return false
-    const path = String(run.path ?? "")
-    const name = String(run.name ?? "")
-    // Exclude this workflow itself (see SELF_WORKFLOW_* above).
-    if (path === SELF_WORKFLOW_PATH || name === SELF_WORKFLOW_NAME) return false
-    return true
-  }).length
+  const failures = workflowFailures(runs, now)
 
   return available({
     stars: Number(repository.data.stargazers_count ?? 0),
     forks: Number(repository.data.forks_count ?? 0),
     openIssues: issueCount,
     releaseDownloads,
-    failedWorkflowRuns7d,
+    failedWorkflowRuns7d: failures.failedRuns7d,
+    activeWorkflowFailureStreaks: failures.activeFailureStreaks,
     traffic: {
       views:
         views.status === "available"
@@ -134,7 +155,7 @@ async function collectGithub(token, repo, now) {
   })
 }
 
-async function collectSentry(token, organization, project, now) {
+export async function collectSentry(token, organization, project, now) {
   if (!token || !organization || !project) {
     return unavailable("SENTRY_AUTH_TOKEN, SENTRY_ORG, or SENTRY_PROJECT is not set")
   }
@@ -206,6 +227,7 @@ function render(report) {
     `| GitHub repository views (14-day window) | ${github ? trafficMetric(github.traffic.views) : "unavailable"} |`,
     `| GitHub repository clones (14-day window) | ${github ? trafficMetric(github.traffic.clones) : "unavailable"} |`,
     `| Failed GitHub workflow runs (7 days) | ${github ? metric(github.failedWorkflowRuns7d) : "unavailable"} |`,
+    `| Workflows with an active failure streak (2+ latest runs) | ${github ? metric(github.activeWorkflowFailureStreaks) : "unavailable"} |`,
     `| Sentry unresolved issues returned (14-day query, max 100) | ${sentry ? metric(sentry.unresolvedIssues) : "unavailable"} |`,
     `| Sentry newly seen issues returned (24 hours, max 100) | ${sentry ? metric(sentry.newIssues24h) : "unavailable"} |`,
     `| Sentry newly seen issues returned (7 days, max 100) | ${sentry ? metric(sentry.newIssues7d) : "unavailable"} |`,
@@ -224,7 +246,7 @@ function render(report) {
     "",
     "## Triage rule",
     "",
-    "A single deduplicated implementation issue is created only when at least one Sentry issue is newly seen in 24 hours or two or more non-monitor GitHub workflow runs failed in seven days. This report intentionally contains no raw diagnostic, review, request, or user-generated content.",
+    "A single deduplicated implementation issue is created only when at least one Sentry issue is newly seen in 24 hours or a non-monitor GitHub workflow's latest two or more runs failed consecutively. Historical failures followed by a successful run remain visible in metrics but do not trigger an issue. This report intentionally contains no raw diagnostic, review, request, or user-generated content.",
   ]
   return `${lines.join("\n")}\n`
 }
@@ -249,7 +271,7 @@ async function main() {
   const sentryDegraded = isSentryProvisioningGap(sentry)
   const signals = []
   if (sentryData?.newIssues24h >= 1) signals.push("new-sentry-issue")
-  if (githubData?.failedWorkflowRuns7d >= 2) signals.push("repeated-workflow-failure")
+  if (githubData?.activeWorkflowFailureStreaks >= 1) signals.push("repeated-workflow-failure")
 
   const report = {
     date,
@@ -283,8 +305,10 @@ async function main() {
   }
 }
 
-main().catch((error) => {
-  const message = error instanceof Error ? error.message : String(error)
-  console.error(`Product intelligence failed: ${message}`)
-  process.exitCode = 1
-})
+if (import.meta.url === `file://${process.argv[1]}`) {
+  main().catch((error) => {
+    const message = error instanceof Error ? error.message : String(error)
+    console.error(`Product intelligence failed: ${message}`)
+    process.exitCode = 1
+  })
+}

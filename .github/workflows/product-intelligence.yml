@@ -26,6 +26,9 @@ jobs:
         with:
           node-version: 24
 
+      - name: Test product-signal classification
+        run: node --test scripts/product-intelligence.test.mjs
+
       - name: Collect aggregate product signals
         id: collect
         continue-on-error: true
