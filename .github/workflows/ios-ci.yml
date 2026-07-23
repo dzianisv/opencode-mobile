@@ -10,21 +10,16 @@
 
 name: iOS CI
 
+# NOTE: no paths-ignore here. "Typecheck and unit tests" is a REQUIRED status
+# check in branch protection; a path-filtered required check never runs on
+# docs-only PRs, leaving them permanently BLOCKED. Running the cheap Linux
+# typecheck/test job (and the gated macOS build) on every PR keeps the required
+# check satisfiable. See #143 (docs PR stuck) for why.
 on:
   pull_request:
     branches: [main]
-    paths-ignore:
-      - "**/*.md"
-      - "docs/**"
-      - "docs-site/**"
-      - "distribution/**"
   push:
     branches: [main]
-    paths-ignore:
-      - "**/*.md"
-      - "docs/**"
-      - "docs-site/**"
-      - "distribution/**"
 
 # Cancel superseded runs for the same ref (e.g. new push to an open PR).
 concurrency:
