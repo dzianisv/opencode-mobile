@@ -1,3 +1,3 @@
-v0.4.11 — Release reliability fix
+v0.4.12 — Global recent sessions
 
-This maintenance release aligns Android version metadata across every build path so Google Play, direct APK, and F-Droid packages report the same version. No runtime behavior changed.
+Recent Sessions now shows every session across all your projects automatically — no need to pick a folder or directory first. The list is populated globally as soon as you connect, and falls back to per-directory listing on older servers.
