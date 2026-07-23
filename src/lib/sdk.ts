@@ -6,6 +6,7 @@ import { fetch as expoFetch } from "expo/fetch"
 import { buildRequestHeaders } from "./headers"
 import { SSEParser } from "./sse"
 import { apiErrorFor } from "./api-error"
+import { loadSessionList } from "./session-list"
 import type { FileRoot } from "./file-roots"
 
 export { ApiAuthError, isAuthError } from "./api-error"
@@ -342,14 +343,33 @@ export function createClient(config: ClientConfig) {
     },
 
     session: {
-      list: (params?: { roots?: boolean; limit?: number; search?: string }) => {
-        const query = new URLSearchParams()
-        if (params?.roots) query.set("roots", "true")
-        if (params?.limit) query.set("limit", String(params.limit))
-        if (params?.search) query.set("search", params.search)
-        const qs = query.toString()
-        return request<Session[]>(config, `/session${qs ? `?${qs}` : ""}`)
-      },
+      // Prefer the GLOBAL experimental endpoint (all sessions across every
+      // directory) so the Recent Sessions list works without the user first
+      // picking a folder — a directory-less GET /session is directory-scoped
+      // and returns [] on servers whose active dir has no sessions. Shaping
+      // (roots filter, search, sort-by-updated, limit) happens client-side in
+      // loadSessionList; we fetch /experimental/session with no query params
+      // because the server applies `limit` before we can filter to roots.
+      // Falls back to the legacy /session path only on 404 (older servers).
+      list: (params?: { roots?: boolean; limit?: number; search?: string }): Promise<Session[]> =>
+        loadSessionList(
+          {
+            getExperimental: async (): Promise<Session[] | null> => {
+              const response = await fetchWithTimeout(`${config.baseUrl}/experimental/session`, {
+                headers: createHeaders(config),
+              })
+              // Older servers lack this route — signal fallback to legacy /session.
+              if (response.status === 404) return null
+              if (!response.ok) {
+                const body = await response.text()
+                throw apiErrorFor(response.status, `API Error: ${response.status} - ${body}`)
+              }
+              return response.json()
+            },
+            getLegacy: (query) => request<Session[]>(config, `/session${query}`),
+          },
+          params,
+        ),
 
       get: (sessionID: string) => request<Session>(config, `/session/${sessionID}`),
 
