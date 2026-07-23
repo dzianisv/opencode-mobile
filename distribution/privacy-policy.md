@@ -1,10 +1,10 @@
 # OpenCode Mobile — Privacy Policy
 
-**Effective date:** 2026-07-18
+**Effective date:** 2026-07-23
 **Operator:** VIBE TECHNOLOGIES, LLC
 **App:** OpenCode Mobile (`cc.agentlabs.opencode`)
 
-> **Summary:** OpenCode Mobile does not collect your code, prompts, AI responses, server URLs, or any chat content. All AI traffic goes directly from the app to your own opencode server. With your consent, we use Sentry for anonymous crash diagnostics, PostHog for anonymous usage analytics, and — only when you tap "Share Report" — deliver a scrubbed copy of that diagnostic report to our support inbox.
+> **Summary:** OpenCode Mobile does not collect your code, prompts, AI responses, server URLs, or any chat content. All AI traffic goes directly from the app to your own opencode server. With your consent, we use Sentry for anonymous crash diagnostics, PostHog for anonymous usage analytics, and — only when you tap "Share Report" — deliver a scrubbed copy of that diagnostic report to our support inbox. If you choose to join the optional "OpenCode Connect" waitlist, we collect the email address you submit and share it with Brevo to notify you at launch.
 
 ---
 
@@ -26,10 +26,13 @@ We never collect, transmit to our servers, or share with third parties:
 - Your prompts, chat messages, or AI responses
 - Your opencode server URL, IP address, or hostname
 - Authentication tokens, API keys, or credentials you enter
-- Account information, email addresses, or names
+- Account information or names
 - Location data
 - Photos, microphone recordings, or camera data (these go only to your own server if you attach them to a message)
 - Contacts, calendar, or any other personal data
+
+The one exception is your **email address**, and only if you choose to type
+it in and join the optional "OpenCode Connect" waitlist — see section 3c below.
 
 All communication between the app and your AI coding agent travels directly between your device and your self-hosted opencode server. VIBE TECHNOLOGIES, LLC never sees this traffic.
 
@@ -93,6 +96,20 @@ Sharing a report is always a manual, explicit action — it is never sent automa
 
 ---
 
+## 3c. Data We Do Collect (Optional Waitlist Signup)
+
+The **Connect** screen offers an optional waitlist for **OpenCode Connect**, our not-yet-launched hosted opencode service. If you choose to type in your email address and tap **Join waitlist**, we collect that email address and send it to **Brevo**, a third-party email marketing/CRM platform, so we can add you to the waitlist and notify you when the hosted service becomes available.
+
+This is entirely separate from — and independent of — the crash-reporting/analytics consent toggle described in section 4. It only happens if you open the waitlist card and submit an email; if you never do, no email address is ever collected.
+
+| Data type | What is collected | Shared with | Purpose |
+|---|---|---|---|
+| Email address | The email address you type into the waitlist field | Brevo (email marketing/CRM platform) | Notify you when OpenCode Connect launches; waitlist/account management |
+
+We do not use this email address for any other purpose (no other marketing, no ads, no sale or rental to any other party). To unsubscribe or request deletion, use the unsubscribe link in any waitlist email, or email support@agentlabs.cc.
+
+---
+
 ## 4. Consent and Control
 
 Crash reporting, usage analytics, and support-inbox delivery of shared reports are all **opt-in and off by default**, controlled by a single consent decision. On first launch you will see a consent prompt. You can change this at any time:
@@ -104,14 +121,17 @@ Crash reporting, usage analytics, and support-inbox delivery of shared reports a
 
 ## 5. Third-Party Services
 
-We use two third-party services, both consent-gated:
+We use three third-party services:
 
-- **Sentry** — crash and error monitoring.
+- **Sentry** — crash and error monitoring (consent-gated).
   - Privacy policy: https://sentry.io/privacy/
   - Data is sent to Sentry's US-based servers and retained for approximately 90 days per Sentry's default data-retention policy.
-- **PostHog** — anonymous usage analytics (the activation-funnel events listed in section 3a).
+- **PostHog** — anonymous usage analytics (the activation-funnel events listed in section 3a; consent-gated).
   - Privacy policy: https://posthog.com/privacy
   - Data is sent to PostHog's EU-region servers (`eu.i.posthog.com`).
+- **Brevo** — email marketing/CRM platform used only if you join the optional OpenCode Connect waitlist described in section 3c. This is a separate, independent action from the consent toggle above — nothing is sent to Brevo unless you submit an email to the waitlist form.
+  - Privacy policy: https://www.brevo.com/legal/privacypolicy/
+  - Data sent: only the email address you submit to the waitlist form.
 
 We use no advertising networks, social SDKs, or any other third-party data collection services. The app contains no ads and no ad SDKs.
 
@@ -121,7 +141,7 @@ We also operate our own **Chatwoot** support-inbox instance (`support.agentlabs.
 
 ## 6. Data Retention
 
-Crash reports sent to Sentry are retained for approximately 90 days, after which they are automatically deleted per Sentry's retention defaults. Usage analytics events sent to PostHog are retained per PostHog's standard retention policy. Shared support reports delivered to our Chatwoot inbox are retained until the associated support conversation is resolved and periodically purged thereafter; email support@agentlabs.cc to request earlier deletion of a specific report.
+Crash reports sent to Sentry are retained for approximately 90 days, after which they are automatically deleted per Sentry's retention defaults. Usage analytics events sent to PostHog are retained per PostHog's standard retention policy. Shared support reports delivered to our Chatwoot inbox are retained until the associated support conversation is resolved and periodically purged thereafter; email support@agentlabs.cc to request earlier deletion of a specific report. Waitlist email addresses submitted via the optional OpenCode Connect waitlist are retained in Brevo until you unsubscribe or request deletion.
 
 Beyond that support inbox, we do not operate our own servers that store your data; there is no other VIBE TECHNOLOGIES back end involved in normal app usage.
 
@@ -131,8 +151,8 @@ Beyond that support inbox, we do not operate our own servers that store your dat
 
 You have the right to:
 
-- **Opt out** — disable crash reporting, usage analytics, and support-inbox delivery of shared reports at any time in Settings → Privacy.
-- **Request deletion** — email support@agentlabs.cc with subject "Data deletion request" and we will request deletion of any crash events (Sentry), analytics events (PostHog), and shared support-report conversations (Chatwoot) associated with your device.
+- **Opt out** — disable crash reporting, usage analytics, and support-inbox delivery of shared reports at any time in Settings → Privacy. Unsubscribe from the waitlist at any time using the link in any waitlist email.
+- **Request deletion** — email support@agentlabs.cc with subject "Data deletion request" and we will request deletion of any crash events (Sentry), analytics events (PostHog), shared support-report conversations (Chatwoot), and waitlist email records (Brevo) associated with your device or email address.
 - **Access** — request a summary of what diagnostic data (if any) we hold about your device by emailing the same address.
 
 Residents of the EU/EEA/UK may exercise rights under GDPR/UK GDPR. California residents may exercise rights under the CCPA.
@@ -189,7 +209,8 @@ The following table maps our data practices to Apple's official App Privacy cate
 
 | Apple Category | Sub-category | Collected? | Linked to identity? | Used for tracking? |
 |---|---|---|---|---|
-| Contact Info | Name, email, phone, address | No | N/A | No |
+| Contact Info | Name, phone, address | No | N/A | No |
+| Contact Info | Email Address | Yes — only if you join the optional OpenCode Connect waitlist and submit your email | Yes — the email itself identifies you and is stored in Brevo to contact you about the waitlist | No |
 | Health & Fitness | Any | No | N/A | No |
 | Financial Info | Any | No | N/A | No |
 | Location | Precise or coarse | No | N/A | No |
@@ -207,6 +228,6 @@ The following table maps our data practices to Apple's official App Privacy cate
 | Diagnostics | Other Diagnostic Data | Yes (shared support reports delivered to our Chatwoot inbox, only when the user taps "Share Report" with consent) | No | No |
 
 **Summary for App Store Connect App Privacy section**:
-- Data Linked to You: **None**
+- Data Linked to You: **Email Address** (only if you join the optional OpenCode Connect waitlist)
 - Data Not Linked to You: **Crash Data, Performance Data** (Sentry diagnostics, when user consents), **Product Interaction** (PostHog activation events, when user consents), **Other Diagnostic Data** (shared support reports via Chatwoot, when user consents)
 - Tracking: **No**
