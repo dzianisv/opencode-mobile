@@ -544,6 +544,16 @@ export function createMockOpencodeServer(opts: MockServerOptions) {
       messagesBySession.set(id, [])
       return json(res, 200, session)
     }
+    // Global "all sessions across every directory" list, mirroring the real
+    // opencode server's GET /experimental/session. This is the endpoint the
+    // client now PREFERS (src/lib/sdk.ts session.list -> loadSessionList): on a
+    // real server a directory-less GET /session is directory-scoped and returns
+    // [] when the active dir has no sessions, so the Recent Sessions list was
+    // empty until the user picked a folder. /experimental/session always
+    // returns every session, ignoring the x-opencode-directory header.
+    if (method === "GET" && path === "/experimental/session") {
+      return json(res, 200, Array.from(sessions.values()))
+    }
     if (method === "GET" && path === "/session") {
       // Directory-less "all sessions across all projects" list: the app's
       // loadSessions() (src/stores/sessions.ts) uses clientForDirectory(undefined)
@@ -551,6 +561,8 @@ export function createMockOpencodeServer(opts: MockServerOptions) {
       // session.list). Only that combination returns sessions from every
       // directory; otherwise the list is scoped to the request's directory, so
       // directory-scoped and directory-less clients are actually distinguishable.
+      // NOTE: this legacy path remains the 404-fallback for older servers that
+      // predate /experimental/session.
       if (url.searchParams.get("roots") === "true") {
         return json(res, 200, Array.from(sessions.values()))
       }
