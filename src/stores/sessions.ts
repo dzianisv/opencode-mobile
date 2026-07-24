@@ -6,6 +6,7 @@ import { addBreadcrumb } from "../lib/sentry"
 import { AnalyticsEvent, track } from "../lib/analytics"
 import { extractPromptFromParts, type PromptFromParts } from "../lib/prompt-from-parts"
 import { mergeIncomingMessage } from "../lib/message-merge"
+import { isColdSessionLoad, isLiveEventForSession } from "../lib/session-load-reconcile"
 
 // Helper to convert API response to our internal format
 function parseMessages(response: MessageWithParts[]): { messages: Message[]; parts: Record<string, Part[]> } {
@@ -128,10 +129,21 @@ export const useSessions = create<SessionsState>((set, get) => ({
 
     const seq = ++selectSeq
     addBreadcrumb({ category: "session", message: "select", data: { sessionID, hasDirectory: Boolean(directory) } })
+    // Re-selecting the session already shown on screen (e.g. #121's
+    // useFocusEffect resync firing again on re-entry) is a background
+    // refresh, not a cold load: the screen already has this session's
+    // messages, and live SSE updates keep flowing to them the whole time.
+    // Forcing isLoading back to true here would hide the entire
+    // conversation — including anything streaming in live right now —
+    // behind a spinner for as long as this redundant fetch takes, and if it
+    // stalls (flaky network), the screen looks permanently stuck "loading"
+    // until the user backs out and re-enters (issue #150). Only a
+    // genuinely new/different session needs the blocking spinner.
+    const isColdLoad = isColdSessionLoad(get().currentSession?.id, sessionID)
     try {
       // Reset optimistic sending — SSE sessionStatus is the source of truth
       set((state) => ({
-        isLoading: true,
+        isLoading: isColdLoad ? true : state.isLoading,
         error: null,
         hasMore: false,
         loadingMore: false,
@@ -409,9 +421,16 @@ export const useSessions = create<SessionsState>((set, get) => ({
     switch (event.type) {
       case "message.updated": {
         const message = (props.info || props.message) as Message | undefined
-        if (!message || message.sessionID !== currentSession.id) return
+        if (!message || !isLiveEventForSession(message.sessionID, currentSession.id)) return
 
-        set((state) => ({ messages: mergeIncomingMessage(state.messages, message) }))
+        set((state) => ({
+          messages: mergeIncomingMessage(state.messages, message),
+          // A live update for the session on screen is proof it has content
+          // to show — clear any stuck spinner even if the initial (or a
+          // redundant re-focus) GET hasn't resolved yet, or never does
+          // (issue #150). Only ever clears, never sets it back to true.
+          isLoading: false,
+        }))
         break
       }
 
@@ -431,6 +450,9 @@ export const useSessions = create<SessionsState>((set, get) => ({
                 ? messageParts.map((p) => (p.id === part.id ? part : p))
                 : [...messageParts, part],
             },
+            // See message.updated above — a live part update is just as
+            // much proof of life as a message update.
+            isLoading: false,
           }
         })
         break
@@ -453,6 +475,7 @@ export const useSessions = create<SessionsState>((set, get) => ({
         set((state) => ({
           sessions: state.sessions.map((s) => (s.id === session.id ? session : s)),
           currentSession: state.currentSession?.id === session.id ? session : state.currentSession,
+          isLoading: isLiveEventForSession(session.id, state.currentSession?.id) ? false : state.isLoading,
         }))
         break
       }
