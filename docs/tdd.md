@@ -7,8 +7,8 @@
 
 | Layer | Choice | Notes |
 | ----- | ------ | ----- |
-| Runtime | React Native 0.81 + Hermes | New architecture / Fabric on by default via Expo SDK 54 |
-| Framework | Expo SDK 54 + Expo Router 6 | File-based routing under `app/`; typed routes enabled |
+| Runtime | React Native 0.86 + Hermes | New architecture / Fabric on by default via Expo SDK 57 |
+| Framework | Expo SDK 57 + Expo Router 57 | File-based routing under `app/`; typed routes enabled |
 | State | Zustand 5 | Plain stores, no provider tree. Avoids redux boilerplate. |
 | Server data | hand-rolled SDK (`fetch` + zustand stores) | SSE is hand-rolled (RN's `EventSource` is unreliable). |
 | Persistence | `expo-secure-store` (Keychain / Keystore) | All connection URLs + passwords. |

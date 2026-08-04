@@ -1,12 +1,12 @@
 // Minimal opencode-server protocol stub used by the Maestro activation E2E flows
-// (.maestro/flows/activation-*.yaml). It is NOT a real opencode server — it
+// (.maestro/flows/activation-*.yaml). It is NOT a real opencode server â€” it
 // implements just enough of the REST + Server-Sent-Events surface that the
 // mobile client (src/lib/sdk.ts) actually talks to, so the app can genuinely
 // go through connect -> create session -> send message -> receive a streamed
 // reply against something real instead of a live server.
 //
 // Protocol notes (read from src/lib/sdk.ts / src/stores/connections.ts /
-// src/stores/events.ts — NOT guessed):
+// src/stores/events.ts â€” NOT guessed):
 //   - There is no WebSocket anywhere in the client. "Connect" = one GET
 //     /global/health call (src/stores/connections.ts testConnection()).
 //   - Real-time updates (including the assistant's streamed reply) arrive via
@@ -26,10 +26,10 @@
 //     it from GET /session/:id/message.
 //
 // Also implements the surface the newer flows need (DirectoryBrowserSheet,
-// all-sessions across directories, VariantPicker — see
+// all-sessions across directories, VariantPicker â€” see
 // .maestro/flows/directory-picker.yaml / all-sessions.yaml / variant-picker.yaml):
 //   - GET /file (directory-scoped via the x-opencode-directory header, NOT the
-//     literal ?path= query — see src/lib/headers.ts) -> FAKE_FILE_TREE below.
+//     literal ?path= query â€” see src/lib/headers.ts) -> FAKE_FILE_TREE below.
 //   - GET /project -> FAKE_SERVER_PROJECTS, for the "Server Projects" section.
 //   - POST /session honors x-opencode-directory so sessions can be created in
 //     a browsed/picked folder.
@@ -41,7 +41,7 @@
 //     x-opencode-directory (or DEFAULT_DIRECTORY when absent) matches the
 //     session's own directory, and GET /session without ?roots=true only
 //     lists the request directory's sessions. This is what gives
-//     all-sessions.yaml teeth as a #46/#48 regression test — an app that
+//     all-sessions.yaml teeth as a #46/#48 regression test â€” an app that
 //     stops threading the session's directory gets 404s, not silent passes.
 //   - GET /provider's mock-model carries `variants` (low/medium/high) so
 //     VariantPicker has options to render.
@@ -49,11 +49,11 @@
 // Shared-state note: in CI (.github/workflows/activation-e2e.yml) the
 // instance on port 4099 is shared by directory-picker.yaml and then
 // variant-picker.yaml (run sequentially in the same emulator session).
-// State persists across flows — e.g. the session directory-picker creates in
+// State persists across flows â€” e.g. the session directory-picker creates in
 // /mock/project/backend still exists when variant-picker runs. That is
 // harmless today (variant-picker creates its own quick session and never
 // asserts on list contents), but keep it in mind when adding assertions
-// about "how many sessions exist" to either flow — or give a new flow its
+// about "how many sessions exist" to either flow â€” or give a new flow its
 // own port instead.
 //
 // Two modes:
@@ -84,8 +84,8 @@ export interface MockServerOptions {
   /**
    * Pre-populate two sessions in two different directories at startup
    * (used by .maestro/flows/all-sessions.yaml to test the directory-less
-   * "all sessions across all projects" list — see src/stores/sessions.ts
-   * loadSessions()'s clientForDirectory(undefined) — and the cross-project
+   * "all sessions across all projects" list â€” see src/stores/sessions.ts
+   * loadSessions()'s clientForDirectory(undefined) â€” and the cross-project
    * open regression for GitHub issues #46/#48).
    */
   seedSessions?: boolean
@@ -93,12 +93,12 @@ export interface MockServerOptions {
    * Pre-populate a session (id "seed-diff", in DEFAULT_DIRECTORY so it shows
    * up on the normal home-tab session list) with ONE assistant message that
    * already contains a wide `edit` tool part (renders via DiffView) and a
-   * wide fenced code block in its text (renders via CodeBlock) — used by
+   * wide fenced code block in its text (renders via CodeBlock) â€” used by
    * .maestro/flows/diff-scroll.yaml (GitHub issue #21) to prove both
    * components' horizontal ScrollView actually scrolls on-device.
    *
    * Deliberately seeded as pre-existing history, fetched via GET
-   * /session/:id/message, NOT delivered over SSE — the positive-flow SSE
+   * /session/:id/message, NOT delivered over SSE â€” the positive-flow SSE
    * render bug (issue #90) is being fixed separately, and this flow must not
    * depend on it landing first.
    */
@@ -121,7 +121,7 @@ interface StoredPart {
   messageID: string
   type: string
   text?: string
-  // Tool part fields (type: "tool") — mirrors src/lib/sdk.ts's Part interface,
+  // Tool part fields (type: "tool") â€” mirrors src/lib/sdk.ts's Part interface,
   // needed to seed a populated `edit` tool call for --seed-diff.
   tool?: string
   callID?: string
@@ -147,7 +147,7 @@ interface StoredMessage {
   parts: StoredPart[]
 }
 
-export const DEFAULT_REPLY_TEXT = "Hello from the mock opencode server — activation e2e canned reply."
+export const DEFAULT_REPLY_TEXT = "Hello from the mock opencode server â€” activation e2e canned reply."
 
 // The directory a request is scoped to when the client sends no
 // x-opencode-directory header (i.e. a connection added without an explicit
@@ -165,7 +165,7 @@ function requestDirectory(req: http.IncomingMessage): string {
 // Fake server-side filesystem tree for DirectoryBrowserSheet
 // (src/components/chat/DirectoryBrowserSheet.tsx -> client.file.list({path: "."})
 // -> GET /file). The client always requests path=".", scoping to a directory
-// entirely via the x-opencode-directory header (src/lib/headers.ts) — so this
+// entirely via the x-opencode-directory header (src/lib/headers.ts) â€” so this
 // map is keyed by absolute directory, not by the literal query string.
 // Root has two subdirectories (for the picker + Up-navigation flow) plus one
 // regular file (to exercise DirectoryBrowserSheet's type === "directory" filter).
@@ -200,7 +200,7 @@ export const SEED_DIFF_TOOL_TITLE = "Edit wide_diff_target.ts"
 export const SEED_DIFF_LINE_MARKER = "ZZZ_DIFF_SCROLL_TARGET_ZZZ"
 export const SEED_CODE_LINE_MARKER = "ZZZ_CODE_SCROLL_TARGET_ZZZ"
 
-// Long, space-free filler so the RN <Text> can't word-wrap it — it just
+// Long, space-free filler so the RN <Text> can't word-wrap it â€” it just
 // overflows its parent, which is exactly what the horizontal ScrollView (the
 // fix under test) exists to make scrollable instead of clipped/truncated.
 const WIDE_FILLER = "x".repeat(220)
@@ -403,7 +403,7 @@ export function createMockOpencodeServer(opts: MockServerOptions) {
     }, replyDelayMs)
   }
 
-  const server = http.createServer((req, res) => {
+  const server = http.createServer((req: http.IncomingMessage, res: http.ServerResponse) => {
     const url = new URL(req.url || "/", `http://localhost:${port}`)
     const path = url.pathname
     const method = req.method || "GET"
@@ -499,7 +499,7 @@ export function createMockOpencodeServer(opts: MockServerOptions) {
       return json(res, 200, [])
     }
 
-    // SSE event stream — kept open for the lifetime of the connection.
+    // SSE event stream â€” kept open for the lifetime of the connection.
     if (method === "GET" && path === "/global/event") {
       res.writeHead(200, {
         "Content-Type": "text/event-stream",
@@ -512,7 +512,7 @@ export function createMockOpencodeServer(opts: MockServerOptions) {
 
       // Periodic heartbeat comment. If the client never sees even this, the
       // silence is a transport problem (expo/fetch not streaming), not a
-      // broadcast bug — attributes issue #90 mode B.
+      // broadcast bug â€” attributes issue #90 mode B.
       const heartbeat = setInterval(() => {
         try {
           res.write(": ping\n\n")
@@ -533,12 +533,12 @@ export function createMockOpencodeServer(opts: MockServerOptions) {
       // Body read is async; the session is created on "end" like the real
       // server's createSession (which honors a JSON `title` field).
       let body = ""
-      req.on("data", (chunk) => (body += chunk))
+      req.on("data", (chunk: Buffer) => (body += chunk))
       req.on("end", () => {
         const id = randomUUID()
         const now = Date.now()
         // Directory-scoped clients (connections store clientForDirectory()) send
-        // the target directory via this header — used by the "create session in
+        // the target directory via this header â€” used by the "create session in
         // a browsed/picked folder" flow (DirectoryBrowserSheet -> onCreateInDirectory).
         const directory = requestDirectory(req)
         let title = "Mock Session"
@@ -546,7 +546,7 @@ export function createMockOpencodeServer(opts: MockServerOptions) {
           const parsed = JSON.parse(body || "{}")
           if (typeof parsed.title === "string" && parsed.title.length > 0) title = parsed.title
         } catch {
-          // malformed body — fall back to the default title
+          // malformed body â€” fall back to the default title
         }
         const session: StoredSession = {
           id,
@@ -576,7 +576,7 @@ export function createMockOpencodeServer(opts: MockServerOptions) {
     if (method === "GET" && path === "/session") {
       // Directory-less "all sessions across all projects" list: the app's
       // loadSessions() (src/stores/sessions.ts) uses clientForDirectory(undefined)
-      // — no x-opencode-directory header — and passes ?roots=true (src/lib/sdk.ts
+      // â€” no x-opencode-directory header â€” and passes ?roots=true (src/lib/sdk.ts
       // session.list). Only that combination returns sessions from every
       // directory; otherwise the list is scoped to the request's directory, so
       // directory-scoped and directory-less clients are actually distinguishable.
@@ -595,13 +595,13 @@ export function createMockOpencodeServer(opts: MockServerOptions) {
 
     // Single-session fetch (src/lib/sdk.ts session.get -> src/stores/sessions.ts
     // selectSession), used whenever a session from the all-sessions list (which
-    // may belong to any directory) is opened — including sessions the client
+    // may belong to any directory) is opened â€” including sessions the client
     // never created itself (e.g. the seeded ones below).
     //
     // Directory ownership is ENFORCED, mirroring the real server's per-directory
     // workspace scoping: a session is only visible to a request scoped to the
     // session's own directory. This is what makes all-sessions.yaml real
-    // regression coverage for #46/#48 — if the app stopped threading the
+    // regression coverage for #46/#48 â€” if the app stopped threading the
     // session's directory into clientFor()/clientForDirectory(), the request
     // would carry the wrong (or no) x-opencode-directory header and get a 404
     // here, and the flow's session-screen assertions would fail.
@@ -630,7 +630,7 @@ export function createMockOpencodeServer(opts: MockServerOptions) {
     if (method === "POST" && promptMatch) {
       const sid = promptMatch[1]
       let body = ""
-      req.on("data", (chunk) => (body += chunk))
+      req.on("data", (chunk: Buffer) => (body += chunk))
       req.on("end", () => {
         if (!sessions.has(sid)) {
           return json(res, 404, { error: `unknown session ${sid}` })
@@ -640,7 +640,7 @@ export function createMockOpencodeServer(opts: MockServerOptions) {
           const parsed = JSON.parse(body || "{}")
           if (Array.isArray(parsed.parts)) promptParts = parsed.parts
         } catch {
-          // malformed body — still ack like a fire-and-forget endpoint would
+          // malformed body â€” still ack like a fire-and-forget endpoint would
         }
         json(res, 200, { ok: true })
         storeUserMessage(sid, promptParts)
@@ -673,7 +673,7 @@ export function createMockOpencodeServer(opts: MockServerOptions) {
       }
       sseClients.clear()
       return new Promise((resolve, reject) => {
-        server.close((err) => (err ? reject(err) : resolve()))
+        server.close((err?: Error) => (err ? reject(err) : resolve()))
       })
     },
   }

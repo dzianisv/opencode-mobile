@@ -4,6 +4,7 @@
     "strict": true,
     "noEmit": true,
     "allowImportingTsExtensions": true,
+    "types": ["node"],
     "paths": {
       "@/*": ["./src/*"]
     }

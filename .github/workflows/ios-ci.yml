@@ -55,7 +55,7 @@ jobs:
   ios-build:
     name: Unsigned iOS Simulator build
     needs: test
-    # macos-15 ships Xcode 16.x, which React Native 0.81 / Expo SDK 54 require.
+    # macos-15 ships Xcode 16.x, which React Native 0.86 / Expo SDK 57 require.
     runs-on: macos-15
     timeout-minutes: 45
     env:

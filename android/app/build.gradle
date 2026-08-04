@@ -11,7 +11,7 @@ def projectRoot = rootDir.getAbsoluteFile().getParentFile().getAbsolutePath()
 react {
     entryFile = file(["node", "-e", "require('expo/scripts/resolveAppEntry')", projectRoot, "android", "absolute"].execute(null, rootDir).text.trim())
     reactNativeDir = new File(["node", "--print", "require.resolve('react-native/package.json')"].execute(null, rootDir).text.trim()).getParentFile().getAbsoluteFile()
-    hermesCommand = new File(["node", "--print", "require.resolve('react-native/package.json')"].execute(null, rootDir).text.trim()).getParentFile().getAbsolutePath() + "/sdks/hermesc/%OS-BIN%/hermesc"
+    hermesCommand = new File(["node", "--print", "require.resolve('hermes-compiler/package.json', { paths: [require.resolve('react-native/package.json')] })"].execute(null, rootDir).text.trim()).getParentFile().getAbsolutePath() + "/hermesc/%OS-BIN%/hermesc"
     codegenDir = new File(["node", "--print", "require.resolve('@react-native/codegen/package.json', { paths: [require.resolve('react-native/package.json')] })"].execute(null, rootDir).text.trim()).getParentFile().getAbsoluteFile()
 
     enableBundleCompression = (findProperty('android.enableBundleCompression') ?: false).toBoolean()
@@ -106,31 +106,15 @@ android {
             keyAlias 'androiddebugkey'
             keyPassword 'android'
         }
-        if (System.getenv("RELEASE_STORE_FILE")) {
-            release {
-                storeFile file(System.getenv("RELEASE_STORE_FILE"))
-                storePassword System.getenv("RELEASE_STORE_PASSWORD")
-                keyAlias System.getenv("RELEASE_KEY_ALIAS")
-                keyPassword System.getenv("RELEASE_KEY_PASSWORD")
-                // Sign with v1+v2 only. A v2+v3 block pair crashes the androguard
-                // version fdroidserver uses ("'NoOverwriteDict' object has no
-                // attribute 'append'"), which broke the self-hosted F-Droid repo
-                // publish from v0.4.2 on. v1+v2 installs on all supported API levels
-                // and matches the known-good published APK. Re-enable v3 only once
-                // fdroidserver/androguard ships the fix.
-                enableV1Signing true
-                enableV2Signing true
-                enableV3Signing false
-                enableV4Signing false
-            }
-        }
     }
     buildTypes {
         debug {
             signingConfig signingConfigs.debug
         }
         release {
-            signingConfig signingConfigs.findByName('release') ?: signingConfigs.debug
+            // Caution! In production, you need to generate your own keystore file.
+            // see https://reactnative.dev/docs/signed-apk-android.
+            signingConfig signingConfigs.debug
             def enableShrinkResources = findProperty('android.enableShrinkResourcesInReleaseBuilds') ?: 'false'
             shrinkResources enableShrinkResources.toBoolean()
             minifyEnabled enableMinifyInReleaseBuilds
@@ -147,12 +131,6 @@ android {
     }
     androidResources {
         ignoreAssetsPattern '!.svn:!.git:!.ds_store:!*.scc:!CVS:!thumbs.db:!picasa.ini:!*~'
-    }
-    dependenciesInfo {
-        // Disable encrypted dependency metadata signing block (0x504B4453).
-        // Required for F-Droid compliance — fdroid scanner rejects APKs containing this block.
-        includeInApk false
-        includeInBundle false
     }
 }
 
