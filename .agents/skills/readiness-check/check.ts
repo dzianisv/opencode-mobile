@@ -27,7 +27,7 @@ interface Result { id: string; label: string; status: Status; detail: string }
 
 // Gates that must PASS for a PRODUCTION READY verdict.
 const REQUIRED = new Set([
-  "A_typecheck", "A_test",
+  "A_lint", "A_typecheck", "A_test",
   "B_selfhosted", "B_release",
   "C_mainline", "D_play",
   "E_landing", "E_guide", "E_privacy", "E_sitemap", "E_robots", "E_og", "E_fdroidqr", "E_apkqr",
@@ -41,7 +41,7 @@ if (process.argv.includes("-h") || process.argv.includes("--help")) {
 
 // ---- repo root (script may be invoked from anywhere) ----
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
-let REPO_ROOT = SCRIPT_DIR;
+let REPO_ROOT: string;
 try {
   REPO_ROOT = execFileSync("git", ["-C", SCRIPT_DIR, "rev-parse", "--show-toplevel"], { encoding: "utf8" }).trim();
 } catch { REPO_ROOT = resolve(SCRIPT_DIR, "../../.."); }
@@ -87,12 +87,17 @@ console.log(c("2", `app id: ${APP_ID}    mode: ${QUICK ? "quick" : "full"}    ${
 // ===================== A. App health =====================
 section("A. App health (build + tests)");
 if (QUICK) {
+  record("A_lint", "lint", "WARN", "skipped (--quick)");
   record("A_typecheck", "typecheck", "WARN", "skipped (--quick)");
   record("A_test", "test", "WARN", "skipped (--quick)");
 } else if (!has("npm")) {
+  record("A_lint", "lint", "UNKNOWN", "npm not installed");
   record("A_typecheck", "typecheck", "UNKNOWN", "npm not installed");
   record("A_test", "test", "UNKNOWN", "npm not installed");
 } else {
+  const ln = spawnSync("npm", ["run", "lint"], { cwd: REPO_ROOT, encoding: "utf8" });
+  record("A_lint", "lint", ln.status === 0 ? "PASS" : "FAIL",
+    ln.status === 0 ? "npm run lint clean" : "eslint findings");
   const tc = spawnSync("npm", ["run", "typecheck"], { cwd: REPO_ROOT, encoding: "utf8" });
   record("A_typecheck", "typecheck", tc.status === 0 ? "PASS" : "FAIL",
     tc.status === 0 ? "npm run typecheck clean" : "tsc errors");
@@ -183,7 +188,7 @@ const failing: string[] = [];
 for (const id of REQUIRED) {
   const st = statusOf(id);
   if (st === "PASS") continue;
-  if (QUICK && st === "WARN" && (id === "A_typecheck" || id === "A_test")) { skipped.push(id); continue; }
+  if (QUICK && st === "WARN" && (id === "A_lint" || id === "A_typecheck" || id === "A_test")) { skipped.push(id); continue; }
   failing.push(`${id}(${st})`);
 }
 

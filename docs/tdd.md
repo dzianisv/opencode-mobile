@@ -10,11 +10,11 @@
 | Runtime | React Native 0.81 + Hermes | New architecture / Fabric on by default via Expo SDK 54 |
 | Framework | Expo SDK 54 + Expo Router 6 | File-based routing under `app/`; typed routes enabled |
 | State | Zustand 5 | Plain stores, no provider tree. Avoids redux boilerplate. |
-| Server data | TanStack Query 5 (cache) + custom `fetch`-based SDK | SSE is hand-rolled (RN's `EventSource` is unreliable). |
+| Server data | hand-rolled SDK (`fetch` + zustand stores) | SSE is hand-rolled (RN's `EventSource` is unreliable). |
 | Persistence | `expo-secure-store` (Keychain / Keystore) | All connection URLs + passwords. |
 | Auth | `expo-local-authentication` | Optional biometric gate at startup and per-send. |
 | Notifications | `expo-notifications` | Local + push; tap deep-links into session. |
-| Crash reporting | `@sentry/react-native` 6.x | Opt-in via env DSN; full URL scrubbing in `beforeSend`. |
+| Crash reporting | `@sentry/react-native` 7.x | Opt-in via env DSN; full URL scrubbing in `beforeSend`. |
 
 ## 2. Repo Layout
 

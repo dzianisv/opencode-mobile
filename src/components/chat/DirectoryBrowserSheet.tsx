@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from "react"
+import { useCallback, useLayoutEffect, useRef, useState } from "react"
 import { ActivityIndicator, StyleSheet, Text, TouchableOpacity, View } from "react-native"
 import { Ionicons } from "@expo/vector-icons"
 import BottomSheet, { BottomSheetBackdrop, BottomSheetFlatList, BottomSheetTextInput } from "@gorhom/bottom-sheet"
@@ -107,11 +107,15 @@ export function DirectoryBrowserSheet({
   // onChange(index=0) captured `startDirectory=null` from the initial
   // mount's closure and set wasOpen=true, which then blocked every later
   // onChange from ever calling enter() again for that open). Mirror the
-  // prop into a ref, updated inline on every render (synchronous, no extra
-  // render cycle) so the onChange handler below always reads the latest
-  // value regardless of which render's closure the native side invokes.
+  // prop into a ref via a layout effect — it flushes synchronously within
+  // the same commit cycle, before paint and before any animation-frame
+  // callback can run — so the onChange handler below always reads the
+  // latest value regardless of which render's closure the native side
+  // invokes.
   const startDirectoryRef = useRef(startDirectory)
-  startDirectoryRef.current = startDirectory
+  useLayoutEffect(() => {
+    startDirectoryRef.current = startDirectory
+  })
 
   // Reset to the starting directory when the sheet transitions from closed
   // to open (not on drags between snap points), and notify on full close.

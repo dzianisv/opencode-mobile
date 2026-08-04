@@ -37,7 +37,7 @@ Auditor: automated agent (claude-sonnet-4-6)
   - The org ID and project ID are enumerable.
 **Remediation:**
 1. This is unavoidable with client-side error reporting; it is not a secret in the traditional sense.
-2. Enable Sentry's "allowed domains" / ingest rate-limit: in Sentry project settings, set the allowed origins to `ai.opencode.mobile` (App ID) to block abuse from arbitrary origins. Android DSN abuse is harder to block; apply a Sentry ingest rate-limit rule.
+2. Enable Sentry's "allowed domains" / ingest rate-limit: in Sentry project settings, set the allowed origins to `cc.agentlabs.opencode` (App ID) to block abuse from arbitrary origins. Android DSN abuse is harder to block; apply a Sentry ingest rate-limit rule.
 3. Document this in the threat model (done below).
 **Status:** Open (partially mitigable)
 

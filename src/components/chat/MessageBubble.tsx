@@ -4,6 +4,7 @@ import { Ionicons } from "@expo/vector-icons"
 import { Markdown } from "../markdown"
 import { ToolCallCard } from "./ToolCallCard"
 import { ReasoningBlock } from "./ReasoningBlock"
+import { useBatchedText } from "../../lib/use-batched-text.ts"
 import type { Message, Part } from "../../lib/sdk"
 
 const SCREEN_WIDTH = Dimensions.get("window").width
@@ -34,6 +35,16 @@ export const MessageBubble = memo(
     const fileParts = parts.filter((p) => p.type === "file" && isImageMime(p.mime))
     const text = textParts.map((p) => p.text).join("\n") || ""
     const reasoning = reasoningParts.map((p) => p.text).join("\n") || ""
+
+    // SSE delivers text in per-token part updates; parsing the full markdown
+    // string per token is O(n²) over the stream. Batch the assistant text so
+    // Markdown re-parses at most once per window (~16/sec) while the trailing
+    // edge guarantees the finished text renders exactly. User text is a cheap
+    // plain <Text>, so renderText passes it through unbuffered (zero added
+    // latency) — the hook runs unconditionally (initial state === text, and a
+    // stable user message never pushes, so it's a no-op there).
+    const batchedText = useBatchedText(text)
+    const renderText = isUser ? text : batchedText
 
     return (
       <TouchableOpacity
@@ -85,14 +96,14 @@ export const MessageBubble = memo(
         {reasoning.length > 0 && <ReasoningBlock text={reasoning} isDark={isDark} />}
 
         {/* Message text */}
-        {text.length > 0 &&
+        {renderText.length > 0 &&
           (isUser ? (
             <Text style={[s.messageText, isDark && s.textWhite]} selectable>
-              {text}
+              {renderText}
             </Text>
           ) : (
             <View style={s.markdownWrap}>
-              <Markdown>{text}</Markdown>
+              <Markdown>{renderText}</Markdown>
             </View>
           ))}
 

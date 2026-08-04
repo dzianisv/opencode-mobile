@@ -1,6 +1,6 @@
 # Google Play Store — opencode-mobile
 
-Operational doc for shipping `ai.opencode.mobile` to Google Play under VIBE TECHNOLOGIES, LLC.
+Operational doc for shipping `cc.agentlabs.opencode` to Google Play under VIBE TECHNOLOGIES, LLC.
 
 For full company facts (D-U-N-S, address, governor, etc.) see `~/.agents/skills/vibetechnologies-llc/SKILL.md` and Bitwarden item `GOOGLE_PLAY_CONSOLE_ACCOUNT`.
 
@@ -76,7 +76,7 @@ For full company facts (D-U-N-S, address, governor, etc.) see `~/.agents/skills/
 ## Publishing process (after identity verified)
 
 1. (manual) Setup → API access → Link `opencode-mobile-deploy`. Grant `playstore-deploy@…` "Release to production, exclude devices, and use Play App Signing".
-2. (manual) Create app `ai.opencode.mobile`. Fill listing from `distribution/play-listing.md`.
+2. (manual) Create app `cc.agentlabs.opencode`. Fill listing from `distribution/play-listing.md`.
 3. (manual) Upload graphic assets + privacy policy URL.
 4. (manual) Complete Data safety + Content rating + App access forms.
 5. (manual, first time only) Upload `app-release.aab` to Internal testing track → add tester emails → publish.
@@ -123,7 +123,7 @@ scraped or manually copied review text.
 OpenCode Mobile is also distributed via F-Droid (mainline) and IzzyOnDroid —
 the two primary OSS Android app stores for privacy-conscious users.
 
-All three channels use the **same signing key and same package id** (`ai.opencode.mobile`),
+All three channels use the **same signing key and same package id** (`cc.agentlabs.opencode`),
 so users can update in-place across stores.
 
 Submission packets (ready to file after the first Play release is live):

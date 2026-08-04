@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from "react"
 import { Stack, router } from "expo-router"
 import { StatusBar } from "expo-status-bar"
 import { useColorScheme, View, ActivityIndicator, AppState } from "react-native"
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { GestureHandlerRootView } from "react-native-gesture-handler"
 import { BottomSheetModalProvider } from "@gorhom/bottom-sheet"
 import { I18nextProvider, useTranslation } from "react-i18next"
@@ -19,8 +18,6 @@ import * as notifications from "../src/lib/notifications"
 import { addBreadcrumb, wrap } from "../src/lib/sentry"
 import { loadTelemetryConsent, setTelemetryConsent } from "../src/lib/telemetry"
 import { initAnalytics, trackAppOpened } from "../src/lib/analytics"
-
-const queryClient = new QueryClient()
 
 function RootLayout() {
   const colorScheme = useColorScheme()
@@ -75,7 +72,7 @@ function RootLayout() {
       })
 
     return unsubNotifications
-  }, [])
+  }, [initAuth, loadConnections])
 
   // Re-arm the biometric app-lock when the app leaves the foreground. Without
   // this, "Require Biometric to Open" is bypassable: authenticate() sets
@@ -147,7 +144,6 @@ function RootLayout() {
       <I18nextProvider i18n={i18n}>
       <GestureHandlerRootView style={{ flex: 1 }}>
         <BottomSheetModalProvider>
-          <QueryClientProvider client={queryClient}>
             <AuthGate>
             <Stack
               screenOptions={{
@@ -185,7 +181,6 @@ function RootLayout() {
             </Stack>
               <StatusBar style={isDark ? "light" : "dark"} />
             </AuthGate>
-          </QueryClientProvider>
         </BottomSheetModalProvider>
       </GestureHandlerRootView>
       {/* Telemetry consent modal — shown once on first launch */}

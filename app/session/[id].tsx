@@ -11,6 +11,8 @@ import {
   Platform,
   ActivityIndicator,
   Alert,
+  type NativeSyntheticEvent,
+  type NativeScrollEvent,
 } from "react-native"
 import { useLocalSearchParams, Stack, useRouter, useFocusEffect } from "expo-router"
 import { Ionicons } from "@expo/vector-icons"
@@ -33,7 +35,7 @@ import {
   type SlashCommand,
   type Attachment,
 } from "../../src/components/chat"
-import { useSessions } from "../../src/stores/sessions"
+import { useSessions, type RevertResult } from "../../src/stores/sessions"
 import { useEvents, refreshPending } from "../../src/stores/events"
 import { useConnections } from "../../src/stores/connections"
 import { useAuth } from "../../src/stores/auth"
@@ -97,7 +99,6 @@ export default function SessionScreen() {
     sendMessage,
     abortSession,
     loadOlderMessages,
-    revertToMessage,
     unrevertSession,
   } = useSessions()
 
@@ -108,16 +109,17 @@ export default function SessionScreen() {
   const { client, clientForDirectory } = useConnections()
 
   // Use directory-aware client for sessions that belong to a project other than the active one
+  const sessionDirectory = currentSession?.directory
   const sessionClient = useMemo(
-    () => (currentSession?.directory ? (clientForDirectory(currentSession.directory) ?? client) : client),
-    [currentSession?.directory, clientForDirectory, client],
+    () => (sessionDirectory ? (clientForDirectory(sessionDirectory) ?? client) : client),
+    [sessionDirectory, clientForDirectory, client],
   )
 
   // Catalog
   const catalog = useCatalog()
   const agents = Array.isArray(catalog.agents) ? catalog.agents : []
-  const serverCommands = Array.isArray(catalog.commands) ? catalog.commands : []
-  const providers = Array.isArray(catalog.providers) ? catalog.providers : []
+  const serverCommands = useMemo(() => (Array.isArray(catalog.commands) ? catalog.commands : []), [catalog.commands])
+  const providers = useMemo(() => (Array.isArray(catalog.providers) ? catalog.providers : []), [catalog.providers])
   const agent = catalog.agent || ""
   const model = catalog.model
   const setModel = catalog.setModel
@@ -195,9 +197,11 @@ export default function SessionScreen() {
   // state) so the callback below stays referentially stable across
   // keystrokes for MessageBubble's custom memo comparator.
   const inputRef = useRef(input)
-  inputRef.current = input
+  useEffect(() => {
+    inputRef.current = input
+  }, [input])
 
-  const applyRevertResult = useCallback((result: Awaited<ReturnType<typeof revertToMessage>>) => {
+  const applyRevertResult = useCallback((result: RevertResult) => {
     if (!result.ok) {
       if (result.reason === "unsupported") {
         Alert.alert(t("session.alerts.notSupportedTitle"), t("session.alerts.notSupportedMessage"))
@@ -272,14 +276,15 @@ export default function SessionScreen() {
         const c = directory ? (connState.clientForDirectory(directory) ?? connState.client) : connState.client
         if (c) refreshPending(c, id)
       })
-    }, [id, directory]),
+    }, [id, directory, selectSession]),
   )
 
   // Sync model chip from latest assistant message
   useEffect(() => {
-    if (!messages || messages.length === 0) return
-    for (let i = messages.length - 1; i >= 0; i--) {
-      const msg = messages[i]
+    const storeMessages = useSessions.getState().messages
+    if (!storeMessages || storeMessages.length === 0) return
+    for (let i = storeMessages.length - 1; i >= 0; i--) {
+      const msg = storeMessages[i]
       if (msg.role === "assistant" && msg.providerID && msg.modelID) {
         setModel({ providerID: msg.providerID, modelID: msg.modelID })
         return
@@ -289,7 +294,7 @@ export default function SessionScreen() {
         return
       }
     }
-  }, [currentSession?.id, messages?.length])
+  }, [currentSession?.id, messages?.length, setModel])
 
   // Slash command handler
   const handleSlashSelect = useCallback(
@@ -451,7 +456,7 @@ export default function SessionScreen() {
   }
 
   // In inverted mode, offset 0 = bottom. Show scroll button when scrolled away from bottom.
-  const handleScroll = useCallback((event: any) => {
+  const handleScroll = useCallback((event: NativeSyntheticEvent<NativeScrollEvent>) => {
     const { contentOffset } = event.nativeEvent
     setShowScrollButton(contentOffset.y > 200)
   }, [])
@@ -670,6 +675,18 @@ export default function SessionScreen() {
               data={messageData}
               inverted
               keyExtractor={(item) => item.message.id}
+              // Virtualization tuning for long streaming sessions. Default
+              // windowSize (21) keeps ~21 screens of rows mounted — halving
+              // it cuts the per-update diff cost during token streaming.
+              // updateCellsBatchingPeriod slightly below default keeps new
+              // streamed rows appearing promptly. removeClippedSubviews is
+              // deliberately left alone (buggy with inverted lists +
+              // maintainVisibleContentPosition), and getItemLayout is
+              // unusable here since markdown rows are variable-height.
+              windowSize={11}
+              initialNumToRender={12}
+              maxToRenderPerBatch={12}
+              updateCellsBatchingPeriod={40}
               renderItem={({ item }) => (
                 <MessageBubble
                   message={item.message}

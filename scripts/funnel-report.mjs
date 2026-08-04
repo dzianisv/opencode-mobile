@@ -123,7 +123,6 @@ async function main() {
   console.log("\nDemo → connection (does the demo drive activation?):")
   console.log(`  started demo              ${Number(demoUsers)}`)
   console.log(`  ...later connected        ${Number(demoThenConnected)}  (${pct(Number(demoThenConnected), Number(demoUsers))} of demo users)`)
-  const nonDemoOpen = opened - dStart
   console.log(`  baseline connect rate     ${pct(has("connection_succeeded"), opened)} (all opens)`)
   console.log("")
 }

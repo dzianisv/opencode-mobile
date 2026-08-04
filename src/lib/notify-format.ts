@@ -10,5 +10,6 @@ export const MAX_NOTIF_BODY = 200
  * back to `fallback` when the input is empty/whitespace-only or undefined.
  */
 export function sanitizeBody(s: string | undefined, fallback: string): string {
+  // eslint-disable-next-line no-control-regex -- C0 controls are exactly what must be stripped
   return (s ? s.replace(/[\x00-\x1f\x7f]/g, " ").trim().slice(0, MAX_NOTIF_BODY) : "") || fallback
 }

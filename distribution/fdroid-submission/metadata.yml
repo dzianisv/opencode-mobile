@@ -21,9 +21,9 @@ Repo: https://github.com/dzianisv/opencode-mobile
 Binaries: https://github.com/dzianisv/opencode-mobile/releases/download/v%v/app-release-fdroid.apk
 
 Builds:
-  - versionName: 0.4.3
-    versionCode: 5
-    commit: c46f273ecda0269ba2dc165053096e63d2bf5160
+  - versionName: 0.4.12
+    versionCode: 39
+    commit: v0.4.12
     subdir: android/app
     sudo:
       - apt-get update
@@ -64,5 +64,9 @@ AllowedAPKSigningKeys: 0c259d94e0ffea5d6319614b229d4b6bdc22de1f56e38e76948398d2d
 
 AutoUpdateMode: Version
 UpdateCheckMode: Tags
-CurrentVersion: 0.4.3
-CurrentVersionCode: 5
+# Refreshed 2026-08-03 for the v0.4.12 release (tag 73852f3aac0c46a52fb14a9ae3672fb6221983d1),
+# package cc.agentlabs.opencode (rebranded from ai.opencode.mobile on 2026-05-30).
+# The prebuild/patch recipe below is unverified against this tree — run
+# `fdroid build cc.agentlabs.opencode:39` (see REPRODUCIBLE-BUILD-NOTES.md) before filing the MR.
+CurrentVersion: 0.4.12
+CurrentVersionCode: 39

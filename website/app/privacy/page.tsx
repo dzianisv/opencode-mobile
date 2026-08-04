@@ -22,7 +22,7 @@ export default function PrivacyPage() {
     '../../../opencode-mobile/distribution/privacy-policy.html',
   )
 
-  let policyHtml = ''
+  let policyHtml: string
   try {
     const raw = readFileSync(policyPath, 'utf8')
     // Extract just the <body> content so we can render it inside our layout

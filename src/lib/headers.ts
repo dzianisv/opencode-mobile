@@ -29,6 +29,7 @@ export function buildRequestHeaders(config: HeaderConfig): Record<string, string
     // The directory travels in an HTTP header, which is latin1-only. ASCII paths
     // pass through untouched (so the server sees a readable path); anything with
     // non-ASCII bytes is percent-encoded to stay header-safe.
+    // eslint-disable-next-line no-control-regex -- range deliberately includes control chars to detect non-ASCII
     const encoded = /[^\x00-\x7F]/.test(config.directory)
       ? encodeURIComponent(config.directory)
       : config.directory

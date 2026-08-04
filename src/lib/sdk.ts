@@ -1,15 +1,18 @@
 // SDK client wrapper for React Native
 // We create our own lightweight client that mirrors the opencode SDK patterns
 // but works in React Native environment
-// expo/fetch provides WinterCG-compliant fetch with ReadableStream support for SSE
-import { fetch as expoFetch } from "expo/fetch"
-import { buildRequestHeaders } from "./headers"
-import { SSEParser } from "./sse"
-import { apiErrorFor } from "./api-error"
-import { loadSessionList } from "./session-list"
-import type { FileRoot } from "./file-roots"
+// expo/fetch provides WinterCG-compliant fetch with ReadableStream support for
+// SSE; loaded lazily via ./expo-fetch so this module stays importable under
+// plain `node --test` (expo/fetch's CJS shim require()s a .ts file Node can't
+// load).
+import { ApiAuthError, isAuthStatus } from "./api-error.ts"
+import { expoFetch } from "./expo-fetch.ts"
+import { buildRequestHeaders } from "./headers.ts"
+import { loadSessionList } from "./session-list.ts"
+import { SSEParser } from "./sse.ts"
+import type { FileRoot } from "./file-roots.ts"
 
-export { ApiAuthError, isAuthError } from "./api-error"
+export { ApiAuthError, isAuthError } from "./api-error.ts"
 
 export interface ClientConfig {
   baseUrl: string
@@ -163,10 +166,76 @@ export interface FileEntry {
   ignored: boolean
 }
 
+// Wire status of a session (SSE `session.status` event properties.status).
+export type SessionStatus =
+  | { type: "idle" }
+  | { type: "busy" }
+  | { type: "retry"; attempt: number; message: string }
+
+// Pending permission request — the wire shape of GET /permission entries and
+// `permission.asked` event properties (events.ts stores these per session).
+export interface PermissionRequest {
+  id: string
+  sessionID: string
+  permission: string
+  patterns: string[]
+  metadata: Record<string, unknown>
+  tool?: { messageID: string; callID: string }
+}
+
+export interface QuestionOption {
+  label: string
+  description: string
+}
+
+export interface QuestionItem {
+  question: string
+  header: string
+  options: QuestionOption[]
+  multiple?: boolean
+  custom?: boolean
+}
+
+// Pending question request — the wire shape of GET /question entries and
+// `question.asked` event properties.
+export interface QuestionRequest {
+  id: string
+  sessionID: string
+  questions: QuestionItem[]
+  tool?: { messageID: string; callID: string }
+}
+
+// Union of every event property shape the app consumes. Fields are optional
+// because each event type only populates the subset it owns; the SSE handler
+// (events.ts) validates per case. `message` mirrors the older `info` shape
+// some servers used for message.updated.
+export interface EventProperties {
+  sessionID?: string
+  requestID?: string
+  messageID?: string
+  status?: SessionStatus
+  info?: Message | Session
+  message?: Message
+  part?: Part
+  error?: { message?: string }
+  // permission.asked / question.asked carry the request fields at the top
+  // level of properties (no wrapper).
+  id?: string
+  permission?: string
+  patterns?: string[]
+  metadata?: Record<string, unknown>
+  tool?: { messageID: string; callID: string }
+  questions?: QuestionItem[]
+}
+
 export interface Event {
   type: string
-  properties: Record<string, unknown>
+  properties: EventProperties
 }
+
+// The real server may wrap events as `{ payload: { type, properties } }`
+// rather than sending them flat; the SSE consumer unwraps defensively.
+export type EventEnvelope = Event | { payload: Event }
 
 export interface HealthResponse {
   healthy: boolean
@@ -213,7 +282,9 @@ async function request<T>(
 
   if (!response.ok) {
     const error = await response.text()
-    throw apiErrorFor(response.status, `API Error: ${response.status} - ${error}`)
+    throw isAuthStatus(response.status)
+      ? new ApiAuthError(response.status, `API Error: ${response.status} - ${error}`)
+      : new ApiError(response.status, error)
   }
 
   return response.json()
@@ -236,7 +307,9 @@ async function fetchWithTimeout(url: string, options: RequestInit = {}, timeoutM
     return await fetch(url, { ...options, signal: controller.signal })
   } catch (error) {
     if (timedOut) {
-      throw new Error(`Request timed out after ${timeoutMs}ms`)
+      // Keep the original error as the cause so the timeout symptom is
+      // traceable to whatever the fetch itself failed with.
+      throw new Error(`Request timed out after ${timeoutMs}ms`, { cause: error })
     }
     throw error
   } finally {
@@ -261,7 +334,7 @@ export function createClient(config: ClientConfig) {
       health: (timeoutMs?: number) => request<HealthResponse>(config, "/global/health", {}, timeoutMs),
       // SSE event stream - returns async iterator
       // Pass an AbortSignal to cancel the connection
-      async *events(signal?: AbortSignal): AsyncGenerator<Event> {
+      async *events(signal?: AbortSignal): AsyncGenerator<EventEnvelope> {
         const url = `${config.baseUrl}/global/event`
         const headers = createHeaders(config)
         // Remove Content-Type for SSE (it's text/event-stream)
@@ -270,7 +343,9 @@ export function createClient(config: ClientConfig) {
         // Must use expo/fetch for ReadableStream support on native
         const response = await expoFetch(url, { headers, signal })
         if (!response.ok || !response.body) {
-          throw apiErrorFor(response.status, `Failed to connect to event stream: ${response.status}`)
+          throw isAuthStatus(response.status)
+            ? new ApiAuthError(response.status, `Failed to connect to event stream: ${response.status}`)
+            : new ApiError(response.status, "Failed to connect to event stream")
         }
 
         const reader = response.body.getReader()
@@ -362,7 +437,9 @@ export function createClient(config: ClientConfig) {
               if (response.status === 404) return null
               if (!response.ok) {
                 const body = await response.text()
-                throw apiErrorFor(response.status, `API Error: ${response.status} - ${body}`)
+                throw isAuthStatus(response.status)
+                  ? new ApiAuthError(response.status, `API Error: ${response.status} - ${body}`)
+                  : new ApiError(response.status, body)
               }
               return response.json()
             },
@@ -416,7 +493,12 @@ export function createClient(config: ClientConfig) {
 
         if (!response.ok) {
           const error = await response.text()
-          throw new Error(`Failed to send message: ${response.status} - ${error}`)
+          // Same error contract as request(): auth failures surface as
+          // ApiAuthError, everything else as ApiError carrying the status.
+          // Callers surface the message to the UI (sessions.ts sendMessage).
+          throw isAuthStatus(response.status)
+            ? new ApiAuthError(response.status, `Failed to send message: ${response.status} - ${error}`)
+            : new ApiError(response.status, `Failed to send message: ${response.status} - ${error}`)
         }
       },
 
@@ -442,7 +524,9 @@ export function createClient(config: ClientConfig) {
 
         if (!response.ok) {
           const error = await response.text()
-          throw new Error(`Failed to run command: ${response.status} - ${error}`)
+          throw isAuthStatus(response.status)
+            ? new ApiAuthError(response.status, `Failed to run command: ${response.status} - ${error}`)
+            : new ApiError(response.status, `Failed to run command: ${response.status} - ${error}`)
         }
       },
 
@@ -469,8 +553,7 @@ export function createClient(config: ClientConfig) {
     },
 
     permission: {
-      list: () =>
-        request<Array<{ id: string; sessionID: string; tool: string; input: unknown }>>(config, "/permission"),
+      list: () => request<PermissionRequest[]>(config, "/permission"),
 
       reply: (requestID: string, reply: "once" | "always" | "reject") =>
         request<boolean>(config, `/permission/${requestID}/reply`, {
@@ -480,7 +563,7 @@ export function createClient(config: ClientConfig) {
     },
 
     question: {
-      list: () => request<Array<{ id: string; sessionID: string; questions: unknown[] }>>(config, "/question"),
+      list: () => request<QuestionRequest[]>(config, "/question"),
 
       reply: (requestID: string, answers: string[][]) =>
         request<boolean>(config, `/question/${requestID}/reply`, {

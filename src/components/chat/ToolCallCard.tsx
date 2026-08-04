@@ -340,7 +340,7 @@ export function ToolCallCard({ tool, isDark }: Props) {
       {/* Header row */}
       <View style={s.header}>
         <View style={s.headerLeft}>
-          <Ionicons name={icon as any} size={16} color={color} />
+          <Ionicons name={icon} size={16} color={color} />
           <Text style={[s.name, isDark && s.nameDark]} numberOfLines={1}>
             {tool.state?.title || tool.tool || t("chat.toolCallCard.fallbackTitle")}
           </Text>

@@ -1,11 +1,12 @@
 import { test } from "node:test"
 import assert from "node:assert/strict"
 import { statusFromPart, TOOL_STATUS } from "./status-labels.ts"
+import type { Part } from "./sdk.ts"
 
 // These labels are shown live while the agent works. A new tool type must degrade
 // to a sensible "Running <tool>..." rather than a blank or wrong status.
 
-const part = (over: Record<string, unknown>) => over as any
+const part = (over: Record<string, unknown>) => over as Part
 
 test("reasoning parts show Thinking", () => {
   assert.equal(statusFromPart(part({ type: "reasoning" })), "Thinking...")

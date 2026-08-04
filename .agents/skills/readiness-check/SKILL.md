@@ -44,6 +44,7 @@ gracefully if missing (gate reports `WARN`/`UNKNOWN`, never crashes).
 Gates are grouped. REQUIRED gates decide the verdict; nice-to-have gates only WARN.
 
 - **A. App health** (REQUIRED, skipped with `--quick`)
+  - `npm run lint` exits clean.
   - `npm run typecheck` exits clean.
   - `npm test` passes.
 - **B. F-Droid self-hosted repo LIVE** (REQUIRED)

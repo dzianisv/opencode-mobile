@@ -2,13 +2,13 @@
 // The library bundles @types/react@18 internally which conflicts with our React 19.
 // This declaration makes Ionicons (and other icon sets) work as valid JSX elements.
 declare module "@expo/vector-icons" {
-  import type { TextProps } from "react-native"
+  import type { TextProps, StyleProp, TextStyle } from "react-native"
 
   interface IconProps extends TextProps {
     name: string
     size?: number
     color?: string
-    style?: any
+    style?: StyleProp<TextStyle>
   }
 
   interface IconComponent extends React.FC<IconProps> {

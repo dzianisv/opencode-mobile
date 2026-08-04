@@ -137,7 +137,7 @@ OpenCode Mobile is a thin client. It speaks the opencode HTTP + SSE API: listing
 
 ## Project Status
 
-**Current version: v0.4.7**
+**Current version: v0.4.12**
 
 | Feature | Status |
 |---|---|

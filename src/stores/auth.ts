@@ -67,7 +67,7 @@ export const useAuth = create<AuthState>((set, get) => ({
         isAuthenticated,
         isLoading: false,
       })
-    } catch (error) {
+    } catch {
       set({
         error: "Failed to initialize authentication",
         isLoading: false,
@@ -98,7 +98,7 @@ export const useAuth = create<AuthState>((set, get) => ({
 
       set({ error: result.error || "Authentication failed" })
       return false
-    } catch (error) {
+    } catch {
       set({ error: "Authentication error" })
       return false
     }

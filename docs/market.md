@@ -1,6 +1,6 @@
 # Go-to-Market + Pricing — opencode-mobile
 
-VIBE TECHNOLOGIES, LLC · app `ai.opencode.mobile` · MIT licensed · 2026-05-24.
+VIBE TECHNOLOGIES, LLC · app `cc.agentlabs.opencode` · MIT licensed · 2026-05-24.
 
 This doc is the operational answer to **"how do we make money without killing the OSS community."**
 

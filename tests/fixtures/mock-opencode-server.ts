@@ -485,7 +485,12 @@ export function createMockOpencodeServer(opts: MockServerOptions) {
     // directory via the x-opencode-directory header (src/lib/headers.ts).
     if (method === "GET" && path === "/file") {
       const dir = requestDirectory(req)
-      return json(res, 200, FAKE_FILE_TREE[dir] || [])
+      // Real servers resolve the `path` query param relative to the client's
+      // directory, so honor it: path="." (or absent) -> the directory itself,
+      // anything else -> a sub-path lookup under the directory.
+      const rel = url.searchParams.get("path") || "."
+      const key = rel === "." ? dir : `${dir}/${rel}`
+      return json(res, 200, FAKE_FILE_TREE[key] || [])
     }
     if (method === "GET" && path === "/permission") {
       return json(res, 200, [])
@@ -525,24 +530,38 @@ export function createMockOpencodeServer(opts: MockServerOptions) {
     }
 
     if (method === "POST" && path === "/session") {
-      const id = randomUUID()
-      const now = Date.now()
-      // Directory-scoped clients (connections store clientForDirectory()) send
-      // the target directory via this header — used by the "create session in
-      // a browsed/picked folder" flow (DirectoryBrowserSheet -> onCreateInDirectory).
-      const directory = requestDirectory(req)
-      const session: StoredSession = {
-        id,
-        slug: id.slice(0, 8),
-        projectID: "mock-project",
-        directory,
-        title: "Mock Session",
-        version: "0.0.0-mock",
-        time: { created: now, updated: now },
-      }
-      sessions.set(id, session)
-      messagesBySession.set(id, [])
-      return json(res, 200, session)
+      // Body read is async; the session is created on "end" like the real
+      // server's createSession (which honors a JSON `title` field).
+      let body = ""
+      req.on("data", (chunk) => (body += chunk))
+      req.on("end", () => {
+        const id = randomUUID()
+        const now = Date.now()
+        // Directory-scoped clients (connections store clientForDirectory()) send
+        // the target directory via this header — used by the "create session in
+        // a browsed/picked folder" flow (DirectoryBrowserSheet -> onCreateInDirectory).
+        const directory = requestDirectory(req)
+        let title = "Mock Session"
+        try {
+          const parsed = JSON.parse(body || "{}")
+          if (typeof parsed.title === "string" && parsed.title.length > 0) title = parsed.title
+        } catch {
+          // malformed body — fall back to the default title
+        }
+        const session: StoredSession = {
+          id,
+          slug: id.slice(0, 8),
+          projectID: "mock-project",
+          directory,
+          title,
+          version: "0.0.0-mock",
+          time: { created: now, updated: now },
+        }
+        sessions.set(id, session)
+        messagesBySession.set(id, [])
+        json(res, 200, session)
+      })
+      return
     }
     // Global "all sessions across every directory" list, mirroring the real
     // opencode server's GET /experimental/session. This is the endpoint the

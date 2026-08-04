@@ -26,6 +26,9 @@ jobs:
       - name: Check release version metadata
         run: npm run check:versions
 
+      - name: Lint
+        run: npm run lint
+
       - name: Typecheck
         run: npm run typecheck
 

@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react"
+import { useCallback, useMemo, useState } from "react"
 import {
   View,
   Text,
@@ -122,11 +122,14 @@ export default function SettingsScreen() {
       .catch(() => setOsGranted(false))
   }
 
-  const localeLabels: Record<LocalePreference, string> = {
-    system: t("settings.language.system"),
-    en: t("settings.language.en"),
-    "zh-Hans": t("settings.language.zhHans"),
-  }
+  const localeLabels: Record<LocalePreference, string> = useMemo(
+    () => ({
+      system: t("settings.language.system"),
+      en: t("settings.language.en"),
+      "zh-Hans": t("settings.language.zhHans"),
+    }),
+    [t],
+  )
 
   const handleLanguagePress = useCallback(() => {
     Alert.alert(t("settings.language.title"), undefined, [

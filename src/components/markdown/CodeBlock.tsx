@@ -17,7 +17,9 @@ export function CodeBlock({ code, language }: Props) {
       await Clipboard.setStringAsync(code)
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
-    } catch {}
+    } catch {
+      // Clipboard failure: leave the button state untouched (nothing useful to recover)
+    }
   }
 
   return (

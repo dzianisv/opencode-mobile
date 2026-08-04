@@ -1,7 +1,7 @@
 import { create } from "zustand"
 import * as SecureStore from "expo-secure-store"
 import * as Crypto from "expo-crypto"
-import type { ServerConnection, ConnectionType } from "../lib/types"
+import type { ServerConnection } from "../lib/types"
 import { createClient, type Client, type Project } from "../lib/sdk"
 import { addBreadcrumb } from "../lib/sentry"
 import { AnalyticsEvent, classifyConnectionError, track, type ConnectionTestSource } from "../lib/analytics"
@@ -131,7 +131,7 @@ export const useConnections = create<ConnectionsState>((set, get) => ({
         recentDirectories,
         isLoading: false,
       })
-    } catch (error) {
+    } catch {
       set({ error: "Failed to load connections", isLoading: false })
     }
   },

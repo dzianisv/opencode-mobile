@@ -337,7 +337,7 @@ export default function SessionsScreen() {
     }
   }
 
-  const onCreateInDirectory = async (dir?: string) => {
+  const onCreateInDirectory = useCallback(async (dir?: string) => {
     if (!activeConnection) return
     if (creatingInFlight.current) return
     creatingInFlight.current = true
@@ -382,7 +382,7 @@ export default function SessionsScreen() {
       creatingInFlight.current = false
       setIsCreating(false)
     }
-  }
+  }, [activeConnection, clientForDirectory, addRecentDirectory, createSession, t])
 
   // The browser sheet is a sibling of the New Session <Modal>. A native RN
   // Modal layers above everything in the React root (including bottom-sheet

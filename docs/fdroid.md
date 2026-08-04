@@ -1,6 +1,6 @@
 # F-Droid + IzzyOnDroid — opencode-mobile
 
-Operational doc for distributing `ai.opencode.mobile` via F-Droid (mainline)
+Operational doc for distributing `cc.agentlabs.opencode` via F-Droid (mainline)
 and IzzyOnDroid under VIBE TECHNOLOGIES, LLC.
 
 This is the OSS-first distribution track, complementary to Google Play.
@@ -55,9 +55,9 @@ Unlike Google Play, F-Droid and IzzyOnDroid require no developer account.
 | # | Item | Blocking? | Owner |
 |---|------|-----------|-------|
 | 1 | Add `.kotlin/` to `android/.gitignore` + untrack log files | F-Droid mainline | Agent (trivial) |
-| 2 | Attach signed universal APK to first GitHub release tag | Both channels | Agent / CI |
+| 2 | ~~Attach signed universal APK to first GitHub release tag~~ — DONE: `v0.4.12` release carries `app-release-fdroid.apk` (2026-08-03 audit) | — | — |
 | 3 | File IzzyOnDroid inclusion issue on Codeberg | IzzyOnDroid | User or Agent |
-| 4 | Update `metadata.yml` with actual release tag + key fingerprint | F-Droid mainline | Agent |
+| 4 | ~~Update `metadata.yml` with actual release tag + key fingerprint~~ — DONE: refreshed for `v0.4.12`/`39` (tag `73852f3a`); fingerprint already filled. Recipe still needs a real `fdroid build` validation | F-Droid mainline | Agent |
 | 5 | File MR against fdroiddata | F-Droid mainline | User or Agent |
 | 6 | Run `expo prebuild` twice, compare output (reproducibility check) | F-Droid mainline | Agent |
 | 7 | Measure arm64-v8a APK size with bundletool | Nice-to-have | Agent |
@@ -79,7 +79,7 @@ Items 3 and 5 should be done after the first Play Store release is live.
 
 1. Complete prerequisites (see `distribution/fdroid-submission/SUBMISSION-CHECKLIST.md`).
 2. Fork fdroiddata on GitLab.
-3. Create `metadata/ai.opencode.mobile.yml` from `distribution/fdroid-submission/metadata.yml`.
+3. Create `metadata/cc.agentlabs.opencode.yml` from `distribution/fdroid-submission/metadata.yml`.
 4. File MR. Respond to reviewer feedback.
 5. Full guide: `distribution/fdroid-submission/SUBMISSION-CHECKLIST.md`.
 
@@ -135,7 +135,7 @@ distribution/
 - fdroiddata (where MR goes): https://gitlab.com/fdroid/fdroiddata
 - IzzyOnDroid policy: https://apt.izzysoft.de/fdroid/index/info
 - IzzyOnDroid issues (where inclusion request goes): https://codeberg.org/IzzyOnDroid/repodata/issues
-- App on IzzyOnDroid (after acceptance): https://apt.izzysoft.de/fdroid/index/apk/ai.opencode.mobile
+- App on IzzyOnDroid (after acceptance): https://apt.izzysoft.de/fdroid/index/apk/cc.agentlabs.opencode
 - Signing key fingerprints: `distribution/SIGNING-KEY-FINGERPRINTS.md`
 - Strategy + full channel overview: `distribution/strategy.md`
 - Play Store operational doc: `docs/playstore.md`

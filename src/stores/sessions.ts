@@ -113,7 +113,7 @@ export const useSessions = create<SessionsState>((set, get) => ({
       // its own directory into the session route so subsequent operations stay scoped.
       const sessions = await client.session.list({ roots: true, limit: 50 })
       set({ sessions, isLoading: false })
-    } catch (error) {
+    } catch {
       set({ error: "Failed to load sessions", isLoading: false })
     }
   },
@@ -227,7 +227,7 @@ export const useSessions = create<SessionsState>((set, get) => ({
         loadingMore: false,
       })
       return created
-    } catch (error) {
+    } catch {
       set({ error: "Failed to create session" })
       return null
     }
@@ -249,7 +249,7 @@ export const useSessions = create<SessionsState>((set, get) => ({
         messages: state.currentSession?.id === sessionID ? [] : state.messages,
         parts: state.currentSession?.id === sessionID ? {} : state.parts,
       }))
-    } catch (error) {
+    } catch {
       set({ error: "Failed to delete session" })
     }
   },
@@ -359,7 +359,7 @@ export const useSessions = create<SessionsState>((set, get) => ({
       const response = await client.session.messages(session.id)
       const { messages, parts } = parseMessages(response)
       set({ messages, parts })
-    } catch (error) {
+    } catch {
       set({ error: "Failed to refresh messages" })
     }
   },
@@ -416,7 +416,7 @@ export const useSessions = create<SessionsState>((set, get) => ({
     const { currentSession } = get()
     if (!currentSession) return
 
-    const props = (event as any).properties || {}
+    const props = event.properties
 
     switch (event.type) {
       case "message.updated": {
@@ -435,7 +435,7 @@ export const useSessions = create<SessionsState>((set, get) => ({
       }
 
       case "message.part.updated": {
-        const part = props.part as Part | undefined
+        const part = props.part
         if (!part) return
         // Only handle parts for current session
         if (part.sessionID && part.sessionID !== currentSession.id) return
@@ -459,7 +459,7 @@ export const useSessions = create<SessionsState>((set, get) => ({
       }
 
       case "message.removed": {
-        const messageID = props.messageID as string
+        const messageID = props.messageID
         if (!messageID) return
         set((state) => ({
           messages: state.messages.filter((m) => m.id !== messageID),
@@ -469,7 +469,7 @@ export const useSessions = create<SessionsState>((set, get) => ({
       }
 
       case "session.updated": {
-        const session = (props.info || props) as Session | undefined
+        const session = props.info as Session | undefined
         if (!session?.id) return
 
         set((state) => ({

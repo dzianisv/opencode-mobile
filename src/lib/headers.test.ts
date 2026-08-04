@@ -26,12 +26,14 @@ test("percent-encodes a directory containing non-ASCII characters", () => {
   const h = buildRequestHeaders({ directory: dir })
   assert.equal(h["x-opencode-directory"], encodeURIComponent(dir))
   // Result must be header-safe (latin1 / ASCII only).
+  // eslint-disable-next-line no-control-regex -- asserting the encoded result is ASCII-only
   assert.match(h["x-opencode-directory"], /^[\x00-\x7F]*$/)
 })
 
 test("encodes CJK directory names header-safely", () => {
   const dir = "/projects/プロジェクト"
   const h = buildRequestHeaders({ directory: dir })
+  // eslint-disable-next-line no-control-regex -- asserting the encoded result is ASCII-only
   assert.match(h["x-opencode-directory"], /^[\x00-\x7F]*$/)
   assert.equal(decodeURIComponent(h["x-opencode-directory"]), dir)
 })

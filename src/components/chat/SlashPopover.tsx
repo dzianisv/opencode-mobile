@@ -1,5 +1,5 @@
 import { useMemo } from "react"
-import { View, Text, TouchableOpacity, ScrollView, StyleSheet, Keyboard, Platform } from "react-native"
+import { View, Text, TouchableOpacity, ScrollView, StyleSheet } from "react-native"
 import { Ionicons } from "@expo/vector-icons"
 import { useTranslation } from "react-i18next"
 
@@ -33,7 +33,7 @@ export function SlashPopover({ query, commands, isDark, onSelect }: Props) {
         {filtered.map((cmd) => (
           <TouchableOpacity key={cmd.trigger} style={[s.item, isDark && s.itemDark]} onPress={() => onSelect(cmd)}>
             <Ionicons
-              name={cmd.icon as any}
+              name={cmd.icon}
               size={18}
               color={cmd.type === "custom" ? "#8b5cf6" : isDark ? "#888888" : "#666666"}
             />

@@ -9,10 +9,16 @@ import { AnalyticsEvent, track } from "../lib/analytics"
 import { recordSuccessfulSession } from "../lib/store-review"
 import { isAuthError } from "../lib/api-error"
 import { isSessionActuallyIdle } from "../lib/session-status-reconcile"
-import type { Client, Part, Session, Message } from "../lib/sdk"
-
-// Session status from the server
-type SessionStatus = { type: "idle" } | { type: "busy" } | { type: "retry"; attempt: number; message: string }
+import type {
+  Client,
+  Part,
+  Session,
+  Message,
+  SessionStatus,
+  PermissionRequest,
+  QuestionRequest,
+  EventEnvelope,
+} from "../lib/sdk"
 
 interface EventsState {
   connected: boolean
@@ -28,32 +34,8 @@ interface EventsState {
   sessionStatus: Record<string, SessionStatus>
   statusText: Record<string, string>
   // Permissions & questions (pending per session)
-  permissions: Record<
-    string,
-    Array<{
-      id: string
-      sessionID: string
-      permission: string
-      patterns: string[]
-      metadata: Record<string, unknown>
-      tool?: { messageID: string; callID: string }
-    }>
-  >
-  questions: Record<
-    string,
-    Array<{
-      id: string
-      sessionID: string
-      questions: Array<{
-        question: string
-        header: string
-        options: Array<{ label: string; description: string }>
-        multiple?: boolean
-        custom?: boolean
-      }>
-      tool?: { messageID: string; callID: string }
-    }>
-  >
+  permissions: Record<string, PermissionRequest[]>
+  questions: Record<string, QuestionRequest[]>
 
   connect: () => void
   disconnect: () => void
@@ -78,11 +60,11 @@ const PROLONGED_DISCONNECT_MS = 30_000
 export async function refreshPending(client: Client, sessionID: string) {
   try {
     const [perms, questions] = await Promise.all([client.permission.list(), client.question.list()])
-    const sessionPerms = (perms || []).filter((p: Record<string, unknown>) => p.sessionID === sessionID)
-    const sessionQuestions = (questions || []).filter((q: Record<string, unknown>) => q.sessionID === sessionID)
+    const sessionPerms = (perms || []).filter((p) => p.sessionID === sessionID)
+    const sessionQuestions = (questions || []).filter((q) => q.sessionID === sessionID)
     useEvents.setState((state) => ({
-      permissions: { ...state.permissions, [sessionID]: sessionPerms as any },
-      questions: { ...state.questions, [sessionID]: sessionQuestions as any },
+      permissions: { ...state.permissions, [sessionID]: sessionPerms },
+      questions: { ...state.questions, [sessionID]: sessionQuestions },
     }))
   } catch (err) {
     console.warn("[Events] Failed to refresh pending:", err)
@@ -234,13 +216,15 @@ export const useEvents = create<EventsState>((set, get) => ({
             void resyncBusySessions()
           }
 
-          const payload = (event as any).payload || event
-          const type = payload.type as string
-          const props = payload.properties || {}
+          // Some server versions wrap events as `{ payload: { type, properties } }`,
+          // others send them flat — unwrap either.
+          const payload: EventEnvelope = "payload" in event ? event.payload : event
+          const type = payload.type
+          const props = payload.properties
 
           switch (type) {
             case "session.status": {
-              const sessionID = props.sessionID as string
+              const sessionID = props.sessionID
               const status = props.status as SessionStatus
               if (!sessionID) break
 
@@ -304,7 +288,7 @@ export const useEvents = create<EventsState>((set, get) => ({
             case "message.updated": {
               const info = props.info as Message | undefined
               if (!info) break
-              useSessions.getState().handleEvent({ type, properties: { info } } as any)
+              useSessions.getState().handleEvent({ type, properties: { info } })
               break
             }
 
@@ -313,21 +297,21 @@ export const useEvents = create<EventsState>((set, get) => ({
               if (!part) break
 
               // Update status text from the latest part
-              const sessionID = (part as any).sessionID as string
+              const sessionID = part.sessionID
               if (sessionID) {
                 set((state) => ({
                   statusText: { ...state.statusText, [sessionID]: statusFromPart(part) },
                 }))
               }
 
-              useSessions.getState().handleEvent({ type, properties: { part } } as any)
+              useSessions.getState().handleEvent({ type, properties: { part } })
               break
             }
 
             case "session.updated": {
               const info = props.info as Session | undefined
               if (!info) break
-              useSessions.getState().handleEvent({ type, properties: { info } } as any)
+              useSessions.getState().handleEvent({ type, properties: { info } })
               break
             }
 
@@ -371,14 +355,17 @@ export const useEvents = create<EventsState>((set, get) => ({
             }
 
             case "permission.asked": {
-              const req = props as any
+              // The wire contract for this event type is a full permission request
+              const req = props as PermissionRequest
               if (!req.id || !req.sessionID) break
-              const existing = get().permissions[req.sessionID] || []
+              // Captured after the guard so closures below keep the narrowing
+              const sessionID = req.sessionID
+              const existing = get().permissions[sessionID] || []
               if (existing.some((item) => item.id === req.id)) break
               set((state) => ({
                 permissions: {
                   ...state.permissions,
-                  [req.sessionID]: [...(state.permissions[req.sessionID] || []), req],
+                  [sessionID]: [...(state.permissions[sessionID] || []), req],
                 },
               }))
               notify({
@@ -413,14 +400,17 @@ export const useEvents = create<EventsState>((set, get) => ({
             }
 
             case "question.asked": {
-              const req = props as any
+              // The wire contract for this event type is a full question request
+              const req = props as QuestionRequest
               if (!req.id || !req.sessionID) break
-              const existing = get().questions[req.sessionID] || []
+              // Captured after the guard so closures below keep the narrowing
+              const sessionID = req.sessionID
+              const existing = get().questions[sessionID] || []
               if (existing.some((item) => item.id === req.id)) break
               set((state) => ({
                 questions: {
                   ...state.questions,
-                  [req.sessionID]: [...(state.questions[req.sessionID] || []), req],
+                  [sessionID]: [...(state.questions[sessionID] || []), req],
                 },
               }))
               notify({

@@ -23,7 +23,7 @@ class CustomRenderer extends Renderer {
     )
   }
 
-  code(text: string, language?: string, containerStyle?: ViewStyle, _textStyle?: TextStyle) {
+  code(text: string, language?: string, containerStyle?: ViewStyle) {
     return (
       <View key={this.getKey()} style={containerStyle}>
         <CodeBlock code={text} language={language} />
@@ -141,6 +141,7 @@ export function Markdown({ children }: Props) {
   // the renderer to `children` resets the slugger per parse, so keys are
   // deterministic (and stable) for a given value, while re-renders with an
   // unchanged value stay memoized instead of creating a new renderer.
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- `children` is an intentional reset key, see comment above: the renderer's slugger must reset per parse
   const renderer = useMemo(() => new CustomRenderer(), [children])
 
   // react-native-marked's default <RNMarkdown> export renders blocks inside a

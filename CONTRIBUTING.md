@@ -104,9 +104,10 @@ The project uses ESLint and TypeScript strict mode. Run before committing:
 ```bash
 npm run lint          # ESLint
 npm run typecheck     # TypeScript type check (tsc --noEmit)
+npm test              # node:test unit suite (src/**/*.test.ts)
 ```
 
-There is no auto-formatter enforced by CI yet (Prettier is configured but optional). Keeping existing style consistent is more important than personal preference.
+There is no auto-formatter enforced by CI — keep existing style consistent rather than imposing personal preference.
 
 Key conventions:
 - Components: functional, with typed props via TypeScript `interface`
@@ -142,7 +143,7 @@ Use the [Feature Request template](https://github.com/dzianisv/opencode-mobile/i
 
 1. Fork the repo and create a branch off `main`: `git checkout -b feat/my-feature`
 2. Make your changes. Keep commits focused — one logical change per commit.
-3. Ensure `npm run lint` and `npm run typecheck` pass.
+3. Ensure `npm run lint`, `npm run typecheck`, and `npm test` pass.
 4. If you changed UI, include a screenshot in the PR description.
 5. Open the PR against `dzianisv/opencode-mobile main`. Fill in the PR template.
 6. A maintainer will review within a few business days.

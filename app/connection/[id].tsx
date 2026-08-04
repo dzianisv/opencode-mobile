@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react"
+import { useState } from "react"
 import {
   View,
   Text,
@@ -53,15 +53,19 @@ export default function EditConnectionScreen() {
   const [isTesting, setIsTesting] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
 
-  useEffect(() => {
-    if (connection) {
-      setType(connection.type)
-      setName(connection.name)
-      setUrl(connection.url)
-      setDirectory(connection.directory || "")
-      setUsername(connection.username || "")
-    }
-  }, [connection])
+  // Seed the form from the connection when it first arrives — deep links can
+  // mount this screen before the connections store finishes loading. The
+  // store replaces the connection object on every write, so key the sync on
+  // the id: a save (or any store write) must never reset an in-progress edit.
+  const [syncedId, setSyncedId] = useState<string | null>(null)
+  if (connection && connection.id !== syncedId) {
+    setSyncedId(connection.id)
+    setType(connection.type)
+    setName(connection.name)
+    setUrl(connection.url)
+    setDirectory(connection.directory || "")
+    setUsername(connection.username || "")
+  }
 
   if (!connection) {
     return (

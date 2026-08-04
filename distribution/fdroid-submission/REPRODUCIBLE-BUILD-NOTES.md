@@ -1,4 +1,4 @@
-# Reproducible Build Notes — ai.opencode.mobile
+# Reproducible Build Notes — cc.agentlabs.opencode
 
 F-Droid's modern `AllowedAPKSigningKeys` path requires that F-Droid's build
 server can compile the same APK and arrive at a binary that matches the
@@ -131,7 +131,7 @@ pip install fdroidserver
 fdroid signatures path/to/app-release.apk
 
 # Full build test
-fdroid build ai.opencode.mobile:<versionCode> --verbose
+fdroid build cc.agentlabs.opencode:<versionCode> --verbose
 ```
 
 See https://f-droid.org/en/docs/Reproducible_Builds/ for the full guide.
@@ -160,6 +160,6 @@ The main `build` job is unmodified — no feature loss for non-F-Droid users.
 `fdroidserver` + a maintainer's Docker/Linux environment — see "How to test
 reproducible builds" above). Before relying on this for a real fdroiddata
 submission or an `AllowedAPKSigningKeys` update, a maintainer must run
-`fdroid build ai.opencode.mobile:<versionCode> --verbose` (or the fdroiddata
+`fdroid build cc.agentlabs.opencode:<versionCode> --verbose` (or the fdroiddata
 CI equivalent) against a tagged release that has an `app-release-fdroid.apk`
 asset, and confirm the from-source rebuild matches it byte-for-byte.
