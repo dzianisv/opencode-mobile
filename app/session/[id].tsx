@@ -30,9 +30,11 @@ import {
   VariantPicker,
   ImageAttachments,
   SessionInfo,
+  SelectableTextModal,
   type SlashCommand,
   type Attachment,
 } from "../../src/components/chat"
+import { extractCopyText, hasCopyableText } from "../../src/lib/message-copy-text"
 import { useSessions } from "../../src/stores/sessions"
 import { useEvents, refreshPending } from "../../src/stores/events"
 import { useConnections } from "../../src/stores/connections"
@@ -86,6 +88,10 @@ export default function SessionScreen() {
   const [input, setInput] = useState("")
   const [attachments, setAttachments] = useState<Attachment[]>([])
   const [showInfo, setShowInfo] = useState(false)
+  // Non-null when the select-text sheet is open; holds the message's source
+  // text. Kept as the text itself rather than a messageID so the sheet keeps
+  // showing a stable snapshot even if the message streams or is reverted.
+  const [selectableText, setSelectableText] = useState<string | null>(null)
 
   const {
     currentSession,
@@ -223,9 +229,35 @@ export default function SessionScreen() {
   // closing over props) so MessageBubble's custom memo comparator can bail
   // safely without risking a stale handler.
   const handleMessageLongPress = useCallback((messageID: string) => {
-    Alert.alert(t("session.alerts.messageActionsTitle"), undefined, [
-      { text: t("common.cancel"), style: "cancel" },
-      {
+    const state = useSessions.getState()
+    const parts = state.parts[messageID]
+    const isUser = state.messages.find((m) => m.id === messageID)?.role === "user"
+    const copyText = extractCopyText(parts)
+    const canCopy = hasCopyableText(parts)
+
+    const actions: Parameters<typeof Alert.alert>[2] = [{ text: t("common.cancel"), style: "cancel" }]
+
+    // Copy/select come first because they apply to both roles. For assistant
+    // messages they are the *only* copy path: Markdown.tsx strips `selectable`
+    // from rendered prose to avoid facebook/react-native#46999 inside the
+    // transcript FlatList.
+    if (canCopy) {
+      actions.push({
+        text: t("session.actions.copyMessage"),
+        onPress: () => {
+          Clipboard.setStringAsync(copyText).catch(() => {})
+        },
+      })
+      actions.push({
+        text: t("session.actions.selectText"),
+        onPress: () => setSelectableText(copyText),
+      })
+    }
+
+    // Edit/revert stays user-only — reverting to an assistant message is not
+    // a supported operation.
+    if (isUser) {
+      actions.push({
         text: t("session.actions.editMessage"),
         onPress: () => {
           const doRevert = async () => {
@@ -248,8 +280,14 @@ export default function SessionScreen() {
           }
           doRevert()
         },
-      },
-    ])
+      })
+    }
+
+    // Nothing but Cancel means there is no action worth interrupting the
+    // user for (e.g. a tool-only message with no prose).
+    if (actions.length === 1) return
+
+    Alert.alert(t("session.alerts.messageActionsTitle"), undefined, actions)
   }, [applyRevertResult, t])
 
   const scrollToBottom = useCallback((animated = true) => {
@@ -633,6 +671,14 @@ export default function SessionScreen() {
             flatListRef.current?.scrollToEnd({ animated: true })
           }}
           onClose={() => setShowInfo(false)}
+        />
+
+        {/* Select/copy sheet for message text. Rendered here, outside the
+            transcript FlatList, so `selectable` actually works on Android. */}
+        <SelectableTextModal
+          visible={selectableText !== null}
+          text={selectableText ?? ""}
+          onClose={() => setSelectableText(null)}
         />
 
         {/* SSE reconnect/connected banner */}
