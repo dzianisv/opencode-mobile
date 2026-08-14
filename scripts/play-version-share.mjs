@@ -86,6 +86,8 @@ const VERSION_NAMES = {
   142: "0.4.10",
   143: "0.4.11",
   146: "0.4.12",
+  // v0.4.13 (retry queue + mailto version stamp) — production dispatch run 49.
+  149: "0.4.13",
 };
 
 const args = process.argv.slice(2);

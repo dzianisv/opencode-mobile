@@ -40,7 +40,7 @@ returns 0 results) and the app is not on IzzyOnDroid, so those channels contribu
 
 ## After-number: how it gets attributed (AGE-100)
 
-_Pending — v0.4.13 (the first build users can actually run the retry queue on) ships 2026-08-14._
+_Pending — v0.4.13 (the first build users can actually run the retry queue on) went to the Play **production** track on 2026-08-14 as **versionCode 149** ([run 31786473735](https://github.com/dzianisv/opencode-mobile/actions/runs/31786473735)). Re-read one week out._
 
 Baseline at release time, from the hourly reconciler's last run before the cut
 (`Waitlist Mailto Reconcile`, 2026-08-14 07:59 UTC): `scanned=34 synced=0 skipped=34 failed=0`
