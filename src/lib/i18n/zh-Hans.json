@@ -444,5 +444,12 @@
     "connectButton": "连接您自己的服务器",
     "setupGuideLink": "如何设置服务器",
     "hostedCtaLink": "没有服务器？加入 OpenCode Connect 候补名单 — 托管，无需搭建"
+  },
+  "update": {
+    "available": "有可用更新",
+    "body": "版本 {{version}} 已发布，你当前使用的是 {{current}}。",
+    "action": "去获取",
+    "dismiss": "暂不",
+    "upToDate": "已是最新"
   }
 }

@@ -27,6 +27,7 @@ import type BottomSheet from "@gorhom/bottom-sheet"
 import type { Session, Project } from "../../src/lib/sdk"
 import { DirectorySwitcher, DirectoryBrowserSheet } from "../../src/components/chat"
 import { groupByDirectory } from "../../src/lib/session-grouping"
+import { UpdateBanner } from "../../src/components/UpdateBanner"
 import { nameOf } from "../../src/lib/path-utils"
 import { SETUP_GUIDE_URL } from "../../src/lib/links"
 
@@ -547,6 +548,8 @@ export default function SessionsScreen() {
           <Text style={styles.errorText}>{error}</Text>
         </View>
       )}
+
+      <UpdateBanner isDark={isDark} />
 
       <FlatList
         data={rows}

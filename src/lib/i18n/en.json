@@ -444,5 +444,12 @@
     "connectButton": "Connect your own server",
     "setupGuideLink": "How to set up a server",
     "hostedCtaLink": "No server? Join the OpenCode Connect waitlist — hosted, no setup"
+  },
+  "update": {
+    "available": "Update available",
+    "body": "Version {{version}} is out. You're on {{current}}.",
+    "action": "Get it",
+    "dismiss": "Not now",
+    "upToDate": "Up to date"
   }
 }

@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react"
+import { useCallback, useEffect, useState } from "react"
 import {
   View,
   Text,
@@ -23,6 +23,7 @@ import {
 import type { Category } from "../../src/lib/notifications"
 import { hasTelemetryConsent, setTelemetryConsent } from "../../src/lib/telemetry"
 import { PRIVACY_POLICY_URL } from "../../src/lib/links"
+import { CURRENT_VERSION, checkForUpdate, type AvailableUpdate } from "../../src/lib/update-check"
 import type { LocalePreference } from "../../src/lib/i18n/locale-resolve"
 
 function SettingRow({
@@ -78,6 +79,23 @@ export default function SettingsScreen() {
   const { notifications, setNotification, locale, setLocale } = useSettings()
   const [osGranted, setOsGranted] = useState<boolean | null>(null)
   const [telemetryUpdating, setTelemetryUpdating] = useState(false)
+
+  // Settings is where a user goes to ask "what am I running?". Answer it, and if
+  // a newer build exists say so here too — the banner on the sessions list is
+  // dismissible, this row is not (AGE-110). Uses the same 24h-throttled check,
+  // so opening Settings repeatedly costs no extra requests.
+  const [updateAvailable, setUpdateAvailable] = useState<AvailableUpdate | null>(null)
+  useEffect(() => {
+    let cancelled = false
+    checkForUpdate({ ignoreDismissed: true })
+      .then((result) => {
+        if (!cancelled) setUpdateAvailable(result)
+      })
+      .catch(() => undefined)
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   // Telemetry consent: hasTelemetryConsent() returns null (unknown), true, or false.
   // We initialise local state from in-memory value; updates call setTelemetryConsent().
@@ -247,7 +265,25 @@ export default function SettingsScreen() {
           onPress={handleLanguagePress}
           right={<Ionicons name="chevron-forward" size={20} color={isDark ? "#666666" : "#999999"} />}
         />
-        <SettingRow icon="information-circle" label={t("settings.about.version")} description="1.0.0" isDark={isDark} />
+        <SettingRow
+          icon="information-circle"
+          label={t("settings.about.version")}
+          // Was hard-coded "1.0.0" — wrong for every build ever shipped, and the
+          // one place a user could have checked what they are running while 64%
+          // of the base sat on a four-week-old build (AGE-110).
+          description={
+            updateAvailable
+              ? `${CURRENT_VERSION} → ${updateAvailable.version}`
+              : `${CURRENT_VERSION} · ${t("update.upToDate")}`
+          }
+          isDark={isDark}
+          onPress={updateAvailable ? () => Linking.openURL(updateAvailable.url) : undefined}
+          right={
+            updateAvailable ? (
+              <Ionicons name="arrow-up-circle" size={20} color={isDark ? "#7dd3fc" : "#0369a1"} />
+            ) : undefined
+          }
+        />
         <SettingRow
           icon="logo-github"
           label={t("settings.about.github.label")}
