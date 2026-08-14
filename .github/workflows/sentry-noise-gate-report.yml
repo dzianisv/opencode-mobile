@@ -1,0 +1,88 @@
+name: Sentry noise-gate report
+
+# Grades the AGE-105 noise gate against the number it promised, with install-base
+# uptake folded in — see scripts/noise-gate-report.mjs for why a raw event count
+# cannot grade a gate that ships inside an app binary.
+#
+# It lives in CI rather than on a laptop for one blunt reason: neither credential
+# it needs (Sentry org read token, Play service account) exists outside GitHub
+# Secrets, so an agent picking up this measurement locally is stuck. Dispatch this
+# instead and read the run summary:
+#
+#   gh workflow run "Sentry noise-gate report" -f post=2026-08-21T00:00:00Z..now
+#   gh run watch <id> && gh run view <id>   # table is in the job summary
+#
+# The scheduled Monday run exists so the trend is recorded even if nobody asks.
+
+on:
+  workflow_dispatch:
+    inputs:
+      pre:
+        description: "Baseline window START..END (rate before the rollout reached devices)"
+        required: false
+        # Post-box-bot-fix, pre-mobile-rollout. The only clean baseline that
+        # measures mobile alone: AGE-55 silenced openclaw-box-bot at 06:19Z and
+        # v0.4.14 reached production at 14:22Z on the same day.
+        default: "2026-08-14T07:00:00Z..2026-08-14T14:00:00Z"
+      post:
+        description: "Measured window START..END (default: trailing 7d)"
+        required: false
+        default: ""
+      project:
+        description: "Sentry project slug"
+        required: false
+        default: "opencode-mobile"
+  schedule:
+    # Mondays 15:00 UTC. Weekly, not daily: a window under ~24h ranks sources but
+    # cannot certify a monthly rate, and Play vitals land with a multi-day lag.
+    - cron: "0 15 * * 1"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sentry-noise-gate-report-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+
+      # The grading model is the part that can be wrong silently, so it is tested
+      # before it is trusted — in the same job that publishes the number.
+      - name: Test the grading model
+        run: node --test scripts/noise-gate-report.test.mjs
+
+      - name: Report
+        env:
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_PRODUCT_INTELLIGENCE_TOKEN || secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_ORG: ${{ secrets.SENTRY_ORG || 'vibetechnologies' }}
+          GOOGLE_PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.PLAY_STORE_SERVICE_ACCOUNT_JSON }}
+        run: |
+          set -euo pipefail
+          args=(--pre "${{ inputs.pre || '2026-08-14T07:00:00Z..2026-08-14T14:00:00Z' }}")
+          args+=(--project "${{ inputs.project || 'opencode-mobile' }}")
+          if [ -n "${{ inputs.post }}" ]; then args+=(--post "${{ inputs.post }}"); fi
+          node scripts/noise-gate-report.mjs "${args[@]}"
+
+      - name: Raw org volume (per project, per outcome, with client_discard reasons)
+        if: always()
+        env:
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_PRODUCT_INTELLIGENCE_TOKEN || secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_ORG: ${{ secrets.SENTRY_ORG || 'vibetechnologies' }}
+        run: |
+          set -euo pipefail
+          {
+            echo ''
+            echo '### Raw org volume'
+            echo '```'
+            node scripts/sentry-volume-report.mjs --by-reason || true
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"

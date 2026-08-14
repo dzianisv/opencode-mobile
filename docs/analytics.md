@@ -165,6 +165,45 @@ production rollout at 14:22 UTC), two windows agreeing to within 0.2%:
 Mobile was 87% of the org's post-box-bot demand. Target: under ~1,500/month, which puts the
 org under the 3,500/month gate.
 
+### Uptake is part of the measurement, not an excuse afterwards
+
+The gate ships **inside the app binary**, so it only runs on devices that installed v0.4.14.
+A raw event count therefore cannot grade it. Replaying 90d of real events through the gate
+drops 96.9% of them (~107/month) — but only at 100% install share, which Play never reaches
+quickly and never reaches fully.
+
+The two symmetrical mistakes:
+
+- reading a still-high number at 30% uptake as "the gate failed" (it predicts ~70% of
+  baseline — that IS the gate working), and
+- reading a dip caused by a quiet weekend, or by users simply opening the app less, as gate
+  efficacy.
+
+So grade against the uptake-adjusted expectation:
+
+```
+expected_post = baseline_rate x (1 - gated_share x 0.969)
+```
+
+`scripts/noise-gate-report.mjs` does exactly this: it pulls the Sentry rate
+(`sentry-volume-report.mjs`) and the Play install share (`play-version-share.mjs`,
+versionCode >= 150 = v0.4.14 = gated), prints measured-vs-expected-vs-100%-uptake, and
+**refuses to grade** a window where `client_discard/before_send` is 0 or Play share is 0 —
+neither of which is a pass or a failure, only an absence of evidence. It also inverts the
+model to report the *implied* on-device efficacy, so the 96.9% constant is checked against
+reality rather than assumed.
+
+Neither credential exists on a laptop, so run it in CI and read the job summary:
+
+```sh
+gh workflow run "Sentry noise-gate report" -f post=2026-08-21T00:00:00Z..now
+gh run view --log   # or just open the run summary
+```
+
+It also runs itself weekly (Mondays 15:00 UTC) so the trend is recorded whether or not
+anyone asks. Unit tests for the grading model live in `scripts/noise-gate-report.test.mjs`
+and run in the same job that publishes the number.
+
 ### The quota resets on the 4th — that is the real deadline
 
 Org-wide daily `accepted` shows a hard billing boundary:
