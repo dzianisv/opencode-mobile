@@ -15,8 +15,15 @@
 // `connection_failed` event with an `error_class` property
 // (see analytics-classify.ts + stores/connections.ts), so dropping them from
 // Sentry loses no trend visibility — it just stops paying per-event for a graph
-// we already have. The 401 storm is one device's token-refresh retry loop:
-// 498 copies of one problem, not 498 problems.
+// we already have.
+//
+// The 401 storm was NOT an automated retry loop (AGE-107 traced it): it was one
+// user manually re-tapping Connect for two months because v0.4.4's probe scored
+// any HTTP response as a success and told them "connection actually works now"
+// while their password was wrong. A wrong password is user config, not an app
+// defect — it is already surfaced in the connection screen (now as
+// `connect auth-failed`) and already trended in PostHog as
+// `connection_failed{error_class:"unauthorized"}`, so it is dropped here too.
 //
 // Three layers, cheapest first (`admit()` applies them in order):
 //   1. ALWAYS-SEND allowlist — genuine crash classes (OOM/ANR/native/fatal)
@@ -41,12 +48,15 @@ export type NoiseEventLike = {
   exception?: { values?: Array<{ type?: string; value?: string; mechanism?: { handled?: boolean } }> }
 }
 
-/** Client-side network conditions. Unactionable server-side, already surfaced to
- *  the user as connection UI, and already trended in PostHog as
- *  `connection_failed{error_class}`. Dropped outright. */
+/** Client-side network and credential conditions. Unactionable server-side,
+ *  already surfaced to the user as connection UI, and already trended in
+ *  PostHog as `connection_failed{error_class}`. Dropped outright. */
 export const TRANSPORT_NOISE_PATTERNS: RegExp[] = [
   // captureDiagnostic() → new Error(`connect ${classification}`)
-  /^connect (?:timeout|server-unreachable|no-internet|malformed-url)$/i,
+  // `auth-failed` = the server answered 401/403: wrong password, user config.
+  // `health-failed` and `tls-error` are deliberately NOT here — a box that
+  // answers but is unhealthy, or a broken cert, is actionable.
+  /^connect (?:timeout|server-unreachable|no-internet|malformed-url|auth-failed)$/i,
   // RN fetch failures surfacing through the global handler / rejection hook.
   /network request failed/i,
   /request timed out after/i,

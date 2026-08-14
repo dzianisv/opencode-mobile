@@ -267,11 +267,12 @@ export function captureException(
 export function captureDiagnostic(report: DiagnosticReport) {
   log.info("sentry", "capture", report.classification, enabled ? "(uploading)" : "(local only)")
   if (!enabled) return
-  // Client-side network conditions (timeout / unreachable / no internet) are
-  // already shown to the user and already trended in PostHog as
-  // `connection_failed{error_class}`; they were the single largest consumer of
-  // the org Sentry quota (AGE-105). Skip them here so we don't even build the
-  // event. `health-failed` / `tls-error` are genuinely actionable and still go.
+  // Client-side network conditions (timeout / unreachable / no internet) and
+  // wrong credentials (auth-failed) are already shown to the user and already
+  // trended in PostHog as `connection_failed{error_class}`; they were the
+  // single largest consumer of the org Sentry quota (AGE-105 / AGE-107). Skip
+  // them here so we don't even build the event. `health-failed` / `tls-error`
+  // are genuinely actionable and still go.
   if (isTransportNoise(`connect ${report.classification}`)) {
     log.info("sentry", "skipped diagnostic upload (client-side network condition)", report.classification)
     return

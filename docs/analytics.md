@@ -81,20 +81,32 @@ Consent decides *whether* we report; the noise gate in `src/lib/sentry-noise.ts`
 often*. It exists because this app became the org's #1 Sentry volume source (~4,500
 events/month against a 3,500/month org quota) while ~1,100 of those events were three
 non-defects: `connect timeout`, `connect server-unreachable`, and one device's
-`API Error: 401` token-refresh loop firing 498 times.
+`API Error: 401` firing 498 times.
+
+> **AGE-107 postscript.** That 401 storm was traced to a *human* retry loop, not a client
+> token-refresh loop. In v0.4.4 the connection probe scored **any** HTTP response as a
+> success, so a 401 was reported to the user as "Health endpoint responded — connection
+> actually works now" while their password was wrong. They re-tapped Connect for two months
+> (Sentry breadcrumbs show a `touch` event before every single capture, at irregular
+> human-paced intervals). `requireOk` in `diagnostics.ts` (v0.4.8) stopped the false
+> success; `auth-failed` now gives it its own actionable message and drop-list entry.
+> The client's automated loops were never at fault — `events.ts` already terminates the SSE
+> reconnect loop on `ApiAuthError` (issue #76).
 
 `beforeSend` applies three layers, cheapest first:
 
 | Layer | Rule | Effect |
 |---|---|---|
 | Always-send allowlist | OOM / ANR / native / `IllegalStateException` / `NullPointerException` / fatal level / unhandled mechanism | Bypasses every limit below — quota is worthless if it silences real crashes |
-| Transport drop-list | `connect timeout\|server-unreachable\|no-internet\|malformed-url`, `Network request failed`, `Request timed out after`, `ECONN*`/`ETIMEDOUT`… | Hard drop. Not sampled: the gate is per-install, so even 1/device/day multiplies by the install base back into thousands/month |
+| Transport drop-list | `connect timeout\|server-unreachable\|no-internet\|malformed-url\|auth-failed`, `Network request failed`, `Request timed out after`, `ECONN*`/`ETIMEDOUT`… | Hard drop. Not sampled: the gate is per-install, so even 1/device/day multiplies by the install base back into thousands/month |
 | Dedup + rate cap | per-fingerprint cooldown 6h, ≤6 new fingerprints/h, ≤10 events/h (mirrors the `openclaw-box-bot` shim, AGE-55) | Turns a retry loop into one report and caps any future regression |
 
 Nothing is lost by the transport drop: those failures are already shown to the user as
 connection UI **and** already trended, PII-free, as the PostHog `connection_failed` event with
-an `error_class` property (`src/lib/analytics-classify.ts`). Sentry was paying per event for a
-graph we already have.
+an `error_class` property (`src/lib/analytics-classify.ts` — a 401 lands in `unauthorized`).
+Sentry was paying per event for a graph we already have. `connect health-failed` and
+`connect tls-error` are deliberately **not** dropped: a box that answers but is unhealthy, or
+a broken certificate, is actionable.
 
 Dropped-event counts are not silent — the number dropped since the last delivered event rides
 along as a `noise.dropped_since_last` tag, so the saving is auditable from Sentry itself.

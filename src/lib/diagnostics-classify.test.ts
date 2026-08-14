@@ -116,11 +116,59 @@ test("root reachable but internet probe down still classifies as health-failed, 
   // this must not be misreported as "no internet".
   const r = classify(
     okUrl,
-    probe({ ok: false, error: "HTTP 401", status: 401 }), // health
+    probe({ ok: false, error: "HTTP 404", status: 404 }), // health
     probe({ ok: false }), // internet (down)
     probe({ ok: true }), // root (reachable)
   )
   assert.equal(r.classification, "health-failed")
+})
+
+// --- AGE-107: a rejected credential must not read as anything else ---------
+//
+// One device sent 498 `API Error: 401` events over two months. The cause was
+// not an automated retry loop — it was a human re-tapping Connect because
+// v0.4.4's probe scored any HTTP response as ok:true and reported
+// "connection actually works now" while the password was wrong. `requireOk`
+// stopped that lie; these lock in the follow-up: 401/403 is its own,
+// actionable classification, not the generic health-failed bucket.
+
+test("health probe 401 -> auth-failed, and the summary tells the user to fix credentials", () => {
+  const r = classify(
+    okUrl,
+    probe({ ok: false, error: "HTTP 401", status: 401 }), // health
+    probe({ ok: true }), // internet
+    probe({ ok: true, status: 401 }), // root reachable
+  )
+  assert.equal(r.classification, "auth-failed")
+  assert.match(r.summary, /401/)
+  assert.match(r.summary, /credential|password/i)
+  // Must NOT tell the user the connection works (the v0.4.4 defect).
+  assert.doesNotMatch(r.summary, /actually works/i)
+})
+
+test("health probe 403 -> auth-failed too", () => {
+  const r = classify(okUrl, probe({ ok: false, status: 403 }), probe({ ok: true }), probe({ ok: true, status: 403 }))
+  assert.equal(r.classification, "auth-failed")
+  assert.match(r.summary, /403/)
+})
+
+test("auth-failed wins even when the server root probe is unreachable", () => {
+  // A 401 from /global/health already proves the server answered us; the
+  // root probe's outcome must not downgrade this to server-unreachable.
+  const r = classify(okUrl, probe({ ok: false, status: 401 }), probe({ ok: true }), probe({ ok: false }))
+  assert.equal(r.classification, "auth-failed")
+})
+
+test("non-auth failure statuses stay health-failed", () => {
+  for (const status of [404, 500, 502]) {
+    const r = classify(okUrl, probe({ ok: false, status }), probe({ ok: true }), probe({ ok: true, status }))
+    assert.equal(r.classification, "health-failed", `status ${status}`)
+  }
+})
+
+test("health-failed copy no longer blames auth now that auth-failed exists", () => {
+  const r = classify(okUrl, probe({ ok: false, status: 500 }), probe({ ok: true }), probe({ ok: true, status: 500 }))
+  assert.doesNotMatch(r.summary, /auth/i)
 })
 
 test("server-unreachable adds MagicDNS hint only for hostnames, not IPs", () => {

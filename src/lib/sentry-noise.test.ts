@@ -34,6 +34,16 @@ test("isTransportNoise: server-side and app-side failures are NOT noise", () => 
   assert.equal(isTransportNoise(""), false)
 })
 
+test("isTransportNoise: AGE-107 — a rejected credential is user config, not an app defect", () => {
+  // The server answered 401/403. Nothing on our side can fix a wrong password;
+  // it is already shown in the connection screen and already trended in
+  // PostHog as connection_failed{error_class:"unauthorized"}.
+  assert.equal(isTransportNoise("connect auth-failed"), true)
+  // ...but a genuine 401 from anywhere else still reports — only the
+  // classified diagnostic is dropped.
+  assert.equal(isTransportNoise("API Error: 401 - "), false)
+})
+
 test("isAlwaysSend: genuine crash classes bypass the gate", () => {
   assert.equal(isAlwaysSend("OutOfMemoryError (okio.Buffer.readByteArray)"), true)
   assert.equal(isAlwaysSend("IllegalStateException: no activity"), true)
