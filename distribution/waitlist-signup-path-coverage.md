@@ -55,6 +55,36 @@ into the mail (`buildWaitlistMailtoUrl`, `src/lib/waitlist.ts`). That gives a cl
 | no `App:` line | a build older than v0.4.13 — expected, this is the ~436-device sideload cohort no release can reach |
 | `App: OpenCode Mobile v0.4.13` or newer | a current build still reached mailto — the retry queue leaked, **file it as a new defect with the mail as evidence** |
 
+### Reading the after-number
+
+Do **not** open Chatwoot conversations by hand — the reconciler does the split itself as of
+[VibeBrowserProductPage#237](https://github.com/dzianisv/VibeBrowserProductPage/pull/237). Every
+hourly run now prints one grep-able line:
+
+```
+scanned=N synced=N skipped=N failed=N unstamped=N stamped=N builds=v0.4.13:N
+```
+
+- `unstamped` — recovered signups from builds older than v0.4.13. **Expected**; this is the cohort
+  no shipped code can reach, and it is the number that should account for essentially all of
+  `synced`.
+- `stamped` — recovered signups from builds that carry the AGE-87 retry queue and fell back
+  anyway. **This must be 0.** Anything above 0 is a live defect, and the reconciler already says so
+  in its alert issue and in the Chatwoot internal note, naming the exact conversations.
+
+So the week-out read is:
+
+```bash
+gh run list --repo dzianisv/VibeBrowserProductPage \
+  --workflow "Waitlist Mailto Reconcile" --limit 200 \
+  --json databaseId,createdAt,conclusion
+# then, per run id:
+gh run view --repo dzianisv/VibeBrowserProductPage <id> --log | grep -E "^scanned="
+```
+
+Sum `stamped` across the week. `stamped=0` closes AGE-100 with the number; `stamped>0` opens a
+defect with those conversations as evidence.
+
 ## Method / reproducing
 
 ```bash
