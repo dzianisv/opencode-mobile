@@ -88,6 +88,11 @@ const VERSION_NAMES = {
   146: "0.4.12",
   // v0.4.13 (retry queue + mailto version stamp) — production dispatch run 49.
   149: "0.4.13",
+  // v0.4.14 = the Sentry noise gate (AGE-105). 150 = internal (tag push, run 50),
+  // 151 = production (dispatch run 51, 2026-08-14 14:22Z). Both contain the gate,
+  // which is what scripts/noise-gate-report.mjs counts as "gated".
+  150: "0.4.14",
+  151: "0.4.14",
 };
 
 const args = process.argv.slice(2);
