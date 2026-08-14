@@ -26,6 +26,13 @@ on:
           - completed
           - draft
 
+# A tag push and a `release: published` for the same version must not race two
+# uploads into the same track. Serialize per ref instead of cancelling, because
+# cancelling mid-upload can leave a half-created Play release.
+concurrency:
+  group: publish-play-store-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   publish:
     runs-on: ubuntu-latest
@@ -143,12 +150,47 @@ jobs:
           name: app-release-bundle
           path: android/app/build/outputs/bundle/release/app-release.aab
 
+      - name: Resolve Play track
+        id: channel
+        # AGE-110: releases used to land on `internal` and stop there — production
+        # only moved when a human remembered to run workflow_dispatch. It served
+        # versionCode 136 (v0.4.5, 2026-06-22) for EIGHT weeks for that reason,
+        # which is why a client-side fix shipped in v0.4.14 could not reach the
+        # install base. A release tag is already a deliberate act; treat it as one
+        # and publish it to the auto-updating channel. Manual dispatch keeps its
+        # inputs so `internal`/`draft` dry runs are still one click away.
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            TRACK="${{ github.event.inputs.track || 'internal' }}"
+            STATUS="${{ github.event.inputs.status || 'completed' }}"
+          else
+            TRACK=production
+            STATUS=completed
+          fi
+          echo "track=$TRACK" >> "$GITHUB_OUTPUT"
+          echo "status=$STATUS" >> "$GITHUB_OUTPUT"
+          echo "event=${{ github.event_name }} -> track=$TRACK status=$STATUS"
+
       - name: Publish to Play Store
         uses: r0adkll/upload-google-play@e738b9dd8f2476ea806d921b64aacd24f34515a5 # v1.1.5
         with:
           serviceAccountJsonPlainText: ${{ secrets.PLAY_STORE_SERVICE_ACCOUNT_JSON }}
           packageName: cc.agentlabs.opencode
           releaseFiles: android/app/build/outputs/bundle/release/app-release.aab
-          track: ${{ github.event.inputs.track || 'internal' }}
-          status: ${{ github.event.inputs.status || 'completed' }}
+          track: ${{ steps.channel.outputs.track }}
+          status: ${{ steps.channel.outputs.status }}
           whatsNewDirectory: distribution/whatsnew
+
+      - name: Record where it landed
+        if: always()
+        run: |
+          {
+            echo "### Play publish"
+            echo ""
+            echo "- event: \`${{ github.event_name }}\`"
+            echo "- track: \`${{ steps.channel.outputs.track }}\`"
+            echo "- status: \`${{ steps.channel.outputs.status }}\`"
+            echo "- versionCode: \`$(node -p "require('./app.json').expo.android.versionCode" 2>/dev/null || echo unknown)\`"
+            echo "- version: \`$(node -p "require('./app.json').expo.version" 2>/dev/null || echo unknown)\`"
+          } >> "$GITHUB_STEP_SUMMARY"

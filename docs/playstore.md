@@ -84,21 +84,29 @@ For full company facts (D-U-N-S, address, governor, etc.) see `~/.agents/skills/
 
 After 14 days on Closed testing with 12+ active testers → promote to Production.
 
-### Promoting a tagged release to Production
+### Tagging a release publishes to Production (since AGE-110)
 
-Pushing a `v*` tag only publishes to the **internal** track — the workflow
-defaults `track: internal` for non-dispatch runs. Production is a second,
-manual dispatch off `main`:
+Pushing a `v*` tag (or publishing a GitHub Release) now uploads straight to the
+**production** track with `status: completed`. Only `workflow_dispatch` honours
+the `track`/`status` inputs, which still default to `internal`/`completed` for
+dry runs.
+
+Why the default flipped: while tag pushes stopped at `internal`, production kept
+serving versionCode **136 (v0.4.5, 2026-06-22) for eight weeks**, because the
+second manual dispatch was easy to forget. Sentry release health then showed
+~64–78% of active users pinned to a single stale build, which capped the AGE-105
+noise gate at a fraction of the error volume it was written to remove. The
+human gate was not protecting users; it was silently withholding fixes from them.
+
+Ad-hoc dry run (unchanged):
 
 ```bash
-gh workflow run publish-play-store.yml --ref main -f track=production -f status=completed
+gh workflow run publish-play-store.yml --ref main -f track=internal -f status=draft
 ```
 
-That dispatch **rebuilds** the AAB, so it gets its own versionCode
-(`github.run_number + 100`) — it does not promote the internal artifact in
-place. Expect the production versionCode to be one higher than the internal
-one from the tag push, and never equal to `app.json`'s committed
-`android.versionCode`.
+Every run **rebuilds** the AAB, so it gets its own versionCode
+(`github.run_number + 100`) — it never promotes an existing artifact in place,
+and it is never equal to `app.json`'s committed `android.versionCode`.
 
 ### Release history (production track)
 

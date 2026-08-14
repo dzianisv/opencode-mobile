@@ -40,22 +40,24 @@ The publish workflow runs on:
 - GitHub Release publish events
 - Tag pushes matching `v*`
 
-It builds an AAB (Android App Bundle), signs it with the release keystore, and uploads to the **internal** track. Promote to production via Play Console.
+It builds an AAB (Android App Bundle), signs it with the release keystore, and uploads to the **production** track (`status: completed`). Manual `workflow_dispatch` runs still honour the `track`/`status` inputs and default to `internal`.
 
 ## Releasing (proven runbook)
 
 1. Bump `version` in `package.json` **and** `app.json` (`expo.version`). Do **not** bother hand-bumping `android.versionCode` for Play — the publish workflow overrides it with `github.run_number + 100` at build time (so the Play `versionCode` is e.g. `142`, unrelated to the number in `app.json`; that field only matters for local/other builds).
 2. Update the **Play** release notes in `distribution/whatsnew/whatsnew-en-US` (single file, applied to the build being uploaded; **max 500 chars**). This — not the `fastlane/metadata/android/en-US/changelogs/*.txt` files — is what the Play publish uses (`whatsNewDirectory` in the workflow). The fastlane `changelogs/*.txt` files feed **F-Droid**, not Play; keep them for F-Droid but don't expect Play to read them. Merge to `main`.
-3. Tag the release: `git tag -a vX.Y.Z <sha> -m "..." && git push origin vX.Y.Z`. This triggers the publish workflow → **internal** track.
-4. Verify the publish run is green, then confirm the build on the internal track. Note its real Play `versionCode` (run_number+100) — that's what you promote, not the `app.json` number.
-5. **Promote to production** (see below).
+3. Tag the release: `git tag -a vX.Y.Z <sha> -m "..." && git push origin vX.Y.Z`. This triggers the publish workflow → **production** track, `status: completed`.
+4. Verify the publish run is green, and read the run summary — it records the event, resolved track/status, and the real Play `versionCode` (run_number+100, not the `app.json` number).
+5. Nothing else to do. There is no second promotion step.
 
 ## Promoting to production
 
-Production is **not** published by CI by default — the service account is scoped to the internal track only, which is intentional (a human gate before a build reaches all users).
+CI does this for you on every release tag (AGE-110). The service account **does** hold "Release to production" — verified by run [31807432647](https://github.com/dzianisv/opencode-mobile/actions/runs/31807432647) (`Validating tracks: 'production'` → committed edit 02632873494323676310, 2026-08-14 14:22 UTC), so the older "internal only" note here was stale.
+
+Manual paths, still available when you need them:
 
 - **Recommended — Play Console:** Production → Create release → **Add from library** → select the build by its **versionName** (e.g. `0.4.10`) and confirm its `versionCode` (the run_number-derived one, e.g. `142` — not the `app.json` number) → review → roll out. If the "What's new" field is empty, paste from `distribution/whatsnew/whatsnew-en-US`. No rebuild.
-- **Fully automated (optional):** grant the CI service account **"Release to production"** for this app in Play Console → Users & permissions, then run the workflow's `workflow_dispatch` with `track=production`, `status=completed`. **Without that permission the production dispatch fails with `The caller does not have permission` after building** — so don't dispatch `track=production` until the service account has been granted production access.
+- **Fully automated (optional):** `workflow_dispatch` with `track=production`, `status=completed` — same thing the tag push does, useful for re-shipping `main` without cutting a tag.
 
 ## Resubmitting after a Data Safety rejection (issue #143)
 
