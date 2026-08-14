@@ -6,7 +6,7 @@ import {
   normalizeWaitlistEmail,
   buildWaitlistPayload,
   buildWaitlistMailtoUrl,
-  shouldFallbackToMailto,
+  isRetryableFailure,
   submitWaitlistSignup,
 } from "./waitlist.ts"
 
@@ -34,32 +34,32 @@ test("payload tags the signup with the opencode-connect source", () => {
   })
 })
 
-// --- mailto fallback URL: byte-compatible with the pre-#87 behavior ---
+// --- mailto URL: last-resort escape hatch only (AGE-87), byte-compatible ---
 
-test("mailto fallback preserves subject and embeds the email", () => {
+test("mailto escape hatch preserves subject and embeds the email", () => {
   const url = buildWaitlistMailtoUrl("dev@example.com")
   assert.ok(url.startsWith("mailto:support@agentlabs.cc?"))
   assert.ok(url.includes("subject=OpenCode%20Connect%20Waitlist"))
   assert.ok(url.includes(encodeURIComponent("Email: dev@example.com")))
 })
 
-test("mailto fallback works without an email", () => {
+test("mailto escape hatch works without an email", () => {
   const url = buildWaitlistMailtoUrl("")
   assert.ok(url.includes("body=Sign%20me%20up!"))
   assert.ok(!url.includes("Email"))
 })
 
-// --- fallback decision ---
+// --- retry decision ---
 
 // 502 named explicitly: the server returns it when Brevo itself fails, and the
-// signup must survive that via mailto.
-test("fallback: transport failures and 5xx (incl. 502 Brevo failure) -> mailto, 4xx -> fix input", () => {
-  assert.equal(shouldFallbackToMailto({ kind: "network-error" }), true)
-  assert.equal(shouldFallbackToMailto({ kind: "http", status: 500 }), true)
-  assert.equal(shouldFallbackToMailto({ kind: "http", status: 502 }), true)
-  assert.equal(shouldFallbackToMailto({ kind: "http", status: 503 }), true)
-  assert.equal(shouldFallbackToMailto({ kind: "http", status: 400 }), false)
-  assert.equal(shouldFallbackToMailto({ kind: "http", status: 429 }), false)
+// signup must survive that by being queued and retried (AGE-87), not mailed.
+test("retryable: transport failures and 5xx (incl. 502 Brevo failure) -> retry, 4xx -> fix input", () => {
+  assert.equal(isRetryableFailure({ kind: "network-error" }), true)
+  assert.equal(isRetryableFailure({ kind: "http", status: 500 }), true)
+  assert.equal(isRetryableFailure({ kind: "http", status: 502 }), true)
+  assert.equal(isRetryableFailure({ kind: "http", status: 503 }), true)
+  assert.equal(isRetryableFailure({ kind: "http", status: 400 }), false)
+  assert.equal(isRetryableFailure({ kind: "http", status: 429 }), false)
 })
 
 // --- submitWaitlistSignup with injected fetch ---
@@ -89,37 +89,37 @@ test("submit rejects an invalid email locally without hitting the network", asyn
   const calls: FetchCall[] = []
   const result = await submitWaitlistSignup("nope", { fetchFn: fakeFetch({ ok: true, status: 200 }, calls) })
   assert.equal(calls.length, 0)
-  assert.deepEqual(result, { ok: false, email: "nope", fallback: false, error: "Enter a valid email address." })
+  assert.deepEqual(result, { ok: false, email: "nope", retryable: false, error: "Enter a valid email address." })
 })
 
-test("submit surfaces the server's 400 message without falling back to mailto", async () => {
+test("submit surfaces the server's 400 message and marks it non-retryable", async () => {
   const result = await submitWaitlistSignup("dev@example.com", {
     fetchFn: fakeFetch({ ok: false, status: 400, body: { error: "Enter a valid email address." } }),
   })
-  assert.deepEqual(result, { ok: false, email: "dev@example.com", fallback: false, error: "Enter a valid email address." })
+  assert.deepEqual(result, { ok: false, email: "dev@example.com", retryable: false, error: "Enter a valid email address." })
 })
 
-test("submit falls back to mailto on 5xx (server broken, keep the signup alive)", async () => {
+test("submit marks 5xx retryable (server broken, keep the signup alive)", async () => {
   const result = await submitWaitlistSignup("dev@example.com", {
     fetchFn: fakeFetch({ ok: false, status: 503, body: { error: "The waitlist is temporarily unavailable. Please try again later." } }),
   })
   assert.equal(result.ok, false)
   if (!result.ok) {
-    assert.equal(result.fallback, true)
+    assert.equal(result.retryable, true)
     assert.equal(result.error, "The waitlist is temporarily unavailable. Please try again later.")
   }
 })
 
-test("submit falls back to mailto when fetch rejects (offline)", async () => {
+test("submit marks a rejected fetch retryable (offline)", async () => {
   const result = await submitWaitlistSignup("dev@example.com", {
     fetchFn: async () => {
       throw new TypeError("Network request failed")
     },
   })
-  assert.deepEqual(result, { ok: false, email: "dev@example.com", fallback: true, error: "Network request failed" })
+  assert.deepEqual(result, { ok: false, email: "dev@example.com", retryable: true, error: "Network request failed" })
 })
 
-test("submit aborts after timeoutMs and falls back to mailto", async () => {
+test("submit aborts after timeoutMs and marks it retryable", async () => {
   const result = await submitWaitlistSignup("dev@example.com", {
     timeoutMs: 20,
     fetchFn: (_url, init) =>
@@ -131,7 +131,7 @@ test("submit aborts after timeoutMs and falls back to mailto", async () => {
         })
       }),
   })
-  assert.deepEqual(result, { ok: false, email: "dev@example.com", fallback: true, error: "timeout after 20ms" })
+  assert.deepEqual(result, { ok: false, email: "dev@example.com", retryable: true, error: "timeout after 20ms" })
 })
 
 test("submit tolerates a non-JSON error body", async () => {
@@ -144,5 +144,5 @@ test("submit tolerates a non-JSON error body", async () => {
       },
     }),
   })
-  assert.deepEqual(result, { ok: false, email: "dev@example.com", fallback: true, error: "Signup failed (HTTP 502)." })
+  assert.deepEqual(result, { ok: false, email: "dev@example.com", retryable: true, error: "Signup failed (HTTP 502)." })
 })

@@ -19,6 +19,7 @@ import * as notifications from "../src/lib/notifications"
 import { addBreadcrumb, wrap } from "../src/lib/sentry"
 import { loadTelemetryConsent, setTelemetryConsent } from "../src/lib/telemetry"
 import { initAnalytics, trackAppOpened } from "../src/lib/analytics"
+import { flushPendingSignups } from "../src/lib/waitlist-queue-storage"
 
 const queryClient = new QueryClient()
 
@@ -91,6 +92,30 @@ function RootLayout() {
       if (next === "background" && useAuth.getState().settings.requireBiometric) {
         useAuth.getState().lock()
       }
+    })
+    return () => sub.remove()
+  }, [])
+
+  // Retry any waitlist signup that couldn't reach the server when the user
+  // tapped Join (AGE-87). Runs at cold start and on every foreground, which is
+  // the cheapest reliable proxy for "connectivity may have come back" — it is a
+  // no-op (single storage read, no network) when the queue is empty, and it
+  // replaces the old silent mailto: fallback that lost 20 of 21 signups.
+  useEffect(() => {
+    const flush = () => {
+      void flushPendingSignups()
+        .then((outcome) => {
+          if (outcome.synced.length > 0) {
+            addBreadcrumb({ category: "waitlist", message: `retried ${outcome.synced.length} queued signup(s)` })
+          }
+        })
+        .catch(() => {
+          // Best effort: the entry stays queued for the next foreground.
+        })
+    }
+    flush()
+    const sub = AppState.addEventListener("change", (next) => {
+      if (next === "active") flush()
     })
     return () => sub.remove()
   }, [])

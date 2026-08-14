@@ -181,7 +181,11 @@
         "successText": "您已加入候补名单 — OpenCode Connect 准备就绪时我们会通过邮件通知您。",
         "joinButton": "加入候补名单",
         "alertTitle": "加入候补名单",
-        "fallbackMessage": "无法连接注册服务或打开邮件应用。请发送邮件至 support@agentlabs.cc，主题为 \"OpenCode Connect Waitlist\"。"
+        "queuedText": "已保存在此设备上 — 联网后我们会自动完成注册，你无需再做任何操作。",
+        "emailUsLink": "仍然无法注册？改为给我们发邮件",
+        "emailUsButton": "发送邮件",
+        "queueFailedMessage": "无法连接注册服务，也无法在此设备上保存你的请求。你可以改为给我们发邮件，我们会手动将你加入名单。",
+        "noMailAppMessage": "没有可用的邮件应用。请发送邮件至 support@agentlabs.cc，主题为 \"OpenCode Connect Waitlist\"。"
       },
       "advanced": {
         "backToQuick": "简易模式",

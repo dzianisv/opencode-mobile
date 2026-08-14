@@ -181,7 +181,11 @@
         "successText": "You're on the list — we'll email you when OpenCode Connect is ready.",
         "joinButton": "Join Waitlist",
         "alertTitle": "Join Waitlist",
-        "fallbackMessage": "Could not reach the signup service or open an email app. Please email support@agentlabs.cc with subject \"OpenCode Connect Waitlist\"."
+        "queuedText": "Saved on this device — we'll finish signing you up as soon as you're back online. You don't have to do anything.",
+        "emailUsLink": "Still not working? Email us instead",
+        "emailUsButton": "Email us",
+        "queueFailedMessage": "We couldn't reach the signup service or save your request on this device. You can email us instead and we'll add you by hand.",
+        "noMailAppMessage": "No email app is available. Please email support@agentlabs.cc with subject \"OpenCode Connect Waitlist\"."
       },
       "advanced": {
         "backToQuick": "Simple mode",

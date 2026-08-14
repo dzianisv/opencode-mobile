@@ -31,7 +31,12 @@ export function buildWaitlistPayload(email: string): { email: string; source: st
   return { email, source: WAITLIST_SOURCE }
 }
 
-/** The pre-#87 mailto path, kept as the fallback when the API is unreachable. */
+/**
+ * Last-resort, USER-INITIATED escape hatch (AGE-87). Never open this
+ * automatically: a failed signup is queued locally and retried
+ * (waitlist-queue.ts). This URL is only offered after retries keep failing,
+ * behind an explicit "still not working? email us" tap.
+ */
 export function buildWaitlistMailtoUrl(email: string): string {
   const subject = encodeURIComponent("OpenCode Connect Waitlist")
   const body = encodeURIComponent(email ? `Sign me up!\n\nEmail: ${email}` : "Sign me up!")
@@ -41,19 +46,19 @@ export function buildWaitlistMailtoUrl(email: string): string {
 export type WaitlistResult =
   /** Signup persisted server-side. */
   | { ok: true; email: string }
-  /** Signup not persisted. `fallback` decides the UX: true -> open the
-   *  mailto fallback so the signup still reaches the support inbox;
+  /** Signup not persisted. `retryable` decides the UX: true -> the same
+   *  request can succeed later, so queue it and retry on reconnect;
    *  false -> the input (or server validation) is wrong, ask the user to fix
-   *  their email instead of mailing garbage. */
-  | { ok: false; email: string; fallback: boolean; error: string }
+   *  their email instead of queueing garbage forever. */
+  | { ok: false; email: string; retryable: boolean; error: string }
 
 /**
- * Fallback decision, isolated for testability:
- * - transport failure (offline, DNS, timeout) -> mailto keeps the signup alive
- * - 5xx -> server broken through no fault of the user's -> mailto
- * - 4xx -> the server rejected this email; mailing it wouldn't help
+ * Retry decision, isolated for testability:
+ * - transport failure (offline, DNS, timeout) -> retry when connectivity returns
+ * - 5xx -> server broken through no fault of the user's -> retry
+ * - 4xx -> the server rejected this email; repeating it wouldn't help
  */
-export function shouldFallbackToMailto(outcome: { kind: "network-error" } | { kind: "http"; status: number }): boolean {
+export function isRetryableFailure(outcome: { kind: "network-error" } | { kind: "http"; status: number }): boolean {
   if (outcome.kind === "network-error") return true
   return outcome.status >= 500
 }
@@ -78,7 +83,7 @@ function serverError(body: unknown): string | undefined {
 export async function submitWaitlistSignup(rawEmail: string, deps: WaitlistDeps = {}): Promise<WaitlistResult> {
   const email = normalizeWaitlistEmail(rawEmail)
   if (email === null) {
-    return { ok: false, email: rawEmail.trim(), fallback: false, error: "Enter a valid email address." }
+    return { ok: false, email: rawEmail.trim(), retryable: false, error: "Enter a valid email address." }
   }
 
   const fetchFn = deps.fetchFn ?? (fetch as unknown as FetchLike)
@@ -99,7 +104,7 @@ export async function submitWaitlistSignup(rawEmail: string, deps: WaitlistDeps 
     return {
       ok: false,
       email,
-      fallback: shouldFallbackToMailto({ kind: "http", status: res.status }),
+      retryable: isRetryableFailure({ kind: "http", status: res.status }),
       error: message || `Signup failed (HTTP ${res.status}).`,
     }
   } catch (error: unknown) {
@@ -108,10 +113,227 @@ export async function submitWaitlistSignup(rawEmail: string, deps: WaitlistDeps 
     return {
       ok: false,
       email,
-      fallback: shouldFallbackToMailto({ kind: "network-error" }),
+      retryable: isRetryableFailure({ kind: "network-error" }),
       error: aborted ? `timeout after ${timeoutMs}ms` : err?.message || String(error),
     }
   } finally {
     clearTimeout(timer)
   }
+}
+
+// ---------------------------------------------------------------------------
+// Durable retry queue (AGE-87)
+// ---------------------------------------------------------------------------
+//
+// Before this, a signup that hit a network error / 8s timeout / 5xx was handed
+// straight to a `mailto:` composer. That is lossy by design: it depends on the
+// user actually pressing send in their mail client, and on us reconciling the
+// support inbox into Brevo list 4 forever (AGE-61's hourly reconciler). 20 of
+// 21 signups were lost that way before that reconciler existed.
+//
+// Instead we persist the pending signup on the device and retry it on the next
+// foreground / connectivity. `mailto:` survives only as a last-resort,
+// USER-INITIATED escape hatch once retries are clearly not working.
+//
+// Lives in this file (rather than its own module) so it stays a dependency-free
+// leaf that `node --test` can run directly, the same constraint that keeps
+// react-native imports out of here. Storage and the clock are injected; the
+// production AsyncStorage adapter is waitlist-queue-storage.ts.
+
+export const WAITLIST_QUEUE_KEY = "opencode.waitlist.pending.v1"
+
+/** Cap the queue so a broken device can't grow storage without bound. */
+export const WAITLIST_QUEUE_MAX = 5
+
+/** After this many failed attempts the UI offers the manual email escape hatch. */
+export const WAITLIST_QUEUE_ATTEMPTS_BEFORE_MANUAL = 3
+
+/** Entries older than this are dropped: the address is stale, the user moved on. */
+export const WAITLIST_QUEUE_TTL_MS = 30 * 24 * 60 * 60 * 1000 // 30 days
+
+export interface QueuedSignup {
+  /** Already normalized (trimmed/lowercased) by normalizeWaitlistEmail. */
+  email: string
+  /** Epoch ms of the first attempt. */
+  queuedAt: number
+  /** Number of failed submit attempts so far (>= 1 — enqueue follows a failure). */
+  attempts: number
+  /** Epoch ms of the last attempt. */
+  lastAttemptAt: number
+  /** Last transport/server error, for diagnostics only. */
+  lastError?: string
+}
+
+/**
+ * Minimal storage port. AsyncStorage satisfies this structurally, so does a
+ * plain Map in tests. Deliberately not typed against AsyncStorage so this file
+ * stays importable by `node --test`.
+ */
+export interface QueueStorage {
+  getItem(key: string): Promise<string | null>
+  setItem(key: string, value: string): Promise<void>
+  removeItem(key: string): Promise<void>
+}
+
+function isQueuedSignup(value: unknown): value is QueuedSignup {
+  if (typeof value !== "object" || value === null) return false
+  const entry = value as Record<string, unknown>
+  return (
+    typeof entry.email === "string" &&
+    normalizeWaitlistEmail(entry.email) === entry.email &&
+    typeof entry.queuedAt === "number" &&
+    Number.isFinite(entry.queuedAt) &&
+    typeof entry.attempts === "number" &&
+    Number.isFinite(entry.attempts)
+  )
+}
+
+/** Reads the queue, tolerating absent/corrupt/foreign JSON (never throws). */
+export async function loadQueue(storage: QueueStorage): Promise<QueuedSignup[]> {
+  let raw: string | null = null
+  try {
+    raw = await storage.getItem(WAITLIST_QUEUE_KEY)
+  } catch {
+    return []
+  }
+  if (!raw) return []
+  try {
+    const parsed: unknown = JSON.parse(raw)
+    if (!Array.isArray(parsed)) return []
+    return parsed.filter(isQueuedSignup).map((entry) => ({
+      ...entry,
+      lastAttemptAt: typeof entry.lastAttemptAt === "number" ? entry.lastAttemptAt : entry.queuedAt,
+    }))
+  } catch {
+    return []
+  }
+}
+
+async function saveQueue(storage: QueueStorage, queue: QueuedSignup[]): Promise<void> {
+  try {
+    if (queue.length === 0) await storage.removeItem(WAITLIST_QUEUE_KEY)
+    else await storage.setItem(WAITLIST_QUEUE_KEY, JSON.stringify(queue))
+  } catch {
+    // Storage unavailable: the retry is lost, but the caller already told the
+    // user the truth ("saved, we'll finish signing you up") only when this
+    // resolves. enqueueSignup() surfaces the failure via its return value.
+    throw new Error("waitlist queue storage unavailable")
+  }
+}
+
+/** Drops entries past the TTL. Exported for the test that pins the policy. */
+export function pruneQueue(queue: QueuedSignup[], now: number): QueuedSignup[] {
+  return queue.filter((entry) => now - entry.queuedAt < WAITLIST_QUEUE_TTL_MS)
+}
+
+/**
+ * Persists a failed signup for later retry. Dedupes by email (an impatient
+ * user tapping twice must not produce two entries) and keeps the newest
+ * WAITLIST_QUEUE_MAX entries.
+ *
+ * Returns the stored entry, or null when the email is invalid or storage
+ * refused the write — in that case the caller must NOT tell the user we saved it.
+ */
+export async function enqueueSignup(
+  storage: QueueStorage,
+  rawEmail: string,
+  options: { now?: number; error?: string } = {},
+): Promise<QueuedSignup | null> {
+  const email = normalizeWaitlistEmail(rawEmail)
+  if (email === null) return null
+  const now = options.now ?? Date.now()
+
+  const existing = pruneQueue(await loadQueue(storage), now)
+  const previous = existing.find((entry) => entry.email === email)
+  const entry: QueuedSignup = {
+    email,
+    queuedAt: previous?.queuedAt ?? now,
+    attempts: (previous?.attempts ?? 0) + 1,
+    lastAttemptAt: now,
+    ...(options.error ? { lastError: options.error } : {}),
+  }
+  const next = [...existing.filter((e) => e.email !== email), entry].slice(-WAITLIST_QUEUE_MAX)
+  try {
+    await saveQueue(storage, next)
+  } catch {
+    return null
+  }
+  return entry
+}
+
+export async function removeFromQueue(storage: QueueStorage, email: string): Promise<void> {
+  const queue = await loadQueue(storage)
+  const next = queue.filter((entry) => entry.email !== email)
+  if (next.length === queue.length) return
+  try {
+    await saveQueue(storage, next)
+  } catch {
+    // best effort
+  }
+}
+
+export interface FlushOutcome {
+  /** Entries that reached the server (Brevo list 4). */
+  synced: string[]
+  /** Entries the server permanently rejected (4xx) — dropped, retrying can't help. */
+  rejected: string[]
+  /** Entries still pending after this flush. */
+  pending: QueuedSignup[]
+}
+
+export type SubmitFn = (email: string) => Promise<WaitlistResult>
+
+/**
+ * Retries every pending signup once. Called on app foreground and when the
+ * waitlist screen mounts.
+ *
+ * - ok            -> drop (it's in Brevo now)
+ * - 4xx           -> drop (the server will never accept this address)
+ * - network/5xx   -> keep, bump attempts (retry next foreground)
+ *
+ * Never throws: a flush is a background best-effort action.
+ */
+export async function flushQueue(
+  storage: QueueStorage,
+  options: { submit?: SubmitFn; now?: number } = {},
+): Promise<FlushOutcome> {
+  const now = options.now ?? Date.now()
+  const submit = options.submit ?? ((email: string) => submitWaitlistSignup(email))
+
+  const queue = pruneQueue(await loadQueue(storage), now)
+  const synced: string[] = []
+  const rejected: string[] = []
+  const pending: QueuedSignup[] = []
+
+  for (const entry of queue) {
+    let result: WaitlistResult
+    try {
+      result = await submit(entry.email)
+    } catch (error: unknown) {
+      pending.push({ ...entry, attempts: entry.attempts + 1, lastAttemptAt: now, lastError: String(error) })
+      continue
+    }
+    if (result.ok) {
+      synced.push(entry.email)
+    } else if (!result.retryable) {
+      rejected.push(entry.email)
+    } else {
+      pending.push({ ...entry, attempts: entry.attempts + 1, lastAttemptAt: now, lastError: result.error })
+    }
+  }
+
+  try {
+    await saveQueue(storage, pending)
+  } catch {
+    // Storage went away mid-flush; the in-memory outcome is still accurate.
+  }
+  return { synced, rejected, pending }
+}
+
+/**
+ * True once an entry has failed enough times that we should stop implying
+ * "we'll handle it" and offer the manual email escape hatch instead.
+ */
+export function needsManualEscapeHatch(entry: QueuedSignup | null | undefined): boolean {
+  return !!entry && entry.attempts >= WAITLIST_QUEUE_ATTEMPTS_BEFORE_MANUAL
 }

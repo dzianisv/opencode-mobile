@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import {
   View,
   Text,
@@ -21,7 +21,8 @@ import { captureDiagnostic } from "../../src/lib/sentry"
 import { parseUrl } from "../../src/lib/diagnostics-classify"
 import { buildAuth } from "../../src/lib/auth"
 import { AnalyticsEvent, track } from "../../src/lib/analytics"
-import { submitWaitlistSignup, buildWaitlistMailtoUrl } from "../../src/lib/waitlist"
+import { submitWaitlistSignup, buildWaitlistMailtoUrl, needsManualEscapeHatch, type QueuedSignup } from "../../src/lib/waitlist"
+import { flushPendingSignups, queuePendingSignup, readPendingSignups, dropPendingSignup } from "../../src/lib/waitlist-queue-storage"
 
 export default function AddConnectionScreen() {
   const colorScheme = useColorScheme()
@@ -41,7 +42,34 @@ export default function AddConnectionScreen() {
   const [password, setPassword] = useState("")
   const [isConnecting, setIsConnecting] = useState(false)
   const [waitlistEmail, setWaitlistEmail] = useState("")
-  const [waitlistState, setWaitlistState] = useState<"idle" | "submitting" | "joined">("idle")
+  // "queued" = the POST failed but the signup is persisted on-device and will
+  // be retried on the next foreground/connectivity (AGE-87). It is NOT "sent".
+  const [waitlistState, setWaitlistState] = useState<"idle" | "submitting" | "joined" | "queued">("idle")
+  const [pendingSignup, setPendingSignup] = useState<QueuedSignup | null>(null)
+
+  // Retry anything left over from a previous session as soon as this screen
+  // opens (the root layout also flushes on every foreground), then reflect the
+  // real state back to the user instead of pretending nothing is pending.
+  useEffect(() => {
+    let cancelled = false
+    void (async () => {
+      const outcome = await flushPendingSignups().catch(() => null)
+      if (cancelled) return
+      const pending = outcome ? outcome.pending : await readPendingSignups().catch(() => [])
+      if (cancelled) return
+      if (outcome && outcome.synced.length > 0 && pending.length === 0) {
+        setWaitlistState("joined")
+        return
+      }
+      if (pending.length > 0) {
+        setPendingSignup(pending[pending.length - 1])
+        setWaitlistState((current) => (current === "idle" ? "queued" : current))
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   const buildUrl = () => {
     if (mode === "advanced") return url.trim()
@@ -213,25 +241,70 @@ export default function AddConnectionScreen() {
 
   const handleJoinWaitlist = async () => {
     if (waitlistState === "submitting") return
+    const attemptedEmail = waitlistEmail
     setWaitlistState("submitting")
-    const result = await submitWaitlistSignup(waitlistEmail)
+    const result = await submitWaitlistSignup(attemptedEmail)
     if (result.ok) {
+      // Clear any earlier queued attempt for the same address so the flush
+      // doesn't re-post it.
+      void dropPendingSignup(result.email)
+      setPendingSignup(null)
       setWaitlistState("joined")
       return
     }
-    setWaitlistState("idle")
-    if (result.fallback) {
-      // API unreachable/broken: fall back to the pre-#87 mailto path so the
-      // signup still reaches the support inbox instead of being lost.
-      try {
-        await Linking.openURL(buildWaitlistMailtoUrl(result.email))
-      } catch {
-        // No mail app either — tell the user instead of failing silently.
-        Alert.alert(t("connection.add.waitlist.alertTitle"), t("connection.add.waitlist.fallbackMessage"))
-      }
-    } else {
+
+    if (!result.retryable) {
+      // The server rejected this address; queueing it would retry forever.
+      setWaitlistState(pendingSignup ? "queued" : "idle")
       Alert.alert(t("connection.add.waitlist.alertTitle"), result.error)
+      return
     }
+
+    // Offline / timeout / 5xx: persist and retry later instead of dumping the
+    // user into a mail composer they may never send (AGE-87).
+    const entry = await queuePendingSignup(result.email, result.error)
+    if (entry) {
+      setPendingSignup(entry)
+      setWaitlistState("queued")
+      return
+    }
+
+    // Storage refused the write — we cannot promise to finish this later, so
+    // offer the manual email path explicitly rather than claiming success.
+    setWaitlistState("idle")
+    Alert.alert(t("connection.add.waitlist.alertTitle"), t("connection.add.waitlist.queueFailedMessage"), [
+      { text: t("common.cancel"), style: "cancel" },
+      { text: t("connection.add.waitlist.emailUsButton"), onPress: () => void openWaitlistMailto(result.email) },
+    ])
+  }
+
+  // Last-resort, user-initiated only. Never opened automatically.
+  const openWaitlistMailto = async (email: string) => {
+    try {
+      await Linking.openURL(buildWaitlistMailtoUrl(email))
+    } catch {
+      Alert.alert(t("connection.add.waitlist.alertTitle"), t("connection.add.waitlist.noMailAppMessage"))
+    }
+  }
+
+  // Explicit "Retry" from the queued state — same code path the foreground
+  // flush uses, so there is only one retry implementation.
+  const handleRetryQueued = async () => {
+    setWaitlistState("submitting")
+    const outcome = await flushPendingSignups().catch(() => null)
+    if (outcome && outcome.pending.length === 0 && outcome.synced.length > 0) {
+      setPendingSignup(null)
+      setWaitlistState("joined")
+      return
+    }
+    if (outcome && outcome.pending.length === 0) {
+      // Nothing left pending and nothing synced: the address was rejected.
+      setPendingSignup(null)
+      setWaitlistState("idle")
+      return
+    }
+    if (outcome) setPendingSignup(outcome.pending[outcome.pending.length - 1])
+    setWaitlistState("queued")
   }
 
   // Quick connect mode - simplified
@@ -375,6 +448,27 @@ export default function AddConnectionScreen() {
               <Text style={[styles.waitlistSuccessText, isDark && styles.textDark]}>
                 {t("connection.add.waitlist.successText")}
               </Text>
+            </View>
+          ) : waitlistState === "queued" ? (
+            <View testID="waitlist-queued">
+              <View style={styles.waitlistSuccess}>
+                <Ionicons name="time-outline" size={20} color="#f59e0b" />
+                <Text style={[styles.waitlistSuccessText, isDark && styles.textDark]}>
+                  {t("connection.add.waitlist.queuedText")}
+                </Text>
+              </View>
+              {needsManualEscapeHatch(pendingSignup) && (
+                <TouchableOpacity
+                  style={styles.waitlistEscapeHatch}
+                  onPress={() => void openWaitlistMailto(pendingSignup?.email ?? waitlistEmail)}
+                  testID="waitlist-email-us"
+                >
+                  <Text style={styles.waitlistEscapeHatchText}>{t("connection.add.waitlist.emailUsLink")}</Text>
+                </TouchableOpacity>
+              )}
+              <TouchableOpacity style={styles.waitlistEscapeHatch} onPress={() => void handleRetryQueued()} testID="waitlist-retry">
+                <Text style={styles.waitlistEscapeHatchText}>{t("common.retry")}</Text>
+              </TouchableOpacity>
             </View>
           ) : (
             <>
@@ -833,5 +927,14 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: "#0a0a0a",
     lineHeight: 20,
+  },
+  waitlistEscapeHatch: {
+    marginTop: 8,
+    paddingVertical: 4,
+  },
+  waitlistEscapeHatchText: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#6366f1",
   },
 })
