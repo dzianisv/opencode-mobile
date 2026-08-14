@@ -225,6 +225,48 @@ Upper bound of surviving volume: 2,750/month × 3.1% ≈ **87/month**, ~17× und
 Crash classes still come through — the test fails if any of them stops being allowlisted,
 because hitting the number by silencing real crashes is a failure, not a win.
 
+### The one piece of evidence available on release day: check the artifact
+
+Everything above is worthless if a build ships without the gate. That failure is
+*invisible in Sentry*: while the org is over quota nothing is stored, so release tags stop
+updating (opencode-mobile's stop at `0.4.12` / 2026-08-08 while clients keep submitting
+~4.7/h) and a `release:0.4.14` query returns an empty result that reads exactly like "no
+errors from the new build".
+
+The binary is checkable the same day. Hermes bytecode keeps string literals, so
+`scripts/verify-release-bundle.mjs` greps `base/assets/index.android.bundle` inside the AAB
+for the gate's own reason codes, the transport drop-list regex, and the
+`noise.dropped_since_last` tag that only `applyNoiseGate()` writes — plus the baked-in DSN,
+because a release built without `EXPO_PUBLIC_SENTRY_DSN` makes `Sentry.init()` a silent
+no-op. It runs in `publish-play-store.yml` **before** the Play upload step, so a gateless
+build cannot reach users.
+
+It discriminates — this is not a self-confirming assertion:
+
+| Artifact | Result |
+|---|---|
+| v0.4.14 AAB, versionCode 151 (the build now on Play production, run `31807432647`) | **passes**, all six markers, DSN = project `4511436292292608` |
+| v0.4.13 AAB (run `31786473735`, pre-gate) | **fails**, all six markers absent |
+
+### Rejected: persisting gate state across launches
+
+The rate caps (`maxPerHour`, `maxNewPerHour`) and the 6h per-fingerprint cooldown live in
+process memory, so every cold start resets them. That looks like a hole worth plugging
+with `AsyncStorage`; the session data says it is not.
+
+Sentry session envelopes for `opencode-mobile`, 7d to 2026-08-14: **2,633** (267–541/day),
+which is the install base's app-start rate. Persisting only pays off if a device launches
+the app *more often than the cooldown expires* — i.e. if `376 launches/day ÷ devices > 4`,
+so only below **~94 active devices**. One issue alone (`connect timeout`) has 104 distinct
+users over 90d, so the install base is above that line and the two rates are within
+rounding of each other. Persisting would add native storage I/O on the crash path to buy
+nothing measurable. Revisit only if the app-start rate rises well above ~4/device/day.
+
+(Those session envelopes are 100% `client_discard`, 96% `network_error` — sent at cold
+start and at process teardown, when the transport often can't complete. Sessions are not
+billed, so this costs no quota, but it does mean release health is not a usable signal for
+this app either.)
+
 ## Disclosure surfaces (must stay in sync)
 
 | Surface | File |

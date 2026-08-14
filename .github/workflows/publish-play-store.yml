@@ -125,6 +125,18 @@ jobs:
           RELEASE_KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: ./gradlew bundleRelease
 
+      - name: Verify the Sentry noise gate is in the artifact
+        # AGE-105: the org error quota is defended ONLY by the client-side gate
+        # (every server-side lever on this Sentry plan was checked and is dead:
+        # per-key rate limit silently no-ops with a 200, custom inbound filters
+        # absent, spike protection 403). If a build ships without the gate — or
+        # without a DSN, which makes Sentry a silent no-op — the org goes back
+        # over quota, and while it is over quota Sentry stores nothing, so the
+        # regression is invisible in Sentry itself until the monthly reset.
+        # Grep the shipped Hermes bundle instead. Verified to discriminate:
+        # v0.4.14 passes, pre-gate v0.4.13 fails.
+        run: node scripts/verify-release-bundle.mjs android/app/build/outputs/bundle/release/app-release.aab
+
       - name: Upload AAB artifact
         uses: actions/upload-artifact@v7
         with:
