@@ -115,6 +115,33 @@ Rules are pure and unit-tested in `src/lib/sentry-noise.test.ts` (18 tests, incl
 the observed 1,126-event hour → 5 delivered events). Widening the drop-list is a deliberate
 act: add a test asserting the new pattern, and never add anything that could mask a crash.
 
+### Measuring whether it worked
+
+```sh
+SENTRY_AUTH_TOKEN=… node scripts/sentry-volume-report.mjs \
+  --org vibetechnologies \
+  --window "before=2026-08-14T07:00:00Z..2026-08-14T14:00:00Z" \
+  --window "after=2026-08-17T00:00:00Z..now"
+```
+
+Read **`submitted` = `accepted` + `rate_limited`**, never `accepted` alone. The org is
+currently over its error quota, so Sentry rejects essentially everything and `accepted`
+reads ~0 for *every* project — a blown org and a fixed one look identical on that column.
+`submitted` is the demand the clients actually put on the wire, which is what the
+3,500/month gate is really about. A healthy gate shows `submitted` falling while
+`client_discard` rises.
+
+Pre-rollout baseline for the v0.4.14 comparison (measured 2026-08-14 14:00 UTC, before
+production rollout at 14:22 UTC), two windows agreeing to within 0.2%:
+
+| Window | `opencode-mobile` submitted | → /month | Org submitted → /month |
+|---|---|---|---|
+| 7h, post-box-bot-fix (08-14 07:00–14:00Z) | 33 (4.71/h) | 3,441 | 3,963 |
+| 7d trailing (08-07–08-14) | 793 (4.72/h) | 3,446 | 25,450 (box-bot pre-fix) |
+
+Mobile was 87% of the org's post-box-bot demand. Target: under ~1,500/month, which puts the
+org under the 3,500/month gate.
+
 ## Disclosure surfaces (must stay in sync)
 
 | Surface | File |
