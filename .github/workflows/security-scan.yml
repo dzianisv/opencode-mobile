@@ -1,0 +1,31 @@
+name: Security scan
+
+# Why this exists: the one accurate external report we ever received was
+# Postgres credentials committed to public repo history. The finding itself
+# was cheap to fix; what was missing was a gate that would have caught it
+# before the push. This is that gate.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  secrets:
+    name: Secret scan (gitleaks)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          # Full history so a secret introduced in an earlier commit on the
+          # branch is caught, not just the tip diff.
+          fetch-depth: 0
+
+      - name: gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
