@@ -44,11 +44,13 @@ It builds an AAB (Android App Bundle), signs it with the release keystore, and u
 
 ## Releasing (proven runbook)
 
-1. Bump `version` in `package.json` **and** `app.json` (`expo.version`). Do **not** bother hand-bumping `android.versionCode` for Play — the publish workflow overrides it with `github.run_number + 100` at build time (so the Play `versionCode` is e.g. `142`, unrelated to the number in `app.json`; that field only matters for local/other builds).
-2. Update the **Play** release notes in `distribution/whatsnew/whatsnew-en-US` (single file, applied to the build being uploaded; **max 500 chars**). This — not the `fastlane/metadata/android/en-US/changelogs/*.txt` files — is what the Play publish uses (`whatsNewDirectory` in the workflow). The fastlane `changelogs/*.txt` files feed **F-Droid**, not Play; keep them for F-Droid but don't expect Play to read them. Merge to `main`.
+1. Bump the version in **four** places, then run `npm run check:versions` before you push: `package.json` `version`, `app.json` `expo.version`, and `android/app/build.gradle` `versionName` — plus `versionCode` in **both** `app.json` (`expo.android.versionCode`) and `build.gradle`, incremented by one.
+   - Play does not need the hand-bumped `versionCode` (the publish workflow overrides it with `github.run_number + 100`, so the Play code is e.g. `152`, unrelated to the `app.json` number). **F-Droid and direct-APK installs do.** They key upgrades off `versionCode`, so a release that reuses the previous one is silently never offered to anyone who already has that code installed. v0.4.15 shipped with v0.4.14's `versionCode 41` for exactly this reason (fixed in #180) — the F-Droid publish failed outright and the GitHub release never got created.
+2. Add the changelog for the **new versionCode** in both `distribution/changelogs/<versionCode>.txt` and `fastlane/metadata/android/en-US/changelogs/<versionCode>.txt` (F-Droid reads the fastlane copy), and update the **Play** release notes in `distribution/whatsnew/whatsnew-en-US` (single file, applied to the build being uploaded; **max 500 chars**). `whatsnew` — not the fastlane `changelogs/*.txt` — is what the Play publish uses (`whatsNewDirectory` in the workflow). `check:versions` enforces that the changelog named after the versionCode describes the version you are releasing. Merge to `main`.
 3. Tag the release: `git tag -a vX.Y.Z <sha> -m "..." && git push origin vX.Y.Z`. This triggers the publish workflow → **production** track, `status: completed`.
 4. Verify the publish run is green, and read the run summary — it records the event, resolved track/status, and the real Play `versionCode` (run_number+100, not the `app.json` number).
-5. Nothing else to do. There is no second promotion step.
+5. Check the other two channels, because Play is only one of three and the smaller share of the install base: the **GitHub release** exists with both APKs (`build.yml`'s `release` job — this is what the in-app update check polls via `releases/latest`), and the **F-Droid index** lists the new version (`https://dzianisv.github.io/opencode-mobile/fdroid/repo/index-v1.json`).
+6. Nothing else to do. There is no second promotion step.
 
 ## Promoting to production
 
