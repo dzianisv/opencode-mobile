@@ -165,6 +165,23 @@ production rollout at 14:22 UTC), two windows agreeing to within 0.2%:
 Mobile was 87% of the org's post-box-bot demand. Target: under ~1,500/month, which puts the
 org under the 3,500/month gate.
 
+**Never measure across the rollout instant.** Use `--since-rollout`, which reads the v0.4.14
+production instant (2026-08-14 14:22Z) out of the release-history table in
+[`playstore.md`](./playstore.md) and splits the windows exactly there:
+
+```sh
+SENTRY_AUTH_TOKEN=... node scripts/sentry-volume-report.mjs --by-reason --since-rollout
+```
+
+A hand-rolled window that spans the instant mixes two populations — devices that have the
+gate and devices that do not — so its rate is neither a baseline nor a result, while looking
+exactly like both. This is not hypothetical: a `post=08-14T07:00Z..now` window (84% of it
+pre-rollout) was run against this very script and reported mobile *rising* to 4.44/h. Such
+windows now print `[mixed]` with the pre-rollout percentage, a clean but young post window
+prints how many hours of uptake it has, and an unparseable release table reports `unknown`
+rather than silently grading everything as post-gate
+(`scripts/sentry-volume-report.test.mjs`).
+
 ### Uptake is part of the measurement, not an excuse afterwards
 
 The gate ships **inside the app binary**, so it only runs on devices that installed v0.4.14.
@@ -235,17 +252,28 @@ box-bot at 0, mobile is now the dominant remaining demand.
 
 ### Server-side levers do not exist on this plan
 
-Checked directly against the API on 2026-08-14, so nobody re-litigates it:
+Probed directly against the API (re-verified 2026-08-14 15:45Z with a **write**-scoped
+token, so none of these is a permissions artifact), so nobody re-litigates it:
 
-| Lever | Result |
-|---|---|
-| Per-key rate limit (`PUT /projects/{org}/{proj}/keys/{id}/`) | **Silent no-op.** Returns HTTP 200 and drops the field; a follow-up GET always reads `rateLimit: null`. Reproduced with `window` = 60, 3600 and 86400. |
-| Custom inbound filters (error message / release) | Not present. Only the five generic browser filters exist. |
-| Spike protection (`/organizations/{org}/spike-protections/`) | HTTP 403. |
+| Lever | Call | Result |
+|---|---|---|
+| Per-key rate limit | `PUT /projects/{org}/{proj}/keys/{id}/` `{"rateLimit":{"window":86400,"count":50}}` | **HTTP 200 that lies.** The field is dropped; the follow-up GET reads `rateLimit: null`. Reproduced with `window` = 60, 3600, 86400. The success code is the trap — this is the one lever that looks like it worked. |
+| Custom inbound filter on error message | `PUT /projects/{org}/{proj}/` `{"options":{"filters:error_messages":"…"}}` | **HTTP 400 `{"detail":"You do not have that feature enabled"}`.** The option key exists and reads `''`; writing it is plan-gated (Business). This is the lever that *would* fix the residual risk, because it drops at ingest for **every** app version, including installs that never update. |
+| Generic inbound filters | `PUT /projects/{org}/{proj}/filters/{id}/` `{"active":true}` | **HTTP 204 — works.** Useless here: the only ids are `browser-extensions`, `legacy-browsers`, `localhost`, `web-crawlers`, `filtered-transaction`. None can match a React Native app error. |
+| Spike protection | `POST /organizations/{org}/spike-protections/` | **HTTP 201 — and it was already on.** Every project reads `quotas:spike-protection-disabled = false`. It did not prevent this overage because this is *sustained baseline* volume, not a spike. (The org-level GET is 403, which earlier read as "unavailable"; it is not unavailable, it is ineffective — do not spend a plan upgrade on it.) |
 
 Org `features` is `[]`. **The client-side gate is the only control that exists**, so its
 coverage is the entire safety margin — which is why `sentry-noise-production.test.ts` pins
 that coverage against real production data.
+
+Two consequences worth stating outright:
+
+1. Because the only control ships **inside the app binary**, Play install uptake is on the
+   critical path of the fix. That is not a reporting detail — it is why the verdict must be
+   normalised by uptake (`scripts/noise-gate-report.mjs`) instead of read off raw volume.
+2. Devices that never update are permanently ungated. Nothing on this plan can reach them.
+   If the org ever moves to Business, `filters:error_messages` is the row to revisit first;
+   re-probe it rather than assuming, since these answers are plan state, not physics.
 
 ### Gate coverage against 90d of real events
 

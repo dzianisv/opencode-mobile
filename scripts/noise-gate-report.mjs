@@ -51,8 +51,23 @@
  */
 
 import { execFileSync } from "node:child_process"
+import { readFile } from "node:fs/promises"
 import { fileURLToPath } from "node:url"
 import { dirname, join } from "node:path"
+
+import { gateRollout, parseRolloutHistory } from "./sentry-volume-report.mjs"
+
+/** Rollout instant of the first gated production build, or null if unrecorded.
+ *  Never guessed: an unrecorded rollout must surface as UNGRADED, not as a
+ *  window silently assumed to be post-gate. */
+async function gateRolloutAt() {
+  try {
+    const md = await readFile(new URL("../docs/playstore.md", import.meta.url), "utf8")
+    return gateRollout(parseRolloutHistory(md))?.at ?? null
+  } catch {
+    return null
+  }
+}
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const MONTH_HOURS = 730
@@ -96,7 +111,14 @@ export const TOLERANCE = Number(process.env.NOISE_GATE_TOLERANCE || 0.25)
  * @param {number} [p.efficacy]        share of events the gate drops on a gated device
  * @param {boolean} [p.gateLive]       did client_discard/before_send appear at all
  */
-export function grade({ baselinePerHour, actualPerHour, gatedShare, efficacy = GATE_EFFICACY, gateLive = true }) {
+export function grade({
+  baselinePerHour,
+  actualPerHour,
+  gatedShare,
+  efficacy = GATE_EFFICACY,
+  gateLive = true,
+  postPhase = "post",
+}) {
   const share = Math.min(Math.max(gatedShare ?? 0, 0), 1)
   const expectedPerHour = baselinePerHour * (1 - share * efficacy)
   const ceilingPerHour = expectedPerHour * (1 + TOLERANCE)
@@ -108,7 +130,15 @@ export function grade({ baselinePerHour, actualPerHour, gatedShare, efficacy = G
 
   let verdict
   let because
-  if (!gateLive) {
+  if (postPhase && postPhase !== "post") {
+    // A window that starts before the gate reached production contains devices
+    // that could not possibly have run it, so it dilutes the rate toward
+    // baseline and grades the gate as worse than it is.
+    verdict = "UNGRADED"
+    because =
+      `the post window is [${postPhase}] — it does not lie entirely after the gate's production rollout, ` +
+      "so it mixes gated and ungated devices. Re-run with a post window starting at the rollout instant."
+  } else if (!gateLive) {
     verdict = "UNGRADED"
     because =
       "client_discard/before_send is 0 in this window — no device ran the gate, so nothing here measures it. " +
@@ -132,6 +162,7 @@ export function grade({ baselinePerHour, actualPerHour, gatedShare, efficacy = G
   return {
     verdict,
     because,
+    postPhase,
     gatedShare: share,
     efficacy,
     baselinePerMonth: baselinePerHour * MONTH_HOURS,
@@ -172,7 +203,12 @@ export function gatedShareFromPlay(playJson, firstGatedVersionCode = GATE_FIRST_
   const gated = versions
     .filter((v) => Number(v.versionCode) >= firstGatedVersionCode)
     .reduce((s, v) => s + (v.users || 0), 0)
-  return { gated, total, share: total > 0 ? gated / total : 0, window: playJson?.window ?? null }
+  return {
+    gated,
+    total,
+    share: total > 0 ? gated / total : 0,
+    window: playJson?.window ?? null,
+  }
 }
 
 function runJson(script, args) {
@@ -194,8 +230,34 @@ function parseArgs(argv) {
     else if (a === "--json") out.json = true
     else if (a === "--no-play") out.play = false
   }
-  if (!out.pre) throw new Error("--pre START..END is required (the rate before the rollout reached devices)")
-  if (!out.post) out.post = `${new Date(Date.now() - 7 * 86_400_000).toISOString()}..now`
+  return out
+}
+
+/** Documented pre-rollout baseline window (docs/analytics.md): starts after the
+ *  AGE-55 box-bot fix landed (2026-08-14 06:19Z) and ends before the gate
+ *  rollout (14:22Z). It is deliberately NOT "7 days before the rollout" — that
+ *  spans the box-bot regime and would import ~22k/mo of dead volume into the
+ *  org background estimate, making the outlook miss the gate by a mile for a
+ *  reason that was already fixed. */
+export const BASELINE_WINDOW = "2026-08-14T07:00:00Z..2026-08-14T14:00:00Z"
+
+/** Fill in windows the caller did not pin, anchored on the rollout instant.
+ *
+ *  The old default (`post = now-7d..now`) straddles the 2026-08-14 14:22Z
+ *  rollout on every run before 08-21, so the grader's own default window mixed
+ *  gated and ungated devices and diluted the measured rate toward baseline —
+ *  i.e. it was biased toward reporting the gate as ineffective. The window may
+ *  never start before the gate reached production.
+ */
+export function resolveWindows(args, rolloutAt, now = new Date()) {
+  const out = { ...args }
+  if (!out.pre) out.pre = BASELINE_WINDOW
+  if (!out.post) {
+    if (!rolloutAt) throw new Error("--post START..END is required (no rollout instant in docs/playstore.md)")
+    const weekAgo = new Date(now.getTime() - 7 * 86_400_000)
+    const start = weekAgo > rolloutAt ? weekAgo : rolloutAt
+    out.post = `${start.toISOString()}..now`
+  }
   return out
 }
 
@@ -205,6 +267,7 @@ function pick(report, windowName, project) {
   const p = w.projects.find((x) => x.project === project)
   return {
     hours: w.hours,
+    phase: w.phase ?? null,
     orgPerHour: w.orgSubmitted / w.hours,
     perHour: p ? p.submittedPerHour : 0,
     submitted: p ? p.submitted : 0,
@@ -216,7 +279,7 @@ function pick(report, windowName, project) {
 const money = (n) => Math.round(n).toLocaleString("en-US")
 
 async function main() {
-  const args = parseArgs(process.argv.slice(2))
+  const args = resolveWindows(parseArgs(process.argv.slice(2)), await gateRolloutAt())
 
   const volume = runJson("sentry-volume-report.mjs", [
     "--json",
@@ -240,6 +303,7 @@ async function main() {
     actualPerHour: post.perHour,
     gatedShare: shareInfo.share,
     gateLive: post.gateDropped > 0,
+    postPhase: post.phase,
   })
   // Other projects are a background rate, not something this gate changes, so
   // estimate them from whichever window is long enough to contain any of them.
@@ -255,7 +319,10 @@ async function main() {
   const result = {
     project: args.project,
     generatedAt: new Date().toISOString(),
-    windows: { pre: { ...pre, spec: args.pre }, post: { ...post, spec: args.post } },
+    windows: {
+      pre: { ...pre, spec: args.pre },
+      post: { ...post, spec: args.post },
+    },
     uptake: shareInfo,
     grade: g,
     org,

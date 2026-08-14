@@ -83,6 +83,6 @@ jobs:
             echo ''
             echo '### Raw org volume'
             echo '```'
-            node scripts/sentry-volume-report.mjs --by-reason || true
+            node scripts/sentry-volume-report.mjs --by-reason --since-rollout || true
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"

@@ -12,9 +12,15 @@
 //
 // Usage:
 //   SENTRY_AUTH_TOKEN=... node scripts/sentry-volume-report.mjs \
-//     --by-reason --org vibetechnologies \
-//     --window "pre=2026-08-13T14:00:00Z..2026-08-14T06:00:00Z" \
-//     --window "post=2026-08-14T14:22:00Z..now"
+//     --by-reason --org vibetechnologies --since-rollout
+//
+//   `--since-rollout` is the safe default for this ticket: it reads the gate's
+//   production rollout instant out of docs/playstore.md and splits the windows
+//   exactly there. Hand-rolled `--window` specs are still accepted, and are
+//   labelled [pre]/[post]/[mixed] so a window that straddles the rollout cannot
+//   masquerade as a result (that mistake was made against this very script:
+//   a "post" window starting 7h before the rollout showed opencode-mobile
+//   *rising*, because it was mostly pre-gate traffic).
 //
 // Notes on reading the output:
 //   * The headline metric is `submitted` = accepted + rate_limited: every event
@@ -47,16 +53,93 @@
 const API = "https://sentry.io/api/0"
 const MONTH_HOURS = 730
 
+/** First Play versionCode that ships the client-side noise gate (v0.4.14). */
+export const GATE_FIRST_VERSION_CODE = Number(process.env.GATE_FIRST_VERSION_CODE || 150)
+
+/** Where the production rollout instants are recorded. Single source of truth:
+ *  the same table the publish workflow makes humans update after a dispatch. */
+const PLAYSTORE_DOC = new URL("../docs/playstore.md", import.meta.url)
+
 function parseArgs(argv) {
-  const out = { org: process.env.SENTRY_ORG ?? "vibetechnologies", windows: [] }
+  const out = {
+    org: process.env.SENTRY_ORG ?? "vibetechnologies",
+    windows: [],
+  }
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i]
     if (a === "--org") out.org = argv[++i]
     else if (a === "--window") out.windows.push(argv[++i])
     else if (a === "--json") out.json = true
     else if (a === "--by-reason") out.byReason = true
+    else if (a === "--since-rollout") out.sinceRollout = true
+    else if (a === "--rollout") out.rolloutOverride = argv[++i]
   }
   return out
+}
+
+/** Rows of the "Release history (production track)" table in docs/playstore.md.
+ *  Only production rows with a parseable versionCode AND rollout instant count —
+ *  a build that never reached the production track never reached a user. */
+export function parseRolloutHistory(markdown) {
+  const rows = []
+  for (const line of String(markdown).split("\n")) {
+    if (!line.trim().startsWith("|")) continue
+    const cells = line
+      .split("|")
+      .slice(1, -1)
+      .map((c) => c.trim())
+    if (cells.length < 4) continue
+    const version = cells[0]
+    if (!/^v\d/.test(version)) continue // header / separator / prose rows
+    const codeMatch = cells[2].replace(/\*/g, "").match(/\d+/)
+    const dateMatch = cells[3].match(/(\d{4}-\d{2}-\d{2})[ T](\d{2}:\d{2})/)
+    if (!codeMatch || !dateMatch) continue
+    const at = new Date(`${dateMatch[1]}T${dateMatch[2]}:00Z`)
+    if (Number.isNaN(at.getTime())) continue
+    rows.push({ version, versionCode: Number(codeMatch[0]), at })
+  }
+  return rows
+}
+
+/** The instant the gate first reached production. EARLIEST qualifying release,
+ *  not the latest: a later v0.4.15 does not re-start the measurement window. */
+export function gateRollout(rows, firstGatedVersionCode = GATE_FIRST_VERSION_CODE) {
+  const gated = rows.filter((r) => r.versionCode >= firstGatedVersionCode).sort((a, b) => a.at - b.at)
+  return gated[0] ?? null
+}
+
+/** Where a measurement window sits relative to the rollout instant.
+ *
+ *  This exists because the report accepts arbitrary windows, and a window that
+ *  straddles the rollout mixes two different populations — devices that have
+ *  the gate and devices that never will until they update. Its rate is neither
+ *  a baseline nor a result, but it prints identically to both.
+ */
+export function classifyWindow(win, rolloutAt) {
+  if (!rolloutAt) return { phase: "unknown", gatedFraction: null, postHours: null }
+  const start = win.start.getTime()
+  const end = win.end.getTime()
+  const t = rolloutAt.getTime()
+  const postMs = Math.max(0, Math.min(end, Number.MAX_SAFE_INTEGER) - Math.max(start, t))
+  const gatedFraction = postMs / (end - start)
+  const postHours = postMs / 3_600_000
+  if (end <= t) return { phase: "pre", gatedFraction: 0, postHours: 0 }
+  if (start >= t) return { phase: "post", gatedFraction: 1, postHours }
+  return { phase: "mixed", gatedFraction, postHours }
+}
+
+async function readRollout(args) {
+  if (args.rolloutOverride) {
+    const at = new Date(args.rolloutOverride)
+    if (Number.isNaN(at.getTime())) throw new Error(`bad --rollout ${args.rolloutOverride}`)
+    return { version: "(--rollout)", versionCode: GATE_FIRST_VERSION_CODE, at }
+  }
+  try {
+    const { readFile } = await import("node:fs/promises")
+    return gateRollout(parseRolloutHistory(await readFile(PLAYSTORE_DOC, "utf8")))
+  } catch {
+    return null
+  }
 }
 
 function parseWindow(spec) {
@@ -76,7 +159,9 @@ function parseWindow(spec) {
 }
 
 async function sentry(path, token) {
-  const res = await fetch(`${API}${path}`, { headers: { Authorization: `Bearer ${token}` } })
+  const res = await fetch(`${API}${path}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  })
   const body = await res.json()
   if (!res.ok) throw new Error(`${path} -> ${res.status} ${JSON.stringify(body)}`)
   return body
@@ -124,6 +209,22 @@ async function main() {
     console.error("SENTRY_AUTH_TOKEN is not set. This script is read-only; a scoped read token is enough.")
     process.exit(2)
   }
+  const rollout = await readRollout(args)
+
+  if (args.sinceRollout) {
+    if (!rollout) {
+      console.error(
+        "--since-rollout: no production release with versionCode >= " +
+          `${GATE_FIRST_VERSION_CODE} found in docs/playstore.md. Pass --rollout <iso> ` +
+          "or record the rollout there; do NOT guess the boundary.",
+      )
+      process.exit(2)
+    }
+    const t = rollout.at.getTime()
+    args.windows.push(`pre=${new Date(t - 86_400_000).toISOString()}..${rollout.at.toISOString()}`)
+    args.windows.push(`post=${rollout.at.toISOString()}..now`)
+  }
+
   if (args.windows.length === 0) {
     // Default: last 7 days, one window. Enough to certify a monthly rate.
     const end = new Date()
@@ -138,7 +239,18 @@ async function main() {
     results.push({ win, rows: await windowStats(args.org, token, win) })
   }
 
-  const report = { org: args.org, generatedAt: new Date().toISOString(), windows: [] }
+  const report = {
+    org: args.org,
+    generatedAt: new Date().toISOString(),
+    rollout: rollout
+      ? {
+          version: rollout.version,
+          versionCode: rollout.versionCode,
+          at: rollout.at.toISOString(),
+        }
+      : null,
+    windows: [],
+  }
   for (const { win, rows } of results) {
     const projects = []
     let orgSubmitted = 0
@@ -165,6 +277,7 @@ async function main() {
     projects.sort((a, b) => b.submitted - a.submitted)
     report.windows.push({
       name: win.name,
+      ...classifyWindow(win, rollout?.at ?? null),
       start: win.start.toISOString(),
       end: win.end.toISOString(),
       hours: Number(win.hours.toFixed(2)),
@@ -179,8 +292,36 @@ async function main() {
     return
   }
 
+  if (rollout) {
+    console.log(
+      `\ngate rollout: ${rollout.version} (versionCode ${rollout.versionCode}) to Play production ` +
+        `at ${rollout.at.toISOString()}  [docs/playstore.md]`,
+    )
+  } else {
+    console.log(
+      "\ngate rollout: UNKNOWN (no production release >= versionCode " +
+        `${GATE_FIRST_VERSION_CODE} in docs/playstore.md). Windows cannot be ` +
+        "classified pre/post; every rate below is unattributed.",
+    )
+  }
+
   for (const w of report.windows) {
-    console.log(`\n== ${w.name}  ${w.start} -> ${w.end}  (${w.hours}h)`)
+    console.log(`\n== ${w.name}  ${w.start} -> ${w.end}  (${w.hours}h)  [${w.phase}]`)
+    // A window that straddles the rollout is neither a baseline nor a result.
+    // Printed loudly because it is indistinguishable from both in the table.
+    if (w.phase === "mixed") {
+      const pre = Math.round((1 - w.gatedFraction) * 100)
+      console.log(
+        `  !! MIXED WINDOW: ${pre}% of it predates the gate rollout. This rate is not a ` +
+          "post-gate rate and not a baseline; split it at the rollout instant (--since-rollout).",
+      )
+    }
+    if (w.phase === "post" && w.postHours < 24) {
+      console.log(
+        `  note: only ${w.postHours.toFixed(1)}h since rollout. Play uptake is hours-to-days, so ` +
+          "most events here still come from ungated installs. Not yet a verdict.",
+      )
+    }
     console.log(
       `${"project".padEnd(24)}${"submitted".padStart(11)}${"accepted".padStart(10)}${"rate_lim".padStart(10)}${"cli_disc".padStart(10)}${"sub/h".padStart(9)}${"sub/mo".padStart(10)}`,
     )
@@ -202,7 +343,15 @@ async function main() {
       `client_discard split: before_send (our gate) ${fmt(gate)}  |  ratelimit_backoff (org over quota) ${fmt(backoff)}`,
     )
     if (gate === 0) {
-      console.log("  before_send == 0 -> no device is running the noise gate yet in this window.")
+      // Only alarming once enough time has passed for Play to convert installs.
+      // In a pre/mixed/fresh-post window, zero is the expected reading.
+      const mature = w.phase === "post" && w.postHours >= 24
+      console.log(
+        mature
+          ? "  before_send == 0 after 24h+ of gated production -> the gate is NOT running on devices."
+          : "  before_send == 0 -> expected for this window (" +
+              `${w.phase}${w.postHours != null ? `, ${w.postHours.toFixed(1)}h post-rollout` : ""}); not evidence either way.`,
+      )
     }
 
     if (args.byReason) {
@@ -218,11 +367,14 @@ async function main() {
     "\nGate: org submitted (accepted + rate_limited) < 3,500/month." +
       "\nWindows under ~24h rank sources but do not certify a rate." +
       "\nGate liveness: client_discard/before_send > 0 for opencode-mobile." +
+      "\nNever compare across the rollout instant with one window: [mixed] is not a result." +
       "\nDo NOT segment by release: over-quota events are never stored, so release tags stop.",
   )
 }
 
-main().catch((err) => {
-  console.error(err.message)
-  process.exit(1)
-})
+if (import.meta.url === `file://${process.argv[1]}`) {
+  main().catch((err) => {
+    console.error(err.message)
+    process.exit(1)
+  })
+}
