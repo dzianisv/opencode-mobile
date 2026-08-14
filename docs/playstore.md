@@ -84,6 +84,29 @@ For full company facts (D-U-N-S, address, governor, etc.) see `~/.agents/skills/
 
 After 14 days on Closed testing with 12+ active testers → promote to Production.
 
+### Promoting a tagged release to Production
+
+Pushing a `v*` tag only publishes to the **internal** track — the workflow
+defaults `track: internal` for non-dispatch runs. Production is a second,
+manual dispatch off `main`:
+
+```bash
+gh workflow run publish-play-store.yml --ref main -f track=production -f status=completed
+```
+
+That dispatch **rebuilds** the AAB, so it gets its own versionCode
+(`github.run_number + 100`) — it does not promote the internal artifact in
+place. Expect the production versionCode to be one higher than the internal
+one from the tag push, and never equal to `app.json`'s committed
+`android.versionCode`.
+
+### Release history (production track)
+
+| Version | Internal versionCode (tag push) | Production versionCode (dispatch) | Production rollout (UTC) | Notes |
+|---|---|---|---|---|
+| v0.4.13 | 148 (run 48, cancelled) | **149** (run 49) | 2026-08-14 09:20 | waitlist retry queue (#166) |
+| v0.4.14 | 150 (run 50) | **151** (run 51) | 2026-08-14 14:22 | Sentry client-side noise gate (#169) — post-deploy Sentry measurement window for AGE-105 starts at this date, not at merge |
+
 ---
 
 ## Files in repo
