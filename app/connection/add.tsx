@@ -23,6 +23,11 @@ import { buildAuth } from "../../src/lib/auth"
 import { AnalyticsEvent, track } from "../../src/lib/analytics"
 import { submitWaitlistSignup, buildWaitlistMailtoUrl, needsManualEscapeHatch, type QueuedSignup } from "../../src/lib/waitlist"
 import { flushPendingSignups, queuePendingSignup, readPendingSignups, dropPendingSignup } from "../../src/lib/waitlist-queue-storage"
+import appJson from "../../app.json"
+
+// Same read as sentry.ts: app.json is the single source of the user-visible
+// version (package.json/gradle are kept in parity by `npm run check:versions`).
+const APP_VERSION = (appJson as { expo?: { version?: string } }).expo?.version ?? "unknown"
 
 export default function AddConnectionScreen() {
   const colorScheme = useColorScheme()
@@ -281,7 +286,7 @@ export default function AddConnectionScreen() {
   // Last-resort, user-initiated only. Never opened automatically.
   const openWaitlistMailto = async (email: string) => {
     try {
-      await Linking.openURL(buildWaitlistMailtoUrl(email))
+      await Linking.openURL(buildWaitlistMailtoUrl(email, APP_VERSION))
     } catch {
       Alert.alert(t("connection.add.waitlist.alertTitle"), t("connection.add.waitlist.noMailAppMessage"))
     }

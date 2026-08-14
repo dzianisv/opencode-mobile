@@ -36,10 +36,20 @@ export function buildWaitlistPayload(email: string): { email: string; source: st
  * automatically: a failed signup is queued locally and retried
  * (waitlist-queue.ts). This URL is only offered after retries keep failing,
  * behind an explicit "still not working? email us" tap.
+ *
+ * `appVersion` stamps the build into the mail body (AGE-100). Without it the
+ * hourly reconciler that heals these mails
+ * (VibeBrowserProductPage/scripts/reconcile-waitlist-mailto.js) cannot tell a
+ * ~436-device pre-v0.4.8 sideload — which has no signup API at all and can
+ * never be fixed by shipping code — from a current build that still fell back,
+ * which would be a live defect. Absence of the line means "pre-v0.4.13 build".
  */
-export function buildWaitlistMailtoUrl(email: string): string {
+export function buildWaitlistMailtoUrl(email: string, appVersion?: string): string {
   const subject = encodeURIComponent("OpenCode Connect Waitlist")
-  const body = encodeURIComponent(email ? `Sign me up!\n\nEmail: ${email}` : "Sign me up!")
+  const lines = ["Sign me up!"]
+  if (email) lines.push("", `Email: ${email}`)
+  if (appVersion) lines.push("", `App: OpenCode Mobile v${appVersion}`)
+  const body = encodeURIComponent(lines.join("\n"))
   return `mailto:${WAITLIST_FALLBACK_EMAIL}?subject=${subject}&body=${body}`
 }
 

@@ -49,6 +49,21 @@ test("mailto escape hatch works without an email", () => {
   assert.ok(!url.includes("Email"))
 })
 
+// AGE-100: the reconciler has to be able to say which build produced a mailto
+// signup. Pre-v0.4.8 sideloads (no signup API, unreachable by any release)
+// send no App: line; a current build sending one means the retry queue leaked
+// and that is a new defect, not the known stale cohort.
+test("mailto escape hatch stamps the app version when given one", () => {
+  const url = buildWaitlistMailtoUrl("dev@example.com", "0.4.13")
+  assert.ok(url.includes(encodeURIComponent("App: OpenCode Mobile v0.4.13")))
+  assert.ok(url.includes(encodeURIComponent("Email: dev@example.com")))
+})
+
+test("mailto escape hatch omits the version line when the version is unknown", () => {
+  const url = buildWaitlistMailtoUrl("dev@example.com")
+  assert.ok(!url.includes("App%3A"))
+})
+
 // --- retry decision ---
 
 // 502 named explicitly: the server returns it when Brevo itself fails, and the

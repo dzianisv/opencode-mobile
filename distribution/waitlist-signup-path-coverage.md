@@ -38,6 +38,23 @@ returns 0 results) and the app is not on IzzyOnDroid, so those channels contribu
    retry failures. Expect the reconciler's `synced_count` to trend toward the sideload cohort only.
    Any plan that assumes "ship an update and the leak closes" is still wrong for those ~436 devices.
 
+## After-number: how it gets attributed (AGE-100)
+
+_Pending — v0.4.13 (the first build users can actually run the retry queue on) ships 2026-08-14._
+
+Baseline at release time, from the hourly reconciler's last run before the cut
+(`Waitlist Mailto Reconcile`, 2026-08-14 07:59 UTC): `scanned=34 synced=0 skipped=34 failed=0`
+— i.e. 34 known mailto conversations, all already healed into the store, nothing new that hour.
+
+The reconciler reads a Chatwoot mail body, so "split by app version" only works if the body
+carries one. It did not. As of v0.4.13 the escape hatch stamps `App: OpenCode Mobile v<version>`
+into the mail (`buildWaitlistMailtoUrl`, `src/lib/waitlist.ts`). That gives a clean read a week out:
+
+| Mail body | Means |
+| --- | --- |
+| no `App:` line | a build older than v0.4.13 — expected, this is the ~436-device sideload cohort no release can reach |
+| `App: OpenCode Mobile v0.4.13` or newer | a current build still reached mailto — the retry queue leaked, **file it as a new defect with the mail as evidence** |
+
 ## Method / reproducing
 
 ```bash
