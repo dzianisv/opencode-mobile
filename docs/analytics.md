@@ -142,6 +142,66 @@ production rollout at 14:22 UTC), two windows agreeing to within 0.2%:
 Mobile was 87% of the org's post-box-bot demand. Target: under ~1,500/month, which puts the
 org under the 3,500/month gate.
 
+### The quota resets on the 4th — that is the real deadline
+
+Org-wide daily `accepted` shows a hard billing boundary:
+
+| Date | org `accepted` | org `rate_limited` | cumulative `accepted` |
+|---|---|---|---|
+| 08-03 | 2 | 427 | 24 |
+| **08-04** | **837** | 10 | 861 |
+| 08-07 | 1,820 | 0 | 3,812 |
+| **08-08** | 1,574 | 816 | **5,386** |
+| 08-09 → 08-14 | 0 | 155–672/day | 5,387 |
+
+The period reset on **2026-08-04**, the 5,000-error month was spent in **4.5 days**, and the
+org has been receiving *zero* error data since **2026-08-08**. Next reset: **2026-09-04**.
+Two consequences: (1) no `accepted`-based measurement is possible before then, which is why
+`submitted` is the metric; (2) 09-04 is the date the gate actually has to hold by.
+
+Who spent it, over the 30d to 08-14:
+
+| project | accepted | rate_limited | submitted |
+|---|---|---|---|
+| `openclaw-box-bot` | 4,401 (82%) | 11,741 | 16,142 |
+| `vibe-api-gateway` | 254 | 3,321 | 3,575 |
+| `opencode-mobile` | 664 (12%) | 2,148 | 2,812 |
+| `openclaw-ci` | 68 | 333 | 401 |
+
+`opencode-mobile` did not blow the quota — `openclaw-box-bot` did (fixed by AGE-55). But with
+box-bot at 0, mobile is now the dominant remaining demand.
+
+### Server-side levers do not exist on this plan
+
+Checked directly against the API on 2026-08-14, so nobody re-litigates it:
+
+| Lever | Result |
+|---|---|
+| Per-key rate limit (`PUT /projects/{org}/{proj}/keys/{id}/`) | **Silent no-op.** Returns HTTP 200 and drops the field; a follow-up GET always reads `rateLimit: null`. Reproduced with `window` = 60, 3600 and 86400. |
+| Custom inbound filters (error message / release) | Not present. Only the five generic browser filters exist. |
+| Spike protection (`/organizations/{org}/spike-protections/`) | HTTP 403. |
+
+Org `features` is `[]`. **The client-side gate is the only control that exists**, so its
+coverage is the entire safety margin — which is why `sentry-noise-production.test.ts` pins
+that coverage against real production data.
+
+### Gate coverage against 90d of real events
+
+Every issue in the project over the 90d to 2026-08-14 (648 events), replayed through the
+gate's own precedence (allowlist first, then drop-list) by
+`src/lib/sentry-noise-production.test.ts`:
+
+| Outcome | events | share |
+|---|---|---|
+| hard-dropped as transport noise | 628 | 96.9% |
+| always-send crash classes (OOM, ANR, `IllegalStateException`) | 13 | 2.0% |
+| deduped / rate-capped (the 401 storm) | 7 | 1.1% |
+
+Upper bound of surviving volume: 2,750/month × 3.1% ≈ **87/month**, ~17× under the
+1,500/month target, and that ignores dedup and the hourly cap, which only push it lower.
+Crash classes still come through — the test fails if any of them stops being allowlisted,
+because hitting the number by silencing real crashes is a failure, not a win.
+
 ## Disclosure surfaces (must stay in sync)
 
 | Surface | File |
