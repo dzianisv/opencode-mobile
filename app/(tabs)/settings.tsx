@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react"
+import { useCallback, useEffect, useState } from "react"
 import {
   View,
   Text,
@@ -9,9 +9,11 @@ import {
   useColorScheme,
   Linking,
   Alert,
+  AppState,
 } from "react-native"
 import { Ionicons } from "@expo/vector-icons"
 import { useTranslation } from "react-i18next"
+import appJson from "../../app.json"
 import { useAuth } from "../../src/stores/auth"
 import { useSettings } from "../../src/stores/settings"
 import {
@@ -21,7 +23,7 @@ import {
   granted as notificationsGranted,
 } from "../../src/lib/notifications"
 import type { Category } from "../../src/lib/notifications"
-import { hasTelemetryConsent, setTelemetryConsent } from "../../src/lib/telemetry"
+import { hasTelemetryConsent, loadTelemetryConsent, setTelemetryConsent } from "../../src/lib/telemetry"
 import { PRIVACY_POLICY_URL } from "../../src/lib/links"
 import type { LocalePreference } from "../../src/lib/i18n/locale-resolve"
 
@@ -80,8 +82,42 @@ export default function SettingsScreen() {
   const [telemetryUpdating, setTelemetryUpdating] = useState(false)
 
   // Telemetry consent: hasTelemetryConsent() returns null (unknown), true, or false.
-  // We initialise local state from in-memory value; updates call setTelemetryConsent().
-  const [crashReporting, setCrashReporting] = useState<boolean>(hasTelemetryConsent() ?? false)
+  // Initialize local state from false, then resolve the persisted value in an
+  // effect — the module snapshot can be stale by the time this screen mounts.
+  const [crashReporting, setCrashReporting] = useState<boolean>(false)
+
+  useEffect(() => {
+    let active = true
+    loadTelemetryConsent().then((state) => {
+      if (active) setCrashReporting(state === "granted")
+    })
+    return () => {
+      active = false
+    }
+  }, [])
+
+  // Refresh OS notification permission state on mount and whenever the app
+  // returns to the foreground — the user may toggle it in system Settings.
+  useEffect(() => {
+    let active = true
+    const check = () => {
+      notificationsGranted()
+        .then((ok) => {
+          if (active) setOsGranted(ok)
+        })
+        .catch(() => {
+          if (active) setOsGranted(false)
+        })
+    }
+    check()
+    const sub = AppState.addEventListener("change", (state) => {
+      if (state === "active") check()
+    })
+    return () => {
+      active = false
+      sub.remove()
+    }
+  }, [])
 
   const handleCrashReportingToggle = useCallback(
     async (value: boolean) => {
@@ -114,13 +150,6 @@ export default function SettingsScreen() {
     },
     [setNotification, t],
   )
-
-  // Lazy-check OS permission for status display
-  if (osGranted === null) {
-    notificationsGranted()
-      .then(setOsGranted)
-      .catch(() => setOsGranted(false))
-  }
 
   const localeLabels: Record<LocalePreference, string> = {
     system: t("settings.language.system"),
@@ -247,7 +276,7 @@ export default function SettingsScreen() {
           onPress={handleLanguagePress}
           right={<Ionicons name="chevron-forward" size={20} color={isDark ? "#666666" : "#999999"} />}
         />
-        <SettingRow icon="information-circle" label={t("settings.about.version")} description="1.0.0" isDark={isDark} />
+        <SettingRow icon="information-circle" label={t("settings.about.version")} description={(appJson as { expo?: { version?: string } }).expo?.version ?? "unknown"} isDark={isDark} />
         <SettingRow
           icon="logo-github"
           label={t("settings.about.github.label")}

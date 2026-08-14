@@ -1,6 +1,11 @@
 import { test } from "node:test"
 import assert from "node:assert/strict"
-import { sanitizeBody, MAX_NOTIF_BODY } from "./notify-format.ts"
+import {
+  sanitizeBody,
+  MAX_NOTIF_BODY,
+  permissionNotificationBody,
+  questionNotificationBody,
+} from "./notify-format.ts"
 
 // Notification bodies come from the server (and ultimately the AI). They must be
 // neutralized before display: control chars stripped, whitespace trimmed, length capped.
@@ -38,4 +43,15 @@ test("caps length at MAX_NOTIF_BODY", () => {
 test("trims before slicing so leading whitespace doesn't eat the budget", () => {
   const out = sanitizeBody("   " + "y".repeat(250), "fb")
   assert.equal(out, "y".repeat(MAX_NOTIF_BODY))
+})
+
+test("permissionNotificationBody is a fixed constant (no server content channel)", () => {
+  assert.equal(permissionNotificationBody(), "A tool needs your approval")
+  // No arguments — callers cannot pass server-supplied text through.
+  assert.equal(permissionNotificationBody.length, 0)
+})
+
+test("questionNotificationBody is a fixed constant (no server content channel)", () => {
+  assert.equal(questionNotificationBody(), "The assistant has a question")
+  assert.equal(questionNotificationBody.length, 0)
 })
