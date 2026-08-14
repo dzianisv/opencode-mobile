@@ -1,0 +1,5 @@
+v0.4.15 — The app now tells you when a new version is out
+
+• Installs from a downloaded APK, F-Droid or a mirror had no way to learn a newer version existed. The app now checks once a day and shows a dismissible banner when one is available.
+• "Not now" is remembered for that version only.
+• Settings now shows the version you are actually running instead of a hard-coded placeholder.

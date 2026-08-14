@@ -35,7 +35,7 @@
     },
     "android": {
       "package": "cc.agentlabs.opencode",
-      "versionCode": 41,
+      "versionCode": 42,
       "usesCleartextTraffic": true,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
