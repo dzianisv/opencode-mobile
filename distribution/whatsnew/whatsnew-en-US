@@ -1,3 +1,3 @@
-v0.4.12 — Global recent sessions
+v0.4.13 — Waitlist signups no longer get lost
 
-Recent Sessions now shows every session across all your projects automatically — no need to pick a folder or directory first. The list is populated globally as soon as you connect, and falls back to per-directory listing on older servers.
+Joining the OpenCode Connect waitlist now survives a flaky connection: a signup that fails is saved on your device and re-sent automatically the next time you open the app. The email-app fallback only opens if you choose it after repeated retries.

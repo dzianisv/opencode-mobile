@@ -1,0 +1,5 @@
+v0.4.13 — Waitlist signups no longer get lost
+
+• Joining the OpenCode Connect waitlist now retries in the background if the network drops.
+• A pending signup is saved on-device and re-sent the next time you open the app.
+• The email-app fallback only opens if you tap it after repeated failures.
