@@ -8,10 +8,15 @@
 //      server addresses or tokens never leak to Sentry.
 //   4. Provide small `addBreadcrumb` / `captureException` helpers so call sites
 //      get rich context without importing the Sentry SDK directly.
+//   5. Keep event volume inside the org Sentry quota (AGE-105): a noise gate in
+//      `beforeSend` drops client-side network conditions and collapses retry
+//      loops, while genuine crashes pass through untouched. The decision logic
+//      lives in ./sentry-noise.ts so it is unit-testable without the RN SDK.
 
 import * as Sentry from "@sentry/react-native"
 import appJson from "../../app.json"
 import { log } from "./logbuffer"
+import { NoiseGate, eventText, isFatalEvent, isTransportNoise } from "./sentry-noise"
 import type { DiagnosticReport } from "./diagnostics"
 
 const DSN = process.env.EXPO_PUBLIC_SENTRY_DSN
@@ -19,6 +24,10 @@ const APP_VERSION = (appJson as { expo?: { version?: string } }).expo?.version ?
 
 let enabled = false
 let handlersInstalled = false
+
+// One gate per app process. Drops are counted and attached to the next event
+// that does get through, so the quota saving stays visible in Sentry itself.
+const noiseGate = new NoiseGate()
 
 export function initSentry() {
   if (enabled) return
@@ -45,9 +54,11 @@ export function initSentry() {
       enableAutoPerformanceTracing: false,
       attachStacktrace: true,
       maxBreadcrumbs: 100,
-      // Final pre-send scrub: strip URLs everywhere they could appear.
+      // Final pre-send stage: drop non-actionable noise (AGE-105), then strip
+      // URLs everywhere they could appear.
       beforeSend(event) {
-        return scrubEvent(event)
+        const filtered = applyNoiseGate(event)
+        return filtered ? scrubEvent(filtered) : null
       },
       beforeBreadcrumb(crumb) {
         // Console output can contain malformed server payloads, prompts, or code.
@@ -136,6 +147,24 @@ function toError(value: unknown): Error {
   } catch {
     return new Error(String(value))
   }
+}
+
+// --- Noise gate (pure logic lives in ./sentry-noise for testability) ------
+
+/** Returns the event to send, or null to drop it. Exported for the RN-side
+ *  integration test; the pure rules are tested in sentry-noise.test.ts. */
+export function applyNoiseGate<T extends Sentry.Event>(event: T): T | null {
+  const text = eventText(event)
+  const decision = noiseGate.admit(text, { fatal: isFatalEvent(event) })
+  if (!decision.send) {
+    log.info("sentry", "dropped event", decision.reason)
+    return null
+  }
+  const dropped = noiseGate.takeDroppedCount()
+  if (dropped > 0) {
+    event.tags = { ...event.tags, "noise.dropped_since_last": String(dropped) }
+  }
+  return event
 }
 
 // --- Scrubbing (pure functions live in ./scrub for testability) ----------
@@ -238,6 +267,15 @@ export function captureException(
 export function captureDiagnostic(report: DiagnosticReport) {
   log.info("sentry", "capture", report.classification, enabled ? "(uploading)" : "(local only)")
   if (!enabled) return
+  // Client-side network conditions (timeout / unreachable / no internet) are
+  // already shown to the user and already trended in PostHog as
+  // `connection_failed{error_class}`; they were the single largest consumer of
+  // the org Sentry quota (AGE-105). Skip them here so we don't even build the
+  // event. `health-failed` / `tls-error` are genuinely actionable and still go.
+  if (isTransportNoise(`connect ${report.classification}`)) {
+    log.info("sentry", "skipped diagnostic upload (client-side network condition)", report.classification)
+    return
+  }
   Sentry.withScope((scope) => {
     scope.setTag("connect.classification", report.classification)
     scope.setTag("connect.scheme", report.scheme ?? "n/a")

@@ -75,6 +75,34 @@ Sentry and PostHog — there is no separate analytics toggle. Managed by `src/li
 - **Re-grant mid-session:** `optIn()` clears the persisted opt-out; the `app_opened`
   session guard prevents double-counting.
 
+## Sentry event budget — the noise gate (AGE-105)
+
+Consent decides *whether* we report; the noise gate in `src/lib/sentry-noise.ts` decides *how
+often*. It exists because this app became the org's #1 Sentry volume source (~4,500
+events/month against a 3,500/month org quota) while ~1,100 of those events were three
+non-defects: `connect timeout`, `connect server-unreachable`, and one device's
+`API Error: 401` token-refresh loop firing 498 times.
+
+`beforeSend` applies three layers, cheapest first:
+
+| Layer | Rule | Effect |
+|---|---|---|
+| Always-send allowlist | OOM / ANR / native / `IllegalStateException` / `NullPointerException` / fatal level / unhandled mechanism | Bypasses every limit below — quota is worthless if it silences real crashes |
+| Transport drop-list | `connect timeout\|server-unreachable\|no-internet\|malformed-url`, `Network request failed`, `Request timed out after`, `ECONN*`/`ETIMEDOUT`… | Hard drop. Not sampled: the gate is per-install, so even 1/device/day multiplies by the install base back into thousands/month |
+| Dedup + rate cap | per-fingerprint cooldown 6h, ≤6 new fingerprints/h, ≤10 events/h (mirrors the `openclaw-box-bot` shim, AGE-55) | Turns a retry loop into one report and caps any future regression |
+
+Nothing is lost by the transport drop: those failures are already shown to the user as
+connection UI **and** already trended, PII-free, as the PostHog `connection_failed` event with
+an `error_class` property (`src/lib/analytics-classify.ts`). Sentry was paying per event for a
+graph we already have.
+
+Dropped-event counts are not silent — the number dropped since the last delivered event rides
+along as a `noise.dropped_since_last` tag, so the saving is auditable from Sentry itself.
+
+Rules are pure and unit-tested in `src/lib/sentry-noise.test.ts` (18 tests, incl. a replay of
+the observed 1,126-event hour → 5 delivered events). Widening the drop-list is a deliberate
+act: add a test asserting the new pattern, and never add anything that could mask a crash.
+
 ## Disclosure surfaces (must stay in sync)
 
 | Surface | File |
