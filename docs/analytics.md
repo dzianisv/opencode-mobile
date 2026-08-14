@@ -118,7 +118,7 @@ act: add a test asserting the new pattern, and never add anything that could mas
 ### Measuring whether it worked
 
 ```sh
-SENTRY_AUTH_TOKEN=… node scripts/sentry-volume-report.mjs \
+SENTRY_AUTH_TOKEN=… node scripts/sentry-volume-report.mjs --by-reason \
   --org vibetechnologies \
   --window "before=2026-08-14T07:00:00Z..2026-08-14T14:00:00Z" \
   --window "after=2026-08-17T00:00:00Z..now"
@@ -128,8 +128,31 @@ Read **`submitted` = `accepted` + `rate_limited`**, never `accepted` alone. The 
 currently over its error quota, so Sentry rejects essentially everything and `accepted`
 reads ~0 for *every* project — a blown org and a fixed one look identical on that column.
 `submitted` is the demand the clients actually put on the wire, which is what the
-3,500/month gate is really about. A healthy gate shows `submitted` falling while
-`client_discard` rises.
+3,500/month gate is really about.
+
+**And do not read raw `client_discard` as "the gate is working" either — that is the same
+mistake one column over.** Split it by reason (`--by-reason`, and the split line prints
+unconditionally):
+
+| `client_discard` reason | what it means |
+|---|---|
+| `before_send` | **our noise gate dropped the event.** Recorded by `@sentry/core` `baseclient.js` whenever `beforeSend` returns `null`. The only proof the gate is live on real devices. |
+| `ratelimit_backoff` | the SDK is in 429 backoff because the **org** is over quota. A symptom of the overage; it goes UP when things get worse. |
+| `event_processor`, `network_error` | neither of the above. |
+
+On 2026-08-14, 100% of `opencode-mobile`'s `client_discard` was `ratelimit_backoff` and
+`before_send` was 0 — i.e. the pre-rollout `client_discard` number was entirely quota
+damage, not filtering. So the healthy shape is precisely: `submitted` falls **and**
+`client_discard/before_send` rises from zero.
+
+`before_send > 0` is also the **earliest** available evidence, because it does not depend on
+what share of the install base has updated: one device on v0.4.14 hitting one filtered error
+produces it. Check it before waiting days for the monthly rate to bend.
+
+**Do not try to segment the after-number by app release.** While the org is over quota,
+rate-limited events are never stored, so the project's `release`/`dist` tag values and issue
+list stop dead (last value: `opencode-mobile@0.4.12`, 2026-08-08) even though clients keep
+submitting. Version share comes from Play (`scripts/play-version-share.mjs`), not Sentry.
 
 Pre-rollout baseline for the v0.4.14 comparison (measured 2026-08-14 14:00 UTC, before
 production rollout at 14:22 UTC), two windows agreeing to within 0.2%:

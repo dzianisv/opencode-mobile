@@ -12,7 +12,7 @@
 //
 // Usage:
 //   SENTRY_AUTH_TOKEN=... node scripts/sentry-volume-report.mjs \
-//     --org vibetechnologies \
+//     --by-reason --org vibetechnologies \
 //     --window "pre=2026-08-13T14:00:00Z..2026-08-14T06:00:00Z" \
 //     --window "post=2026-08-14T14:22:00Z..now"
 //
@@ -24,8 +24,23 @@
 //     makes a broken org look identical to a fixed one.
 //   * `rate_limited` is demand that arrived after the quota was gone. It is
 //     evidence of a problem, not of a fix.
-//   * `client_discard` is what a client-side noise gate produces. It going UP
-//     while `submitted` goes DOWN is the intended shape of a successful gate.
+//   * `client_discard` is NOT a gate metric on its own. Split it by reason
+//     (`--by-reason`, on by default in the summary line):
+//       - `before_send`       -> our noise gate dropped the event. THIS is the
+//                                only column that proves the gate is running on
+//                                real devices, and it is independent of install
+//                                -base share, so it shows up long before the
+//                                monthly rate bends.
+//       - `ratelimit_backoff` -> the SDK is in 429 backoff because the ORG is
+//                                over quota. Pure symptom of the overage. It
+//                                rises when things get WORSE. Reading raw
+//                                `client_discard` as "the gate is working" is
+//                                the same class of error as reading `accepted`.
+//       - `event_processor` / `network_error` -> neither of the above.
+//   * Per-release attribution is impossible while the org is over quota:
+//     rate_limited events are never stored, so `release`/`dist` tag values (and
+//     issues) simply stop. Do not try to segment the after-number by app
+//     version from Sentry; use outcome+reason, and Play for version share.
 //   * A window shorter than ~24h cannot certify a monthly rate; it can only
 //     rank sources. Diurnal load is real.
 
@@ -39,6 +54,7 @@ function parseArgs(argv) {
     if (a === "--org") out.org = argv[++i]
     else if (a === "--window") out.windows.push(argv[++i])
     else if (a === "--json") out.json = true
+    else if (a === "--by-reason") out.byReason = true
   }
   return out
 }
@@ -81,12 +97,18 @@ async function windowStats(org, token, win) {
   })
   qs.append("groupBy", "project")
   qs.append("groupBy", "outcome")
+  qs.append("groupBy", "reason")
   const data = await sentry(`/organizations/${org}/stats_v2/?${qs}`, token)
   const rows = new Map()
   for (const g of data.groups ?? []) {
     const key = String(g.by.project)
-    if (!rows.has(key)) rows.set(key, {})
-    rows.get(key)[g.by.outcome] = g.totals["sum(quantity)"]
+    if (!rows.has(key)) rows.set(key, { outcomes: {}, reasons: {} })
+    const row = rows.get(key)
+    const qty = g.totals["sum(quantity)"] ?? 0
+    if (!qty) continue
+    row.outcomes[g.by.outcome] = (row.outcomes[g.by.outcome] ?? 0) + qty
+    const reason = g.by.reason ?? "none"
+    row.reasons[`${g.by.outcome}/${reason}`] = (row.reasons[`${g.by.outcome}/${reason}`] ?? 0) + qty
   }
   return rows
 }
@@ -120,7 +142,7 @@ async function main() {
   for (const { win, rows } of results) {
     const projects = []
     let orgSubmitted = 0
-    for (const [id, outcomes] of rows) {
+    for (const [id, { outcomes, reasons }] of rows) {
       const accepted = outcomes.accepted ?? 0
       const rateLimited = outcomes.rate_limited ?? 0
       const submitted = accepted + rateLimited
@@ -131,6 +153,10 @@ async function main() {
         rateLimited,
         submitted,
         clientDiscard: outcomes.client_discard ?? 0,
+        // The gate. Everything else in client_discard is not us.
+        gateDropped: reasons["client_discard/before_send"] ?? 0,
+        backoffDropped: reasons["client_discard/ratelimit_backoff"] ?? 0,
+        reasons,
         filtered: outcomes.filtered ?? 0,
         submittedPerHour: submitted / win.hours,
         submittedPerMonth: (submitted / win.hours) * MONTH_HOURS,
@@ -166,10 +192,33 @@ async function main() {
     console.log(
       `${"ORG TOTAL (submitted)".padEnd(24)}${fmt(w.orgSubmitted).padStart(11)}${"".padStart(30)}${(w.orgSubmitted / w.hours).toFixed(2).padStart(9)}${fmt(w.orgSubmittedPerMonth).padStart(10)}`,
     )
+
+    // Always print the gate-liveness split, because raw `client_discard` is
+    // ambiguous: `ratelimit_backoff` (org over quota, a symptom) looks exactly
+    // like `before_send` (our gate, the fix) unless you split them.
+    const gate = w.projects.reduce((n, p) => n + p.gateDropped, 0)
+    const backoff = w.projects.reduce((n, p) => n + p.backoffDropped, 0)
+    console.log(
+      `client_discard split: before_send (our gate) ${fmt(gate)}  |  ratelimit_backoff (org over quota) ${fmt(backoff)}`,
+    )
+    if (gate === 0) {
+      console.log("  before_send == 0 -> no device is running the noise gate yet in this window.")
+    }
+
+    if (args.byReason) {
+      for (const p of w.projects) {
+        const entries = Object.entries(p.reasons).sort((a, b) => b[1] - a[1])
+        if (entries.length === 0) continue
+        console.log(`  ${p.project}`)
+        for (const [k, v] of entries) console.log(`    ${fmt(v).padStart(8)}  ${k}`)
+      }
+    }
   }
   console.log(
     "\nGate: org submitted (accepted + rate_limited) < 3,500/month." +
-      "\nWindows under ~24h rank sources but do not certify a rate.",
+      "\nWindows under ~24h rank sources but do not certify a rate." +
+      "\nGate liveness: client_discard/before_send > 0 for opencode-mobile." +
+      "\nDo NOT segment by release: over-quota events are never stored, so release tags stop.",
   )
 }
 
