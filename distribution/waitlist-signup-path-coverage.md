@@ -85,6 +85,18 @@ gh run view --repo dzianisv/VibeBrowserProductPage <id> --log | grep -E "^scanne
 Sum `stamped` across the week. `stamped=0` closes AGE-100 with the number; `stamped>0` opens a
 defect with those conversations as evidence.
 
+First reading after the release, from the run that first carried the split
+([run 31790218194](https://github.com/dzianisv/VibeBrowserProductPage/actions/runs/31790218194),
+2026-08-14 09:57 UTC, against the real inbox):
+
+```
+scanned=34 synced=0 skipped=34 failed=0 unstamped=0 stamped=0
+```
+
+Same 34 known conversations as the pre-release baseline, nothing new. That is one hour of exposure,
+not a verdict — it only proves the measurement pipeline reports the split end to end. The week-out
+sum is what closes AGE-100.
+
 ## Method / reproducing
 
 ```bash
