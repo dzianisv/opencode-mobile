@@ -59,7 +59,8 @@
       "title": "Choose Language",
       "system": "System Default",
       "en": "English",
-      "zhHans": "Simplified Chinese"
+      "zhHans": "Simplified Chinese",
+      "it": "Italian"
     },
     "footer": {
       "appName": "OpenCode Mobile",

@@ -2,7 +2,7 @@
 // so it's unit-testable with plain `node --test` (same split as
 // settings-merge.ts / store-review-policy.ts).
 
-export const SUPPORTED_LOCALES = ["en", "zh-Hans"] as const
+export const SUPPORTED_LOCALES = ["en", "zh-Hans", "it"] as const
 export type SupportedLocale = (typeof SUPPORTED_LOCALES)[number]
 
 export const FALLBACK_LOCALE: SupportedLocale = "en"
@@ -19,6 +19,7 @@ export function matchSupportedLocale(tag: string): SupportedLocale | null {
   const lower = tag.toLowerCase()
   if (lower.startsWith("zh")) return "zh-Hans"
   if (lower.startsWith("en")) return "en"
+  if (lower.startsWith("it")) return "it"
   return null
 }
 

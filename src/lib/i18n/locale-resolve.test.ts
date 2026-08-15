@@ -16,6 +16,12 @@ test("matchSupportedLocale maps en variants to en", () => {
   assert.equal(matchSupportedLocale("EN-GB"), "en") // case-insensitive
 })
 
+test("matchSupportedLocale maps it variants to it", () => {
+  assert.equal(matchSupportedLocale("it"), "it")
+  assert.equal(matchSupportedLocale("it-IT"), "it")
+  assert.equal(matchSupportedLocale("IT-CH"), "it") // case-insensitive
+})
+
 test("matchSupportedLocale returns null for unsupported languages", () => {
   assert.equal(matchSupportedLocale("fr-FR"), null)
   assert.equal(matchSupportedLocale("ja"), null)
@@ -30,6 +36,7 @@ test("resolveLocale: explicit preference always wins over device tags", () => {
 test("resolveLocale: system preference picks first supported device tag", () => {
   assert.equal(resolveLocale("system", ["fr-FR", "zh-Hans-CN", "en-US"]), "zh-Hans")
   assert.equal(resolveLocale("system", ["en-US", "zh-Hans-CN"]), "en")
+  assert.equal(resolveLocale("system", ["fr-FR", "it-IT", "en-US"]), "it")
 })
 
 test("resolveLocale: system preference falls back when nothing matches", () => {
