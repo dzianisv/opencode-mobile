@@ -39,6 +39,7 @@ import { useConnections } from "../../src/stores/connections"
 import { useAuth } from "../../src/stores/auth"
 import { useCatalog } from "../../src/stores/catalog"
 import { useSpeech } from "../../src/lib/speech"
+import { keyboardVerticalOffset } from "../../src/lib/keyboard-offset"
 
 // --- Builtin slash commands ---
 const BUILTIN_COMMANDS: SlashCommand[] = [
@@ -605,8 +606,16 @@ export default function SessionScreen() {
         // bottom toolbar + input were left completely hidden behind the
         // keyboard (#147). "padding" restores avoidance without depending
         // on native resize.
+        //
+        // "padding" alone is still not enough on Android, though (#156):
+        // KeyboardAvoidingView measures its own frame in *window* coordinates
+        // but reads the keyboard's screenY in *screen* coordinates, and under
+        // edge-to-edge those origins differ by the status-bar inset — so the
+        // padding lands short by exactly that much and the composer stays
+        // hidden. keyboardVerticalOffset closes the gap; see
+        // src/lib/keyboard-offset.ts for the measured numbers.
         behavior="padding"
-        keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 0}
+        keyboardVerticalOffset={keyboardVerticalOffset(Platform.OS, insets.top)}
       >
         {/* Session info pulldown */}
         <SessionInfo
