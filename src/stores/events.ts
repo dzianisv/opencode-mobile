@@ -145,6 +145,37 @@ async function resyncBusySessions() {
   )
 }
 
+// Reconcile the transcript of the session the user currently has open, after
+// an SSE reconnect.
+//
+// resyncBusySessions() above is not enough on its own. It only considers
+// sessions this client has marked "busy", and a client only learns a session
+// is busy *from an SSE event*. If the stream was down while another client
+// (CLI, TUI, another device) submitted a prompt, this client never saw the
+// busy `session.status` event, so the session is still "idle" in its store,
+// resyncBusySessions() finds nothing to do, and — because reconnect resumes
+// the stream from "now" and does not replay missed events — the messages that
+// arrived during the gap are never fetched. The open transcript then stays
+// stale until the user navigates away and back, which is the reported
+// cross-client staleness symptom.
+//
+// refreshMessages() re-fetches the current session and replaces messages/parts
+// without touching isLoading, so this lands as a silent background reconcile
+// rather than a spinner over content the user is already reading.
+//
+// Note this can overlap with resyncBusySessions() for a session that was busy
+// and has since gone idle — both would refresh. That costs one redundant GET
+// on an infrequent event, which is cheaper than the coupling needed to dedupe.
+async function reconcileOpenSession() {
+  const sessions = useSessions.getState()
+  if (!sessions.currentSession) return
+  try {
+    await sessions.refreshMessages()
+  } catch (err) {
+    console.warn("[Events] Failed to reconcile open session after reconnect:", err)
+  }
+}
+
 export const useEvents = create<EventsState>((set, get) => ({
   connected: false,
   authError: false,
@@ -232,6 +263,10 @@ export const useEvents = create<EventsState>((set, get) => ({
           if (isReconnect && !resyncedAfterReconnect) {
             resyncedAfterReconnect = true
             void resyncBusySessions()
+            // Backfill content missed while the stream was down. Separate from
+            // resyncBusySessions(), which only repairs *status* and only for
+            // sessions already known to be busy — see reconcileOpenSession().
+            void reconcileOpenSession()
           }
 
           const payload = (event as any).payload || event
