@@ -1,6 +1,7 @@
 import { useState } from "react"
 import { View, Text, Modal, ScrollView, TouchableOpacity, StyleSheet, useColorScheme } from "react-native"
 import { Ionicons } from "@expo/vector-icons"
+import { useSafeAreaInsets } from "react-native-safe-area-context"
 import * as Clipboard from "expo-clipboard"
 import { useTranslation } from "react-i18next"
 
@@ -23,6 +24,7 @@ interface Props {
 export function SelectableTextModal({ visible, text, onClose }: Props) {
   const isDark = useColorScheme() === "dark"
   const { t } = useTranslation()
+  const insets = useSafeAreaInsets()
   const [copied, setCopied] = useState(false)
 
   const copyAll = async () => {
@@ -57,7 +59,14 @@ export function SelectableTextModal({ visible, text, onClose }: Props) {
             </Text>
           </ScrollView>
 
-          <Text style={[s.hint, isDark && s.hintDark]}>{t("session.selectText.hint")}</Text>
+          {/* Under edge-to-edge the sheet extends beneath the system
+              navigation bar, so a fixed paddingBottom leaves this hint drawn
+              behind it (verified on an Android 12 emulator). Pad by the real
+              bottom inset instead, with a floor so it still breathes on
+              devices reporting inset 0. */}
+          <Text style={[s.hint, isDark && s.hintDark, { paddingBottom: Math.max(insets.bottom, 12) + 8 }]}>
+            {t("session.selectText.hint")}
+          </Text>
         </View>
       </View>
     </Modal>
@@ -95,6 +104,7 @@ const s = StyleSheet.create({
   text: { fontSize: 15, lineHeight: 22, color: "#0a0a0a" },
   textDark: { color: "#e5e5e5" },
 
-  hint: { fontSize: 11, color: "#999999", textAlign: "center", paddingHorizontal: 16, paddingBottom: 20, paddingTop: 8 },
+  // paddingBottom is applied inline from the safe-area inset — see render.
+  hint: { fontSize: 11, color: "#999999", textAlign: "center", paddingHorizontal: 16, paddingTop: 8 },
   hintDark: { color: "#666666" },
 })
