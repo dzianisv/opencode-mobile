@@ -35,6 +35,7 @@ import {
   type Attachment,
 } from "../../src/components/chat"
 import { extractCopyText, hasCopyableText } from "../../src/lib/message-copy-text"
+import { shouldAutoScroll, shouldShowScrollButton, transcriptSignature } from "../../src/lib/auto-scroll"
 import { useSessions } from "../../src/stores/sessions"
 import { useEvents, refreshPending } from "../../src/stores/events"
 import { useConnections } from "../../src/stores/connections"
@@ -294,6 +295,35 @@ export default function SessionScreen() {
     flatListRef.current?.scrollToOffset({ offset: 0, animated })
   }, [])
 
+  // Follow new content (issue #155: "Message cannot be scrolled automatically").
+  //
+  // scrollToBottom() was previously only wired to the manual scroll button, so
+  // nothing followed an arriving or streaming message. Compounding that,
+  // maintainVisibleContentPosition (below) deliberately holds visible items
+  // still when the data changes — and since new messages are inserted at index
+  // 0 of this inverted list, that setting parks new content just outside the
+  // viewport. That prop is worth keeping (it stops the jump when older pages
+  // load), so instead scroll explicitly.
+  //
+  // Only when the user is already at the bottom: someone who scrolled up to
+  // read history must not be yanked back down mid-sentence. See
+  // src/lib/auto-scroll.ts.
+  const newest = messageData[0]
+  const contentSignature = transcriptSignature(
+    messageData.length,
+    newest ? (newest.parts || []).reduce((n, part) => n + (part.text?.length ?? 0), 0) : 0,
+  )
+  const prevSignatureRef = useRef<string | null>(null)
+  useEffect(() => {
+    const auto = shouldAutoScroll({
+      offsetY: scrollOffsetRef.current,
+      previousSignature: prevSignatureRef.current,
+      currentSignature: contentSignature,
+    })
+    prevSignatureRef.current = contentSignature
+    if (auto) scrollToBottom(true)
+  }, [contentSignature, scrollToBottom])
+
   // Re-select on every focus, not just mount. currentSession/messages/
   // permissions are a single global store, and the native stack keeps screens
   // underneath a pushed one mounted. Without re-selecting on focus, navigating
@@ -489,10 +519,15 @@ export default function SessionScreen() {
     }
   }
 
-  // In inverted mode, offset 0 = bottom. Show scroll button when scrolled away from bottom.
+  // In inverted mode, offset 0 = bottom (newest message). Track the live
+  // offset in a ref as well as state: the auto-scroll effect below needs the
+  // current position without taking `offsetY` as a dependency, which would
+  // re-run it on every scroll frame.
+  const scrollOffsetRef = useRef(0)
   const handleScroll = useCallback((event: any) => {
     const { contentOffset } = event.nativeEvent
-    setShowScrollButton(contentOffset.y > 200)
+    scrollOffsetRef.current = contentOffset.y
+    setShowScrollButton(shouldShowScrollButton(contentOffset.y))
   }, [])
 
   // Debounce: onEndReached can fire multiple times during a single scroll gesture
