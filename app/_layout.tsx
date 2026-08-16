@@ -92,6 +92,14 @@ function RootLayout() {
       if (next === "background" && useAuth.getState().settings.requireBiometric) {
         useAuth.getState().lock()
       }
+      // Recover the event stream on foreground. Returning from background is
+      // exactly when a socket is most likely to be half-open -- doze, a Wi-Fi/
+      // cellular handover -- and without this nothing re-checked it, so the app
+      // could sit showing stale data until the user navigated. resume() is a
+      // no-op when the transport is already live or an attempt is in flight.
+      if (next === "active") {
+        useEvents.getState().resume()
+      }
     })
     return () => sub.remove()
   }, [])

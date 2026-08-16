@@ -22,6 +22,7 @@ import { useTranslation } from "react-i18next"
 import { useSessions } from "../../src/stores/sessions"
 import { useConnections } from "../../src/stores/connections"
 import { useEvents } from "../../src/stores/events"
+import { isHealthy } from "../../src/lib/sse-liveness"
 import { useCatalog } from "../../src/stores/catalog"
 import type BottomSheet from "@gorhom/bottom-sheet"
 import type { Session, Project } from "../../src/lib/sdk"
@@ -198,6 +199,9 @@ export default function SessionsScreen() {
   // Directories collapsed in the grouped session list. Empty by default —
   // all groups start expanded (#67).
   const [collapsedDirs, setCollapsedDirs] = useState<Set<string>>(new Set())
+  // The indicator tracks the transport, not "did we try to connect" — see
+  // src/lib/sse-liveness.ts.
+  const transportHealthy = useEvents((s) => isHealthy(s.transport))
 
   const toggleGroup = useCallback((directory: string) => {
     setCollapsedDirs((prev) => {
@@ -527,7 +531,13 @@ export default function SessionsScreen() {
         testID="connection-status-bar"
       >
         <View style={styles.connectionInfo}>
-          <View style={[styles.connectionDot, { backgroundColor: "#22c55e" }]} testID="connection-status-dot" />
+          {/* Reflects verified SSE liveness, not merely "a connection is
+              selected". This was hardcoded green, so the indicator claimed
+              health even while the stream was dead. */}
+          <View
+            style={[styles.connectionDot, { backgroundColor: transportHealthy ? "#22c55e" : "#f59e0b" }]}
+            testID="connection-status-dot"
+          />
           <Text style={[styles.connectionName, isDark && styles.textDark]} numberOfLines={1}>
             {activeConnection.name}
           </Text>

@@ -9,13 +9,22 @@ import { AnalyticsEvent, track } from "../lib/analytics"
 import { recordSuccessfulSession } from "../lib/store-review"
 import { isAuthError } from "../lib/api-error"
 import { isSessionActuallyIdle } from "../lib/session-status-reconcile"
+import { isHealthy, shouldReconnectOnResume, shouldResetRetries, type TransportState } from "../lib/sse-liveness"
 import type { Client, Part, Session, Message } from "../lib/sdk"
 
 // Session status from the server
 type SessionStatus = { type: "idle" } | { type: "busy" } | { type: "retry"; attempt: number; message: string }
 
 interface EventsState {
+  /**
+   * True only once the stream has actually delivered something. This used to
+   * be set the moment a connect was *attempted*, so the green indicator
+   * reflected an intention rather than a verified transport -- the app could
+   * show connected over a socket that had never produced a byte.
+   */
   connected: boolean
+  /** Finer-grained view of the same thing; see src/lib/sse-liveness.ts. */
+  transport: TransportState
   // Set when the last connection attempt failed with 401/403 — the server
   // rejected our credentials, not a transient network issue. The reconnect
   // loop stops retrying in this case (see connect()) since hammering a
@@ -57,6 +66,13 @@ interface EventsState {
 
   connect: () => void
   disconnect: () => void
+  /**
+   * Called on foreground / network restoration. Reconnects only when the
+   * transport is not already live and no attempt is in flight -- those two
+   * signals often arrive together, and reconnecting twice would open duplicate
+   * streams and double-handle every event.
+   */
+  resume: () => void
 }
 
 let controller: AbortController | null = null
@@ -69,7 +85,6 @@ let reconnectTimer: ReturnType<typeof setTimeout> | null = null
 const erroredSessions = new Set<string>()
 
 const RECONNECT_DELAYS_MS = [1000, 2000, 4000, 8000, 15000] as const
-const STABLE_CONNECTION_MS = 10_000
 const PROLONGED_DISCONNECT_MS = 30_000
 
 // Re-fetch pending permissions and questions from the server for a session.
@@ -178,6 +193,7 @@ async function reconcileOpenSession() {
 
 export const useEvents = create<EventsState>((set, get) => ({
   connected: false,
+  transport: "idle" as TransportState,
   authError: false,
   reconnectAttempts: 0,
   lastDisconnectAt: null,
@@ -189,6 +205,7 @@ export const useEvents = create<EventsState>((set, get) => ({
   connect: () => {
     controller?.abort()
     controller = null
+    set({ transport: "idle" })
     if (reconnectTimer) {
       clearTimeout(reconnectTimer)
       reconnectTimer = null
@@ -199,7 +216,10 @@ export const useEvents = create<EventsState>((set, get) => ({
 
     controller = new AbortController()
     const currentController = controller
-    set({ connected: true, authError: false })
+    // NOT connected yet -- only dialling. `connected` flips on the first
+    // received event below, so the indicator cannot go green over a dead
+    // stream.
+    set({ transport: "connecting", authError: false })
     console.log("[SSE] Connecting to event stream...")
     addBreadcrumb({ category: "sse", message: "connecting" })
 
@@ -212,11 +232,11 @@ export const useEvents = create<EventsState>((set, get) => ({
       // failed retries can't re-arm the check on every attempt.
       const isReconnect = get().reconnectAttempts > 0
       let resyncedAfterReconnect = false
-      const stableTimer = setTimeout(() => {
-        if (!currentController.signal.aborted) {
-          set({ reconnectAttempts: 0, lastDisconnectAt: null })
-        }
-      }, STABLE_CONNECTION_MS)
+      // Retry state resets on demonstrated liveness, not on a timer. The old
+      // 10s timeout cleared the backoff whether or not anything had ever
+      // arrived, so a silently-failing connection kept resetting its own
+      // backoff and looked healthy.
+      let receivedAnyEvent = false
 
       const scheduleReconnect = (reason: unknown) => {
         if (reconnectScheduled || currentController.signal.aborted) return
@@ -225,7 +245,7 @@ export const useEvents = create<EventsState>((set, get) => ({
         const reconnectAttempts = state.reconnectAttempts + 1
         const lastDisconnectAt = state.lastDisconnectAt ?? Date.now()
         const disconnectedFor = Date.now() - lastDisconnectAt
-        set({ connected: false, reconnectAttempts, lastDisconnectAt })
+        set({ connected: false, transport: "idle", reconnectAttempts, lastDisconnectAt })
 
         if (disconnectedFor >= PROLONGED_DISCONNECT_MS) {
           notify({
@@ -267,6 +287,13 @@ export const useEvents = create<EventsState>((set, get) => ({
             // resyncBusySessions(), which only repairs *status* and only for
             // sessions already known to be busy — see reconcileOpenSession().
             void reconcileOpenSession()
+          }
+
+          if (!receivedAnyEvent) {
+            receivedAnyEvent = true
+            if (shouldResetRetries({ receivedEvent: true })) {
+              set({ connected: true, transport: "live", reconnectAttempts: 0, lastDisconnectAt: null })
+            }
           }
 
           const payload = (event as any).payload || event
@@ -501,17 +528,27 @@ export const useEvents = create<EventsState>((set, get) => ({
             data: { status: err.status },
           })
           track(AnalyticsEvent.ConnectionFailed, { source: "sse", error_class: "unauthorized" })
-          set({ connected: false, authError: true })
+          set({ connected: false, transport: "idle", authError: true })
         } else {
           scheduleReconnect(err)
         }
       } finally {
-        clearTimeout(stableTimer)
         if (currentController.signal.aborted) {
           console.log("[SSE] Disconnected (aborted)")
         }
       }
     })()
+  },
+
+  resume: () => {
+    const { transport } = get()
+    // reconnectTimer set means a retry is already scheduled; controller set
+    // with a non-aborted signal means one is dialling right now.
+    const attemptInFlight = reconnectTimer !== null || (controller !== null && !controller.signal.aborted)
+    if (!shouldReconnectOnResume({ transport, attemptInFlight })) return
+    console.log("[SSE] resume -> reconnecting")
+    addBreadcrumb({ category: "sse", message: "resume reconnect" })
+    get().connect()
   },
 
   disconnect: () => {
