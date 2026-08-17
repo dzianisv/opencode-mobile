@@ -2,6 +2,13 @@ import { useMemo, type ReactNode } from "react"
 import { View, Text, useColorScheme, Platform, type StyleProp, type ViewStyle, type TextStyle } from "react-native"
 import { useMarkdown, Renderer } from "react-native-marked"
 import { CodeBlock } from "./CodeBlock"
+import { WideScroll } from "../WideScroll"
+// Transitive deps of react-native-marked, used to mirror its own MDTable
+// structure inside the forgiving scroller.
+// eslint-disable-next-line import/no-extraneous-dependencies
+import { Cell, Table, TableWrapper } from "react-native-reanimated-table"
+// @ts-expect-error -- internal util of react-native-marked, no types exported
+import { getTableWidthArr } from "react-native-marked/dist/module/utils/table"
 
 // react-native-marked's base Renderer hardcodes `selectable` on every plain
 // text node it produces (text/strong/em/del/heading/codespan). On Android,
@@ -53,6 +60,48 @@ class CustomRenderer extends Renderer {
 
   codespan(text: string, styles?: TextStyle): ReactNode {
     return this.plainText(text, [styles, { fontStyle: "normal", fontWeight: "normal" }])
+  }
+
+  // The library's MDTable wraps itself in a plain horizontal ScrollView, which
+  // loses the gesture race inside the vertical transcript unless the swipe is
+  // near-perfectly axis-aligned — the reported "have to hit a perfect
+  // left-right swipe". Re-render the same table structure inside WideScroll,
+  // whose pan claims on horizontal DOMINANCE instead. Also gives the content
+  // real edge padding, which the library's version lacked.
+  table(
+    header: ReactNode[][],
+    rows: ReactNode[][][],
+    tableStyle?: ViewStyle,
+    rowStyle?: ViewStyle,
+    cellStyle?: ViewStyle,
+  ): ReactNode {
+    // windowWidth is a private field on the base renderer; read it the same
+    // way its own table() does, typed around rather than through.
+    const windowWidth = (this as unknown as { windowWidth: number }).windowWidth
+    const widthArr = getTableWidthArr(header.length, windowWidth)
+    const { borderWidth, borderColor, ...tableStyleRest } = tableStyle || {}
+    return (
+      <WideScroll key={this.getKey()} contentContainerStyle={{ paddingRight: 16 }} testID="md-table-scroll">
+        <Table borderStyle={{ borderWidth, borderColor: borderColor as string | undefined }} style={tableStyleRest}>
+          <TableWrapper style={rowStyle}>
+            {header.map((headerCol, index) => (
+              <Cell key={`h-${index}`} width={widthArr[index]} data={<View style={cellStyle}>{headerCol}</View>} />
+            ))}
+          </TableWrapper>
+          {rows.map((rowData, rowIndex) => (
+            <TableWrapper key={`r-${rowIndex}`} style={rowStyle}>
+              {rowData.map((cellData, cellIndex) => (
+                <Cell
+                  key={`c-${rowIndex}-${cellIndex}`}
+                  width={widthArr[cellIndex]}
+                  data={<View style={cellStyle}>{cellData}</View>}
+                />
+              ))}
+            </TableWrapper>
+          ))}
+        </Table>
+      </WideScroll>
+    )
   }
 }
 

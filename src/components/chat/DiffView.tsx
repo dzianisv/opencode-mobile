@@ -1,5 +1,5 @@
-import { View, Text, StyleSheet, Platform, ScrollView } from "react-native"
-import { WIDE_CONTENT_SCROLL_CONFIG } from "../../lib/scroll-config"
+import { View, Text, StyleSheet, Platform } from "react-native"
+import { WideScroll } from "../WideScroll"
 import { computeDiff } from "./diff-compute"
 
 const mono = Platform.OS === "ios" ? "Menlo" : "monospace"
@@ -17,7 +17,7 @@ export function DiffView({ before, after, isDark }: Props) {
 
   return (
     <View style={[s.container, isDark && s.containerDark]}>
-      <ScrollView {...WIDE_CONTENT_SCROLL_CONFIG} testID="diff-view-scroll">
+      <WideScroll testID="diff-view-scroll" contentContainerStyle={{ paddingRight: 16 }}>
         <View>
           {lines.map((line, idx) => (
             <View
@@ -45,7 +45,7 @@ export function DiffView({ before, after, isDark }: Props) {
             </View>
           ))}
         </View>
-      </ScrollView>
+      </WideScroll>
     </View>
   )
 }
