@@ -76,7 +76,7 @@ const s = StyleSheet.create({
     color: "#999999",
     lineHeight: 20,
   },
-  prefixDark: { color: "#666666" },
+  prefixDark: { color: "#9a9a9a" },
 
   text: {
     fontSize: 12,

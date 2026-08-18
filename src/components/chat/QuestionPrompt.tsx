@@ -114,7 +114,7 @@ export function QuestionPrompt({ request, isDark, onReply, onReject }: Props) {
               <TextInput
                 style={[s.customInput, isDark && s.customInputDark]}
                 placeholder={t("chat.questionPrompt.answerPlaceholder")}
-                placeholderTextColor={isDark ? "#666666" : "#999999"}
+                placeholderTextColor={isDark ? "#9a9a9a" : "#999999"}
                 value={custom}
                 onChangeText={setCustom}
                 onSubmitEditing={submitCustom}
@@ -170,7 +170,7 @@ const s = StyleSheet.create({
   title: { fontSize: 15, fontWeight: "600", color: "#6d28d9" },
   textWhite: { color: "#ffffff" },
   question: { fontSize: 14, lineHeight: 20, color: "#0a0a0a", marginBottom: 12 },
-  metaDark: { color: "#666666" },
+  metaDark: { color: "#9a9a9a" },
 
   options: { gap: 8 },
   option: {

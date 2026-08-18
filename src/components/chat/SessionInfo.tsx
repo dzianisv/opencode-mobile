@@ -111,7 +111,7 @@ export function SessionInfo({
           )}
         </View>
         <TouchableOpacity onPress={onClose} hitSlop={8}>
-          <Ionicons name="close" size={16} color={isDark ? "#666666" : "#999999"} />
+          <Ionicons name="close" size={16} color={isDark ? "#9a9a9a" : "#999999"} />
         </TouchableOpacity>
       </View>
 
@@ -353,5 +353,5 @@ const s = StyleSheet.create({
     fontWeight: "500",
   },
   textDark: { color: "#e5e5e5" },
-  dimDark: { color: "#666666" },
+  dimDark: { color: "#9a9a9a" },
 })

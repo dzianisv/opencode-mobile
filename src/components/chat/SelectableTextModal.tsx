@@ -106,5 +106,5 @@ const s = StyleSheet.create({
 
   // paddingBottom is applied inline from the safe-area inset — see render.
   hint: { fontSize: 11, color: "#999999", textAlign: "center", paddingHorizontal: 16, paddingTop: 8 },
-  hintDark: { color: "#666666" },
+  hintDark: { color: "#9a9a9a" },
 })

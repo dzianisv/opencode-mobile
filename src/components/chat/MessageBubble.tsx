@@ -159,7 +159,7 @@ const s = StyleSheet.create({
   markdownWrap: { marginHorizontal: -4 },
 
   tokens: { fontSize: 11, color: "#999999", marginTop: 8 },
-  tokensDark: { color: "#666666" },
+  tokensDark: { color: "#9a9a9a" },
 
   // Images
   imageScroll: { marginBottom: 8 },
