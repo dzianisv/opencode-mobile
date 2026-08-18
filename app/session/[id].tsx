@@ -185,17 +185,27 @@ export default function SessionScreen() {
   // message sent concurrently with a revert isn't hidden.
   const revertMessageID = currentSession?.revert?.messageID
 
+  // The store holds ONE transcript globally, and it still belongs to the
+  // previously-viewed session for the first frames after navigating here
+  // (selectSession runs in an effect, after render). Rendering it
+  // unconditionally flashes the last session's messages under this
+  // session's title. Bind the transcript to this screen's route id and
+  // render nothing until the store has actually switched.
+  const transcriptBound = currentSession?.id === id
+
   // Inverted FlatList: data is reversed (newest first) so newest renders at bottom
   const messageData = useMemo(
     () =>
-      (messages || [])
-        .filter((msg) => !revertMessageID || msg.id.startsWith("temp-") || msg.id < revertMessageID)
-        .map((msg) => ({
-          message: msg,
-          parts: (parts && parts[msg.id]) || [],
-        }))
-        .reverse(),
-    [messages, parts, revertMessageID],
+      transcriptBound
+        ? (messages || [])
+            .filter((msg) => !revertMessageID || msg.id.startsWith("temp-") || msg.id < revertMessageID)
+            .map((msg) => ({
+              message: msg,
+              parts: (parts && parts[msg.id]) || [],
+            }))
+            .reverse()
+        : [],
+    [messages, parts, revertMessageID, transcriptBound],
   )
 
   // Tracks the latest composer text without pulling `input` into
@@ -894,7 +904,7 @@ export default function SessionScreen() {
                     ? t("session.input.placeholderFollowUp")
                     : t("session.input.placeholderDefault")
               }
-              placeholderTextColor={speech.listening ? "#ef4444" : isDark ? "#666666" : "#999999"}
+              placeholderTextColor={speech.listening ? "#ef4444" : isDark ? "#9a9a9a" : "#999999"}
               value={speech.listening ? speech.transcript : input}
               onChangeText={speech.listening ? undefined : setInput}
               editable={!speech.listening}
@@ -1002,7 +1012,7 @@ const s = StyleSheet.create({
   empty: { flex: 1, justifyContent: "center", alignItems: "center", paddingVertical: 64 },
   emptyText: { fontSize: 16, color: "#999999", marginTop: 12 },
   emptyHint: { fontSize: 13, color: "#bbbbbb", marginTop: 4 },
-  metaDark: { color: "#666666" },
+  metaDark: { color: "#9a9a9a" },
   textWhite: { color: "#ffffff" },
 
   // Toolbar
