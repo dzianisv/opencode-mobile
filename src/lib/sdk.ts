@@ -382,8 +382,12 @@ export function createClient(config: ClientConfig) {
       list: (params?: { roots?: boolean; limit?: number; search?: string }): Promise<Session[]> =>
         loadSessionList(
           {
-            getExperimental: async (): Promise<Session[] | null> => {
-              const response = await fetchWithTimeout(`${config.baseUrl}/experimental/session`, {
+            // One page per call; loadSessionList drives the cursor loop. The
+            // endpoint defaults to limit=100 and silently truncates, so the
+            // "no params = everything" assumption this code used to make
+            // dropped every session past #100 by recency.
+            getExperimental: async (query) => {
+              const response = await fetchWithTimeout(`${config.baseUrl}/experimental/session${query}`, {
                 headers: createHeaders(config),
               })
               // Older servers lack this route — signal fallback to legacy /session.
@@ -392,7 +396,12 @@ export function createClient(config: ClientConfig) {
                 const body = await response.text()
                 throw apiErrorFor(response.status, `API Error: ${response.status} - ${body}`)
               }
-              return response.json()
+              const cursorHeader = response.headers.get("x-next-cursor")
+              const nextCursor = cursorHeader != null ? Number(cursorHeader) : undefined
+              return {
+                sessions: await response.json(),
+                nextCursor: Number.isFinite(nextCursor as number) ? nextCursor : undefined,
+              }
             },
             getLegacy: (query) => request<Session[]>(config, `/session${query}`),
           },
