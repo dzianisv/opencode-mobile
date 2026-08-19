@@ -1,19 +1,21 @@
 import { useRef, type ReactNode } from "react"
-import { PanResponder, ScrollView, View, type StyleProp, type ViewStyle } from "react-native"
-import { dragOffset, flingTarget, isHorizontalIntent } from "../lib/horizontal-intent"
+import { ScrollView, View, type StyleProp, type ViewStyle } from "react-native"
+import { Gesture, GestureDetector } from "react-native-gesture-handler"
+import { dragOffset, flingTarget, CLAIM_MIN_DX, VERTICAL_FAIL_DY } from "../lib/horizontal-intent"
 
 /**
  * A horizontal scroller that survives inside the vertical transcript.
  *
- * The plain nested ScrollView only won the gesture race on a near-perfect
- * left-right swipe — both it and the vertical list claim at ~10dp on their own
- * axis, so any diagonal drift scrolled the page instead. This wrapper claims
- * via a PanResponder the moment the drag is horizontal-DOMINANT (see
- * src/lib/horizontal-intent.ts) and drives the ScrollView by ref, with a
- * projected-velocity fling on release.
+ * Round one used a JS PanResponder — and lost anyway on device, because
+ * Android's vertical list intercepts touches in the NATIVE layer before the
+ * JS responder system gets a vote. This version claims natively via
+ * react-native-gesture-handler: the pan activates once the drag crosses
+ * CLAIM_MIN_DX horizontally, FAILS if it crosses VERTICAL_FAIL_DY vertically
+ * first (the list keeps those), and on activation RNGH disallows the parent
+ * list's interception — which is the part no JS-level solution could do.
  *
- * scrollEnabled stays on underneath, so a perfectly straight swipe still uses
- * the native path; the responder only matters for the sloppy ones.
+ * The inner ScrollView is driven entirely by ref (scrollEnabled=false):
+ * one owner per axis, no double-handling of the same drag.
  */
 export function WideScroll({
   children,
@@ -35,62 +37,56 @@ export function WideScroll({
     maxOffsetRef.current = Math.max(0, contentWidthRef.current - layoutWidthRef.current)
   }
 
-  const responder = useRef(
-    PanResponder.create({
-      // Capture-phase, so the claim happens before the vertical FlatList's
-      // own responder gets the move event.
-      onMoveShouldSetPanResponderCapture: (_evt, gesture) => isHorizontalIntent(gesture.dx, gesture.dy),
-      onPanResponderGrant: () => {
-        startOffsetRef.current = offsetRef.current
-      },
-      onPanResponderMove: (_evt, gesture) => {
-        scrollRef.current?.scrollTo({
-          x: dragOffset(startOffsetRef.current, gesture.dx, maxOffsetRef.current),
-          animated: false,
-        })
-      },
-      onPanResponderRelease: (_evt, gesture) => {
-        const current = dragOffset(startOffsetRef.current, gesture.dx, maxOffsetRef.current)
-        const target = flingTarget(current, gesture.vx, maxOffsetRef.current)
-        if (Math.abs(target - current) > 1) {
-          scrollRef.current?.scrollTo({ x: target, animated: true })
-        }
-      },
-      // The transcript must not steal the touch back mid-drag.
-      onPanResponderTerminationRequest: () => false,
-    }),
-  ).current
+  const pan = Gesture.Pan()
+    .activeOffsetX([-CLAIM_MIN_DX, CLAIM_MIN_DX])
+    .failOffsetY([-VERTICAL_FAIL_DY, VERTICAL_FAIL_DY])
+    .onStart(() => {
+      startOffsetRef.current = offsetRef.current
+    })
+    .onUpdate((e) => {
+      const next = dragOffset(startOffsetRef.current, e.translationX, maxOffsetRef.current)
+      offsetRef.current = next
+      scrollRef.current?.scrollTo({ x: next, animated: false })
+    })
+    .onEnd((e) => {
+      // RNGH velocity is px/s; flingTarget projects px/ms.
+      const target = flingTarget(offsetRef.current, e.velocityX / 1000, maxOffsetRef.current)
+      if (Math.abs(target - offsetRef.current) > 1) {
+        offsetRef.current = target
+        scrollRef.current?.scrollTo({ x: target, animated: true })
+      }
+    })
+    .runOnJS(true)
 
   return (
-    <View {...responder.panHandlers}>
-      <ScrollView
-        ref={scrollRef}
-        horizontal
-        showsHorizontalScrollIndicator
-        contentContainerStyle={contentContainerStyle}
-        testID={testID}
-        onScroll={(e) => {
-          offsetRef.current = e.nativeEvent.contentOffset.x
-          maxOffsetRef.current = Math.max(
-            0,
-            e.nativeEvent.contentSize.width - e.nativeEvent.layoutMeasurement.width,
-          )
-        }}
-        // Both known before any scroll event fires, so the very first drag
-        // clamps correctly instead of overshooting into empty space.
-        onContentSizeChange={(w) => {
-          contentWidthRef.current = w
-          updateMax()
-        }}
-        onLayout={(e) => {
-          layoutWidthRef.current = e.nativeEvent.layout.width
-          updateMax()
-        }}
-        scrollEventThrottle={16}
-        nestedScrollEnabled
-      >
-        {children}
-      </ScrollView>
-    </View>
+    <GestureDetector gesture={pan}>
+      <View>
+        <ScrollView
+          ref={scrollRef}
+          horizontal
+          scrollEnabled={false}
+          showsHorizontalScrollIndicator
+          contentContainerStyle={contentContainerStyle}
+          testID={testID}
+          onScroll={(e) => {
+            offsetRef.current = e.nativeEvent.contentOffset.x
+          }}
+          // Both known before any scroll event fires, so the very first drag
+          // clamps correctly instead of overshooting into empty space.
+          onContentSizeChange={(w) => {
+            contentWidthRef.current = w
+            updateMax()
+          }}
+          onLayout={(e) => {
+            layoutWidthRef.current = e.nativeEvent.layout.width
+            updateMax()
+          }}
+          scrollEventThrottle={16}
+          nestedScrollEnabled
+        >
+          {children}
+        </ScrollView>
+      </View>
+    </GestureDetector>
   )
 }

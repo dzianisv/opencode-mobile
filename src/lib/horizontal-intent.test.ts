@@ -1,6 +1,7 @@
 import { test } from "node:test"
 import assert from "node:assert/strict"
 import {
+  VERTICAL_FAIL_DY,
   CLAIM_MIN_DX,
   DOMINANCE_RATIO,
   dragOffset,
@@ -63,4 +64,9 @@ test("a flick projects past the finger, clamped to the edges", () => {
 
 test("zero velocity stays put", () => {
   assert.equal(flingTarget(120, 0, 500), 120)
+})
+
+test("the native thresholds keep the dominance shape: sideways is easier than vertical", () => {
+  assert.ok(VERTICAL_FAIL_DY > CLAIM_MIN_DX, "a drag must be able to drift more vertically than the horizontal trigger")
+  assert.ok(VERTICAL_FAIL_DY <= 20, "but not so much that clear vertical scrolls get eaten")
 })

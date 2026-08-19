@@ -43,3 +43,14 @@ export function flingTarget(currentOffset: number, velocityX: number, maxOffset:
 export function dragOffset(startOffset: number, dx: number, maxOffset: number): number {
   return Math.max(0, Math.min(maxOffset, startOffset - dx))
 }
+
+/**
+ * How far a drag may travel vertically before the claim FAILS to the
+ * vertical list, for the native-side gesture (react-native-gesture-handler
+ * activeOffsetX/failOffsetY pair). Together with CLAIM_MIN_DX this encodes
+ * the same dominance idea natively: horizontal wins if dx crosses its
+ * threshold before dy crosses this one. Native arbitration is what the JS
+ * PanResponder version lacked — Android lists intercept in the native
+ * layer, so a JS-level claim landed too late and the page scrolled anyway.
+ */
+export const VERTICAL_FAIL_DY = 14
