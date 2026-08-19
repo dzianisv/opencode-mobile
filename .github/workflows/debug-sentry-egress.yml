@@ -1,0 +1,66 @@
+name: "[debug] Sentry egress IP probe"
+
+# Throwaway diagnostic for AGE-497: the Sentry noise-gate report workflow gets
+# a 403 from GitHub-hosted runners with a token verified 200 from a local
+# machine at the same instant. This prints the runner's public egress IP and
+# retries the exact failing call with verbose headers, so we can tell an
+# Actions-IP block (Cloudflare/WAF style, still shaped as a DRF 403 JSON body)
+# apart from a genuine token/scope problem.
+#
+# Delete this workflow once AGE-497 is resolved either way — it exists only to
+# capture one diagnostic run.
+
+on:
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Runner public egress IP
+        run: |
+          set -euo pipefail
+          echo "### Runner egress IP" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          curl -s https://api.ipify.org >> "$GITHUB_STEP_SUMMARY" || echo "(ipify lookup failed)" >> "$GITHUB_STEP_SUMMARY"
+          echo '' >> "$GITHUB_STEP_SUMMARY"
+          curl -s https://ifconfig.me >> "$GITHUB_STEP_SUMMARY" || echo "(ifconfig.me lookup failed)" >> "$GITHUB_STEP_SUMMARY"
+          echo '' >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Verbose Sentry probe (same call the report step makes)
+        env:
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_PRODUCT_INTELLIGENCE_TOKEN || secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_ORG: ${{ secrets.SENTRY_ORG || 'vibetechnologies' }}
+        run: |
+          set -euo pipefail
+          {
+            echo ''
+            echo '### Verbose probe: /organizations/{org}/projects/'
+            echo '```'
+            curl -sv -H "Authorization: Bearer ${SENTRY_AUTH_TOKEN}" \
+              "https://sentry.io/api/0/organizations/${SENTRY_ORG}/projects/" \
+              -o /tmp/projects.json -w "\nhttp_code=%{http_code}\n" 2>&1 | grep -v -i "^> authorization" || true
+            echo '```'
+            echo ''
+            echo '### Response body'
+            echo '```'
+            cat /tmp/projects.json
+            echo '```'
+            echo ''
+            echo '### Verbose probe: /auth/ (sanity check — same token, different endpoint)'
+            echo '```'
+            curl -sv -H "Authorization: Bearer ${SENTRY_AUTH_TOKEN}" \
+              "https://sentry.io/api/0/auth/" \
+              -o /tmp/auth.json -w "\nhttp_code=%{http_code}\n" 2>&1 | grep -v -i "^> authorization" || true
+            echo '```'
+            echo ''
+            echo '### Auth body'
+            echo '```'
+            cat /tmp/auth.json
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
