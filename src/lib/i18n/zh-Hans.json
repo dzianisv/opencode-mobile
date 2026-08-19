@@ -59,7 +59,8 @@
       "title": "选择语言",
       "system": "跟随系统",
       "en": "English",
-      "zhHans": "简体中文"
+      "zhHans": "简体中文",
+      "it": "意大利语"
     },
     "footer": {
       "appName": "OpenCode Mobile",
