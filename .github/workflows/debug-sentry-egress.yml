@@ -65,4 +65,36 @@ jobs:
             echo '```'
             cat /tmp/auth.json
             echo '```'
+            echo ''
+            echo '### Same endpoint, org detail (not a listing) — /organizations/{org}/'
+            echo '```'
+            curl -s -H "Authorization: Bearer ${SENTRY_AUTH_TOKEN}" \
+              "https://sentry.io/api/0/organizations/${SENTRY_ORG}/" \
+              -o /tmp/orgdetail.json -w "http_code=%{http_code}\n"
+            echo '```'
+          } | tee -a "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+
+      - name: Node fetch probe (matches scripts/sentry-volume-report.mjs exactly, no explicit User-Agent)
+        env:
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_PRODUCT_INTELLIGENCE_TOKEN || secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_ORG: ${{ secrets.SENTRY_ORG || 'vibetechnologies' }}
+        run: |
+          {
+            echo ''
+            echo '### Node fetch probe (same client the failing script uses)'
+            echo '```'
+            node --input-type=module -e '
+              const token = process.env.SENTRY_AUTH_TOKEN
+              const org = process.env.SENTRY_ORG
+              for (const path of ["/organizations/" + org + "/projects/", "/auth/"]) {
+                const res = await fetch("https://sentry.io/api/0" + path, { headers: { Authorization: "Bearer " + token } })
+                const body = await res.text()
+                console.log(path, "->", res.status, body.slice(0, 200))
+              }
+            ' 2>&1 || true
+            echo '```'
           } | tee -a "$GITHUB_STEP_SUMMARY"
