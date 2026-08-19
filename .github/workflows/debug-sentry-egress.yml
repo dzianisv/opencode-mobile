@@ -24,13 +24,15 @@ jobs:
       - name: Runner public egress IP
         run: |
           set -euo pipefail
-          echo "### Runner egress IP" >> "$GITHUB_STEP_SUMMARY"
-          echo '```' >> "$GITHUB_STEP_SUMMARY"
-          curl -s https://api.ipify.org >> "$GITHUB_STEP_SUMMARY" || echo "(ipify lookup failed)" >> "$GITHUB_STEP_SUMMARY"
-          echo '' >> "$GITHUB_STEP_SUMMARY"
-          curl -s https://ifconfig.me >> "$GITHUB_STEP_SUMMARY" || echo "(ifconfig.me lookup failed)" >> "$GITHUB_STEP_SUMMARY"
-          echo '' >> "$GITHUB_STEP_SUMMARY"
-          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          {
+            echo "### Runner egress IP"
+            echo '```'
+            curl -s https://api.ipify.org || echo "(ipify lookup failed)"
+            echo ''
+            curl -s https://ifconfig.me || echo "(ifconfig.me lookup failed)"
+            echo ''
+            echo '```'
+          } | tee -a "$GITHUB_STEP_SUMMARY"
 
       - name: Verbose Sentry probe (same call the report step makes)
         env:
@@ -63,4 +65,4 @@ jobs:
             echo '```'
             cat /tmp/auth.json
             echo '```'
-          } >> "$GITHUB_STEP_SUMMARY"
+          } | tee -a "$GITHUB_STEP_SUMMARY"
