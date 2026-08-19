@@ -86,3 +86,13 @@ Never repeat the same uid target more than 3 times.
 
 **Time cost**: [how much was wasted and what would have saved it]
 ```
+
+## 2026-08-19: AGE-497 — Sentry 403 in CI looked like an IP block, was a stale repo secret
+
+**Problem**: `Sentry noise-gate report` workflow got `403 {"detail":"You do not have permission..."}` from GitHub Actions on every org-scoped Sentry call (`/organizations/{org}/projects/`, `/organizations/{org}/`), even after the auth token itself was fixed and verified 200 locally. `/auth/` (identity-only, not org-scoped) kept returning 200 from the same runner/IP, which made "Actions egress IP is blocked by Sentry" the leading theory.
+
+**Mistake avoided (barely)**: about to escalate for a Sentry-support IP-allowlist ticket or a self-hosted-runner migration, both slow and outside our control. A 2-minute A/B probe (same runner, same call, but with the org slug hardcoded instead of read from `secrets.SENTRY_ORG`) returned 200 — proving the *token and network path were fine* and the *secret value itself* was wrong. `SENTRY_ORG` had been set on 2026-07-22, the same day the sibling `SENTRY_PRODUCT_INTELLIGENCE_TOKEN` secret went stale (AGE-497 root cause #1) — same bad edit touched both secrets.
+
+**Correct pattern**: when a 403/401 differs between "identity" endpoints and "resource-scoped" endpoints for the *same* token from the *same* origin, suspect the resource identifier (org slug, project slug, tenant id) before suspecting network/IP infrastructure. Test it directly: hardcode the known-good identifier in a throwaway CI step and compare status codes from the same runner in the same run — this isolates secret-value bugs from token/network bugs in one API call, no waiting on a second infra channel.
+
+**Time cost**: ~20 min from wake to fix, because the probe workflow escalated one variable at a time (egress IP → curl vs Node fetch → listing vs detail endpoint → hardcoded org) instead of jumping straight to the identifier-substitution test. Next time: when two endpoints on the same token/origin diverge in status code, test identifier substitution first — it's the cheapest experiment that can falsify "it's the network."
