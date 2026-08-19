@@ -98,3 +98,20 @@ jobs:
             ' 2>&1 || true
             echo '```'
           } | tee -a "$GITHUB_STEP_SUMMARY"
+
+      - name: Node fetch probe with HARDCODED org=vibetechnologies (bypasses secrets.SENTRY_ORG)
+        env:
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_PRODUCT_INTELLIGENCE_TOKEN || secrets.SENTRY_AUTH_TOKEN }}
+        run: |
+          {
+            echo ''
+            echo '### Hardcoded org=vibetechnologies probe (is secrets.SENTRY_ORG stale?)'
+            echo '```'
+            node --input-type=module -e '
+              const token = process.env.SENTRY_AUTH_TOKEN
+              const res = await fetch("https://sentry.io/api/0/organizations/vibetechnologies/projects/", { headers: { Authorization: "Bearer " + token } })
+              const body = await res.text()
+              console.log("/organizations/vibetechnologies/projects/ ->", res.status, body.slice(0, 200))
+            ' 2>&1 || true
+            echo '```'
+          } | tee -a "$GITHUB_STEP_SUMMARY"
