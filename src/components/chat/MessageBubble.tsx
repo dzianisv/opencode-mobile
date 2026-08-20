@@ -4,7 +4,8 @@ import { Ionicons } from "@expo/vector-icons"
 import { Markdown } from "../markdown"
 import { ToolCallCard } from "./ToolCallCard"
 import { ReasoningBlock } from "./ReasoningBlock"
-import type { Message, Part } from "../../lib/sdk"
+import { ReviewChanges } from "./ReviewChanges"
+import type { FileDiff, Message, Part } from "../../lib/sdk"
 
 const SCREEN_WIDTH = Dimensions.get("window").width
 
@@ -16,6 +17,7 @@ interface Props {
   message: Message
   parts: Part[]
   isDark: boolean
+  reviewDiffs?: FileDiff[]
   // Only wired up for user messages — long-press opens the "Edit message" /
   // revert action sheet. Identified by messageID (not a closure over parts)
   // so it stays correct even if the memo below bails on a stale render.
@@ -25,7 +27,7 @@ interface Props {
 // TODO: Replace with streamdown-rn once React 19 types PR lands - it has
 // built-in block-level memoization that eliminates re-renders for stable blocks
 export const MessageBubble = memo(
-  function MessageBubble({ message, parts, isDark, onLongPress }: Props) {
+  function MessageBubble({ message, parts, isDark, reviewDiffs, onLongPress }: Props) {
     const isUser = message.role === "user"
 
     const textParts = parts.filter((p) => p.type === "text")
@@ -101,6 +103,8 @@ export const MessageBubble = memo(
           <ToolCallCard key={tool.id} tool={tool} isDark={isDark} />
         ))}
 
+        {!isUser && reviewDiffs && reviewDiffs.length > 0 && <ReviewChanges diffs={reviewDiffs} isDark={isDark} />}
+
         {/* Tokens/cost for assistant messages */}
         {!isUser && message.tokens && (
           <Text style={[s.tokens, isDark && s.tokensDark]}>
@@ -121,6 +125,7 @@ export const MessageBubble = memo(
     if (prev.message !== next.message) return false
     if (prev.isDark !== next.isDark) return false
     if (prev.onLongPress !== next.onLongPress) return false
+    if (prev.reviewDiffs !== next.reviewDiffs) return false
     if (prev.parts.length !== next.parts.length) return false
     for (let i = 0; i < prev.parts.length; i++) {
       if (prev.parts[i] !== next.parts[i]) return false

@@ -1,6 +1,6 @@
 import { test } from "node:test"
 import assert from "node:assert/strict"
-import { computeDiff } from "./diff-compute.ts"
+import { computeDiff, parseDiffText } from "./diff-compute.ts"
 
 // GitHub bug: computeDiff split on a literal "\n", so a CRLF `before` diffed
 // against an LF `after` treated every line as changed (each "line\r" !==
@@ -51,4 +51,12 @@ test("computeDiff falls back to a truncated diff for huge inputs instead of hang
   const last = result[result.length - 1]
   assert.equal(last?.type, "context")
   assert.match(last?.text ?? "", /diff too large to display in full/)
+})
+
+test("parseDiffText restores serialized diff line types", () => {
+  assert.deepEqual(parseDiffText(" context\n-removed\n+added"), [
+    { type: "context", text: "context" },
+    { type: "remove", text: "removed" },
+    { type: "add", text: "added" },
+  ])
 })

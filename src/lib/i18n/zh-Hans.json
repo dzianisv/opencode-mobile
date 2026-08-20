@@ -6,7 +6,10 @@
     "delete": "删除",
     "retry": "重试",
     "save": "保存",
-    "shareReport": "分享报告"
+    "shareReport": "分享报告",
+    "back": "返回",
+    "copy": "复制",
+    "copied": "已复制"
   },
   "settings": {
     "sections": {
@@ -407,6 +410,16 @@
       "fallbackTitle": "工具",
       "patternOnly": "模式：{{pattern}}",
       "patternWithPath": "模式：{{pattern}}，路径：{{path}}"
+    },
+    "reviewChanges": {
+      "title": "本次任务变更",
+      "files_one": "{{count}} 个文件",
+      "files_other": "{{count}} 个文件"
+    },
+    "contentViewer": {
+      "open": "全屏查看",
+      "output": "输出",
+      "empty": "内容已不可用"
     },
     "sessionInfo": {
       "noUsageData": "暂无使用数据",

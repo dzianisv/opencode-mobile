@@ -39,6 +39,7 @@ export interface Session {
     additions: number
     deletions: number
     files: number
+    diffs?: FileDiff[]
   }
   // Present while a message (and everything after it) is pending revert —
   // the server keeps the underlying messages until the next prompt/summarize
@@ -61,6 +62,11 @@ export interface Message {
   // User message fields
   agent?: string
   model?: { providerID: string; modelID: string }
+  summary?: {
+    title?: string
+    body?: string
+    diffs: FileDiff[]
+  }
   // Assistant message fields
   modelID?: string
   providerID?: string
@@ -73,6 +79,14 @@ export interface Message {
   }
   error?: { message: string }
   finish?: string
+}
+
+export interface FileDiff {
+  file?: string
+  patch?: string
+  additions: number
+  deletions: number
+  status?: "added" | "deleted" | "modified"
 }
 
 // API returns messages with parts embedded
@@ -100,6 +114,9 @@ export interface Part {
     | "agent"
   // Text / reasoning part
   text?: string
+  // Patch part
+  hash?: string
+  files?: string[]
   // Tool part
   tool?: string
   callID?: string

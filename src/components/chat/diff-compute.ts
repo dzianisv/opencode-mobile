@@ -10,6 +10,16 @@ export interface DiffLine {
   text: string
 }
 
+// Parse the serialized form used by ContentViewerButton. Each line starts
+// with the diff marker added by DiffView: +, -, or a space for context.
+export function parseDiffText(content: string): DiffLine[] {
+  return content.split(/\r?\n/).map((line) => {
+    if (line.startsWith("+")) return { type: "add", text: line.slice(1) }
+    if (line.startsWith("-")) return { type: "remove", text: line.slice(1) }
+    return { type: "context", text: line.startsWith(" ") ? line.slice(1) : line }
+  })
+}
+
 // Above this size the O(a.length * b.length) LCS table (and the matching
 // backtrack array) becomes an OOM/ANR risk on-device — a 2000-line file both
 // sides is a 4,000,000-cell table. Guard on both a hard per-side line count

@@ -39,6 +39,7 @@ import { useConnections } from "../../src/stores/connections"
 import { useAuth } from "../../src/stores/auth"
 import { useCatalog } from "../../src/stores/catalog"
 import { useSpeech } from "../../src/lib/speech"
+import { reviewDiffsForMessage } from "../../src/lib/review-diffs"
 
 // --- Builtin slash commands ---
 const BUILTIN_COMMANDS: SlashCommand[] = [
@@ -179,14 +180,17 @@ export default function SessionScreen() {
 
   // Inverted FlatList: data is reversed (newest first) so newest renders at bottom
   const messageData = useMemo(
-    () =>
-      (messages || [])
+    () => {
+      const visible = (messages || [])
         .filter((msg) => !revertMessageID || msg.id.startsWith("temp-") || msg.id < revertMessageID)
+      return visible
         .map((msg) => ({
           message: msg,
           parts: (parts && parts[msg.id]) || [],
+          reviewDiffs: reviewDiffsForMessage(msg, visible),
         }))
-        .reverse(),
+        .reverse()
+    },
     [messages, parts, revertMessageID],
   )
 
@@ -675,6 +679,7 @@ export default function SessionScreen() {
                   message={item.message}
                   parts={item.parts}
                   isDark={isDark}
+                  reviewDiffs={item.reviewDiffs}
                   onLongPress={handleMessageLongPress}
                 />
               )}

@@ -2,6 +2,7 @@ import { useState } from "react"
 import { View, Text, TouchableOpacity, StyleSheet, useColorScheme, Platform, ScrollView } from "react-native"
 import * as Clipboard from "expo-clipboard"
 import { WIDE_CONTENT_SCROLL_CONFIG } from "../../lib/scroll-config"
+import { ContentViewerButton } from "../chat/ContentViewerButton"
 
 interface Props {
   code: string
@@ -27,6 +28,7 @@ export function CodeBlock({ code, language }: Props) {
         <TouchableOpacity onPress={copy} hitSlop={8}>
           <Text style={[styles.copyBtn, isDark && styles.copyBtnDark]}>{copied ? "Copied!" : "Copy"}</Text>
         </TouchableOpacity>
+        <ContentViewerButton title={language || "code"} content={code} language={language} isDark={isDark} />
       </View>
       <ScrollView {...WIDE_CONTENT_SCROLL_CONFIG} testID="code-block-scroll" contentContainerStyle={styles.codeScroll}>
         <Text style={[styles.code, isDark && styles.codeDark]} selectable>
