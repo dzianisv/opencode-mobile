@@ -82,7 +82,9 @@ export default function SessionScreen() {
   const flatListRef = useRef<FlatList>(null)
   const modelSheetRef = useRef<BottomSheet>(null)
   const variantSheetRef = useRef<BottomSheet>(null)
-  const [input, setInput] = useState("")
+  const [input, setInputState] = useState(() => (id ? useSessions.getState().drafts[id] || "" : ""))
+  const inputRef = useRef(input)
+  inputRef.current = input
   const [attachments, setAttachments] = useState<Attachment[]>([])
   const [showInfo, setShowInfo] = useState(false)
 
@@ -94,12 +96,24 @@ export default function SessionScreen() {
     loadingMore,
     hasMore,
     selectSession,
+    setDraft,
+    clearDraft,
     sendMessage,
     abortSession,
     loadOlderMessages,
     revertToMessage,
     unrevertSession,
   } = useSessions()
+
+  const setInput = useCallback(
+    (value: string | ((current: string) => string)) => {
+      const next = typeof value === "function" ? value(inputRef.current) : value
+      inputRef.current = next
+      setInputState(next)
+      if (id) setDraft(id, next)
+    },
+    [id, setDraft],
+  )
 
   // Derive sending state for this specific session
   const isSending = useSessions((s) => !!(currentSession && s.sending[currentSession.id]))
@@ -194,9 +208,6 @@ export default function SessionScreen() {
   // handleMessageLongPress's deps — kept as a plain ref assignment (not
   // state) so the callback below stays referentially stable across
   // keystrokes for MessageBubble's custom memo comparator.
-  const inputRef = useRef(input)
-  inputRef.current = input
-
   const applyRevertResult = useCallback((result: Awaited<ReturnType<typeof revertToMessage>>) => {
     if (!result.ok) {
       if (result.reason === "unsupported") {
@@ -265,6 +276,9 @@ export default function SessionScreen() {
   useFocusEffect(
     useCallback(() => {
       if (!id) return
+      const draft = useSessions.getState().drafts[id] || ""
+      inputRef.current = draft
+      setInputState(draft)
       selectSession(id, directory).then(() => {
         // Re-fetch pending permissions/questions from the server to recover from
         // missed SSE events or failed optimistic removals
@@ -272,7 +286,7 @@ export default function SessionScreen() {
         const c = directory ? (connState.clientForDirectory(directory) ?? connState.client) : connState.client
         if (c) refreshPending(c, id)
       })
-    }, [id, directory]),
+    }, [id, directory, selectSession]),
   )
 
   // Sync model chip from latest assistant message
@@ -417,6 +431,7 @@ export default function SessionScreen() {
     const text = input.trim()
     const files = [...attachments]
     setInput("")
+    if (id) clearDraft(id)
     setAttachments([])
 
     // Server slash commands (no attachments for commands)

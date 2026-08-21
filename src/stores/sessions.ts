@@ -33,6 +33,8 @@ interface SessionsState {
   isLoading: boolean
   // Per-session optimistic sending flag — bridging gap between user tap and SSE busy
   sending: Record<string, boolean>
+  // Unsent composer text, isolated by session ID.
+  drafts: Record<string, string>
   loadingMore: boolean
   hasMore: boolean
   error: string | null
@@ -40,6 +42,8 @@ interface SessionsState {
   // Actions
   loadSessions: () => Promise<void>
   selectSession: (sessionID: string, directory?: string) => Promise<void>
+  setDraft: (sessionID: string, text: string) => void
+  clearDraft: (sessionID: string) => void
   loadOlderMessages: () => Promise<void>
   createSession: (title?: string) => Promise<Session | null>
   deleteSession: (sessionID: string) => Promise<void>
@@ -93,9 +97,21 @@ export const useSessions = create<SessionsState>((set, get) => ({
   parts: {},
   isLoading: false,
   sending: {},
+  drafts: {},
   loadingMore: false,
   hasMore: false,
   error: null,
+
+  setDraft: (sessionID, text) =>
+    set((state) => ({ drafts: { ...state.drafts, [sessionID]: text } })),
+
+  clearDraft: (sessionID) =>
+    set((state) => {
+      if (!(sessionID in state.drafts)) return state
+      const drafts = { ...state.drafts }
+      delete drafts[sessionID]
+      return { drafts }
+    }),
 
   loadSessions: async () => {
     const connState = useConnections.getState()
@@ -245,6 +261,7 @@ export const useSessions = create<SessionsState>((set, get) => ({
       await client.session.delete(sessionID)
       set((state) => ({
         sessions: state.sessions.filter((s) => s.id !== sessionID),
+        drafts: Object.fromEntries(Object.entries(state.drafts).filter(([id]) => id !== sessionID)),
         currentSession: state.currentSession?.id === sessionID ? null : state.currentSession,
         messages: state.currentSession?.id === sessionID ? [] : state.messages,
         parts: state.currentSession?.id === sessionID ? {} : state.parts,
