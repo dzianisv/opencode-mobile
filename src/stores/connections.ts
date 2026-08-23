@@ -100,37 +100,49 @@ export const useConnections = create<ConnectionsState>((set, get) => ({
       // Create client for active connection
       let client: Client | null = null
       let base: ClientBase | null = null
-      let project: Project | null = null
-      let home: string | null = null
       if (active) {
         const password = await SecureStore.getItemAsync(`${PASSWORDS_PREFIX}${active.id}`)
         const auth = buildAuth(active.username, password)
         const built = buildClient(active.url, active.directory, auth)
         client = built.client
         base = built.base
-        // Fetch current project info and server paths
-        try {
-          const [proj, paths] = await Promise.all([
-            client.project.current().catch(() => null),
-            client.path.get().catch(() => null),
-          ])
-          project = proj
-          home = paths?.home || null
-        } catch {
-          // Server might be offline
-        }
       }
 
+      // Commit the client BEFORE fetching metadata. Everything downstream of
+      // startup keys off `client` appearing in this store -- the SSE event
+      // stream, the catalog load, the notification prompt -- and none of it
+      // needs the project name or the server's home path. Awaiting the
+      // metadata first serialized the entire app behind two requests that
+      // are individually capped at the 30s REQUEST_TIMEOUT_MS, so a slow or
+      // hanging metadata response delayed live events by up to that long,
+      // on exactly the flaky networks where prompt reconnection matters most.
       set({
         connections,
         activeConnection: active,
         client,
         clientBase: base,
-        currentProject: project,
-        serverHome: home,
         recentDirectories,
         isLoading: false,
       })
+
+      // Metadata fills in behind. Guarded so a stale response cannot clobber
+      // a newer connection's state: switching servers while this fetch is in
+      // flight replaces `client`, and that is the signal to discard.
+      if (client) {
+        const requestClient = client
+        try {
+          const [proj, paths] = await Promise.all([
+            requestClient.project.current().catch(() => null),
+            requestClient.path.get().catch(() => null),
+          ])
+          if (get().client === requestClient) {
+            set({ currentProject: proj, serverHome: paths?.home || null })
+          }
+        } catch {
+          // Server might be offline; the connection itself still works and
+          // SSE will report its own state.
+        }
+      }
     } catch (error) {
       set({ error: "Failed to load connections", isLoading: false })
     }

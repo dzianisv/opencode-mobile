@@ -35,11 +35,13 @@ after(async () => {
 // experimental endpoint, signal fallback (null) only on 404.
 function realTransport(baseUrl: string): SessionListTransport {
   return {
-    getExperimental: async () => {
-      const r = await fetch(`${baseUrl}/experimental/session`, { headers: { Accept: "application/json" } })
+    getExperimental: async (query: string) => {
+      const r = await fetch(`${baseUrl}/experimental/session${query}`, { headers: { Accept: "application/json" } })
       if (r.status === 404) return null
       if (!r.ok) throw new Error(`HTTP ${r.status}`)
-      return r.json()
+      const cursorHeader = r.headers.get("x-next-cursor")
+      const nextCursor = cursorHeader != null ? Number(cursorHeader) : undefined
+      return { sessions: await r.json(), nextCursor: Number.isFinite(nextCursor as number) ? nextCursor : undefined }
     },
     getLegacy: async (query) => {
       const r = await fetch(`${baseUrl}/session${query}`, { headers: { Accept: "application/json" } })

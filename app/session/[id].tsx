@@ -30,15 +30,19 @@ import {
   VariantPicker,
   ImageAttachments,
   SessionInfo,
+  SelectableTextModal,
   type SlashCommand,
   type Attachment,
 } from "../../src/components/chat"
+import { extractCopyText, hasCopyableText } from "../../src/lib/message-copy-text"
+import { shouldAutoScroll, shouldShowScrollButton, transcriptSignature } from "../../src/lib/auto-scroll"
 import { useSessions } from "../../src/stores/sessions"
 import { useEvents, refreshPending } from "../../src/stores/events"
 import { useConnections } from "../../src/stores/connections"
 import { useAuth } from "../../src/stores/auth"
 import { useCatalog } from "../../src/stores/catalog"
 import { useSpeech } from "../../src/lib/speech"
+import { keyboardVerticalOffset } from "../../src/lib/keyboard-offset"
 
 // --- Builtin slash commands ---
 const BUILTIN_COMMANDS: SlashCommand[] = [
@@ -85,6 +89,10 @@ export default function SessionScreen() {
   const [input, setInput] = useState("")
   const [attachments, setAttachments] = useState<Attachment[]>([])
   const [showInfo, setShowInfo] = useState(false)
+  // Non-null when the select-text sheet is open; holds the message's source
+  // text. Kept as the text itself rather than a messageID so the sheet keeps
+  // showing a stable snapshot even if the message streams or is reverted.
+  const [selectableText, setSelectableText] = useState<string | null>(null)
 
   const {
     currentSession,
@@ -177,17 +185,27 @@ export default function SessionScreen() {
   // message sent concurrently with a revert isn't hidden.
   const revertMessageID = currentSession?.revert?.messageID
 
+  // The store holds ONE transcript globally, and it still belongs to the
+  // previously-viewed session for the first frames after navigating here
+  // (selectSession runs in an effect, after render). Rendering it
+  // unconditionally flashes the last session's messages under this
+  // session's title. Bind the transcript to this screen's route id and
+  // render nothing until the store has actually switched.
+  const transcriptBound = currentSession?.id === id
+
   // Inverted FlatList: data is reversed (newest first) so newest renders at bottom
   const messageData = useMemo(
     () =>
-      (messages || [])
-        .filter((msg) => !revertMessageID || msg.id.startsWith("temp-") || msg.id < revertMessageID)
-        .map((msg) => ({
-          message: msg,
-          parts: (parts && parts[msg.id]) || [],
-        }))
-        .reverse(),
-    [messages, parts, revertMessageID],
+      transcriptBound
+        ? (messages || [])
+            .filter((msg) => !revertMessageID || msg.id.startsWith("temp-") || msg.id < revertMessageID)
+            .map((msg) => ({
+              message: msg,
+              parts: (parts && parts[msg.id]) || [],
+            }))
+            .reverse()
+        : [],
+    [messages, parts, revertMessageID, transcriptBound],
   )
 
   // Tracks the latest composer text without pulling `input` into
@@ -222,9 +240,35 @@ export default function SessionScreen() {
   // closing over props) so MessageBubble's custom memo comparator can bail
   // safely without risking a stale handler.
   const handleMessageLongPress = useCallback((messageID: string) => {
-    Alert.alert(t("session.alerts.messageActionsTitle"), undefined, [
-      { text: t("common.cancel"), style: "cancel" },
-      {
+    const state = useSessions.getState()
+    const parts = state.parts[messageID]
+    const isUser = state.messages.find((m) => m.id === messageID)?.role === "user"
+    const copyText = extractCopyText(parts)
+    const canCopy = hasCopyableText(parts)
+
+    const actions: Parameters<typeof Alert.alert>[2] = [{ text: t("common.cancel"), style: "cancel" }]
+
+    // Copy/select come first because they apply to both roles. For assistant
+    // messages they are the *only* copy path: Markdown.tsx strips `selectable`
+    // from rendered prose to avoid facebook/react-native#46999 inside the
+    // transcript FlatList.
+    if (canCopy) {
+      actions.push({
+        text: t("session.actions.copyMessage"),
+        onPress: () => {
+          Clipboard.setStringAsync(copyText).catch(() => {})
+        },
+      })
+      actions.push({
+        text: t("session.actions.selectText"),
+        onPress: () => setSelectableText(copyText),
+      })
+    }
+
+    // Edit/revert stays user-only — reverting to an assistant message is not
+    // a supported operation.
+    if (isUser) {
+      actions.push({
         text: t("session.actions.editMessage"),
         onPress: () => {
           const doRevert = async () => {
@@ -247,13 +291,48 @@ export default function SessionScreen() {
           }
           doRevert()
         },
-      },
-    ])
+      })
+    }
+
+    // Nothing but Cancel means there is no action worth interrupting the
+    // user for (e.g. a tool-only message with no prose).
+    if (actions.length === 1) return
+
+    Alert.alert(t("session.alerts.messageActionsTitle"), undefined, actions)
   }, [applyRevertResult, t])
 
   const scrollToBottom = useCallback((animated = true) => {
     flatListRef.current?.scrollToOffset({ offset: 0, animated })
   }, [])
+
+  // Follow new content (issue #155: "Message cannot be scrolled automatically").
+  //
+  // scrollToBottom() was previously only wired to the manual scroll button, so
+  // nothing followed an arriving or streaming message. Compounding that,
+  // maintainVisibleContentPosition (below) deliberately holds visible items
+  // still when the data changes — and since new messages are inserted at index
+  // 0 of this inverted list, that setting parks new content just outside the
+  // viewport. That prop is worth keeping (it stops the jump when older pages
+  // load), so instead scroll explicitly.
+  //
+  // Only when the user is already at the bottom: someone who scrolled up to
+  // read history must not be yanked back down mid-sentence. See
+  // src/lib/auto-scroll.ts.
+  const newest = messageData[0]
+  const contentSignature = transcriptSignature(
+    messageData.length,
+    newest ? (newest.parts || []).reduce((n, part) => n + (part.text?.length ?? 0), 0) : 0,
+  )
+  const prevSignatureRef = useRef<string | null>(null)
+  useEffect(() => {
+    const auto = shouldAutoScroll({
+      offsetY: scrollOffsetRef.current,
+      previousSignature: prevSignatureRef.current,
+      currentSignature: contentSignature,
+    })
+    prevSignatureRef.current = contentSignature
+    if (auto) scrollToBottom(true)
+  }, [contentSignature, scrollToBottom])
 
   // Re-select on every focus, not just mount. currentSession/messages/
   // permissions are a single global store, and the native stack keeps screens
@@ -450,10 +529,15 @@ export default function SessionScreen() {
     }
   }
 
-  // In inverted mode, offset 0 = bottom. Show scroll button when scrolled away from bottom.
+  // In inverted mode, offset 0 = bottom (newest message). Track the live
+  // offset in a ref as well as state: the auto-scroll effect below needs the
+  // current position without taking `offsetY` as a dependency, which would
+  // re-run it on every scroll frame.
+  const scrollOffsetRef = useRef(0)
   const handleScroll = useCallback((event: any) => {
     const { contentOffset } = event.nativeEvent
-    setShowScrollButton(contentOffset.y > 200)
+    scrollOffsetRef.current = contentOffset.y
+    setShowScrollButton(shouldShowScrollButton(contentOffset.y))
   }, [])
 
   // Debounce: onEndReached can fire multiple times during a single scroll gesture
@@ -605,8 +689,16 @@ export default function SessionScreen() {
         // bottom toolbar + input were left completely hidden behind the
         // keyboard (#147). "padding" restores avoidance without depending
         // on native resize.
+        //
+        // "padding" alone is still not enough on Android, though (#156):
+        // KeyboardAvoidingView measures its own frame in *window* coordinates
+        // but reads the keyboard's screenY in *screen* coordinates, and under
+        // edge-to-edge those origins differ by the status-bar inset — so the
+        // padding lands short by exactly that much and the composer stays
+        // hidden. keyboardVerticalOffset closes the gap; see
+        // src/lib/keyboard-offset.ts for the measured numbers.
         behavior="padding"
-        keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 0}
+        keyboardVerticalOffset={keyboardVerticalOffset(Platform.OS, insets.top)}
       >
         {/* Session info pulldown */}
         <SessionInfo
@@ -624,6 +716,14 @@ export default function SessionScreen() {
             flatListRef.current?.scrollToEnd({ animated: true })
           }}
           onClose={() => setShowInfo(false)}
+        />
+
+        {/* Select/copy sheet for message text. Rendered here, outside the
+            transcript FlatList, so `selectable` actually works on Android. */}
+        <SelectableTextModal
+          visible={selectableText !== null}
+          text={selectableText ?? ""}
+          onClose={() => setSelectableText(null)}
         />
 
         {/* SSE reconnect/connected banner */}
@@ -804,7 +904,7 @@ export default function SessionScreen() {
                     ? t("session.input.placeholderFollowUp")
                     : t("session.input.placeholderDefault")
               }
-              placeholderTextColor={speech.listening ? "#ef4444" : isDark ? "#666666" : "#999999"}
+              placeholderTextColor={speech.listening ? "#ef4444" : isDark ? "#9a9a9a" : "#999999"}
               value={speech.listening ? speech.transcript : input}
               onChangeText={speech.listening ? undefined : setInput}
               editable={!speech.listening}
@@ -912,7 +1012,7 @@ const s = StyleSheet.create({
   empty: { flex: 1, justifyContent: "center", alignItems: "center", paddingVertical: 64 },
   emptyText: { fontSize: 16, color: "#999999", marginTop: 12 },
   emptyHint: { fontSize: 13, color: "#bbbbbb", marginTop: 4 },
-  metaDark: { color: "#666666" },
+  metaDark: { color: "#9a9a9a" },
   textWhite: { color: "#ffffff" },
 
   // Toolbar

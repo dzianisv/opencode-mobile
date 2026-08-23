@@ -81,7 +81,7 @@ function ConnectionItem({
         )}
       </View>
       <TouchableOpacity onPress={onEdit} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-        <Ionicons name="ellipsis-vertical" size={20} color={isDark ? "#666666" : "#999999"} />
+        <Ionicons name="ellipsis-vertical" size={20} color={isDark ? "#9a9a9a" : "#999999"} />
       </TouchableOpacity>
     </TouchableOpacity>
   )

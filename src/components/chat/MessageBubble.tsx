@@ -16,9 +16,12 @@ interface Props {
   message: Message
   parts: Part[]
   isDark: boolean
-  // Only wired up for user messages — long-press opens the "Edit message" /
-  // revert action sheet. Identified by messageID (not a closure over parts)
-  // so it stays correct even if the memo below bails on a stale render.
+  // Long-press opens the message action sheet. For user messages that sheet
+  // offers "Edit message" / revert; for both roles it offers copy and
+  // select-text (the only copy path assistant prose has — see
+  // src/lib/message-copy-text.ts). Identified by messageID (not a closure
+  // over parts) so it stays correct even if the memo below bails on a stale
+  // render.
   onLongPress?: (messageID: string) => void
 }
 
@@ -37,9 +40,9 @@ export const MessageBubble = memo(
 
     return (
       <TouchableOpacity
-        activeOpacity={isUser && onLongPress ? 0.7 : 1}
-        onLongPress={isUser && onLongPress ? () => onLongPress(message.id) : undefined}
-        disabled={!isUser || !onLongPress}
+        activeOpacity={onLongPress ? 0.7 : 1}
+        onLongPress={onLongPress ? () => onLongPress(message.id) : undefined}
+        disabled={!onLongPress}
         style={[
           s.bubble,
           isUser ? s.user : s.assistant,
@@ -156,7 +159,7 @@ const s = StyleSheet.create({
   markdownWrap: { marginHorizontal: -4 },
 
   tokens: { fontSize: 11, color: "#999999", marginTop: 8 },
-  tokensDark: { color: "#666666" },
+  tokensDark: { color: "#9a9a9a" },
 
   // Images
   imageScroll: { marginBottom: 8 },

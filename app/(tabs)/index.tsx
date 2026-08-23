@@ -22,6 +22,7 @@ import { useTranslation } from "react-i18next"
 import { useSessions } from "../../src/stores/sessions"
 import { useConnections } from "../../src/stores/connections"
 import { useEvents } from "../../src/stores/events"
+import { isHealthy } from "../../src/lib/sse-liveness"
 import { useCatalog } from "../../src/stores/catalog"
 import type BottomSheet from "@gorhom/bottom-sheet"
 import type { Session, Project } from "../../src/lib/sdk"
@@ -105,7 +106,7 @@ function SessionItem({
           )}
         </View>
       </View>
-      <Ionicons name="chevron-forward" size={20} color={isDark ? "#666666" : "#999999"} />
+      <Ionicons name="chevron-forward" size={20} color={isDark ? "#9a9a9a" : "#999999"} />
     </TouchableOpacity>
   )
 }
@@ -140,7 +141,7 @@ function GroupHeader({
       <Ionicons
         name={row.collapsed ? "chevron-forward" : "chevron-down"}
         size={16}
-        color={isDark ? "#666666" : "#999999"}
+        color={isDark ? "#9a9a9a" : "#999999"}
       />
     </TouchableOpacity>
   )
@@ -198,6 +199,9 @@ export default function SessionsScreen() {
   // Directories collapsed in the grouped session list. Empty by default —
   // all groups start expanded (#67).
   const [collapsedDirs, setCollapsedDirs] = useState<Set<string>>(new Set())
+  // The indicator tracks the transport, not "did we try to connect" — see
+  // src/lib/sse-liveness.ts.
+  const transportHealthy = useEvents((s) => isHealthy(s.transport))
 
   const toggleGroup = useCallback((directory: string) => {
     setCollapsedDirs((prev) => {
@@ -527,7 +531,13 @@ export default function SessionsScreen() {
         testID="connection-status-bar"
       >
         <View style={styles.connectionInfo}>
-          <View style={[styles.connectionDot, { backgroundColor: "#22c55e" }]} testID="connection-status-dot" />
+          {/* Reflects verified SSE liveness, not merely "a connection is
+              selected". This was hardcoded green, so the indicator claimed
+              health even while the stream was dead. */}
+          <View
+            style={[styles.connectionDot, { backgroundColor: transportHealthy ? "#22c55e" : "#f59e0b" }]}
+            testID="connection-status-dot"
+          />
           <Text style={[styles.connectionName, isDark && styles.textDark]} numberOfLines={1}>
             {activeConnection.name}
           </Text>
@@ -540,7 +550,7 @@ export default function SessionsScreen() {
             </>
           )}
         </View>
-        <Ionicons name="swap-horizontal-outline" size={16} color={isDark ? "#666666" : "#999999"} />
+        <Ionicons name="swap-horizontal-outline" size={16} color={isDark ? "#9a9a9a" : "#999999"} />
       </TouchableOpacity>
 
       {error && (
@@ -723,7 +733,7 @@ export default function SessionsScreen() {
                     {t("sessionsList.newSessionModal.browseFoldersHint")}
                   </Text>
                 </View>
-                <Ionicons name="chevron-forward" size={16} color={isDark ? "#666666" : "#999999"} />
+                <Ionicons name="chevron-forward" size={16} color={isDark ? "#9a9a9a" : "#999999"} />
               </TouchableOpacity>
 
               {/* Manual path input fallback */}
@@ -733,7 +743,7 @@ export default function SessionsScreen() {
               <TextInput
                 style={[styles.modalInput, isDark && styles.modalInputDark]}
                 placeholder={serverHome ? `${serverHome}/...` : "/path/to/project"}
-                placeholderTextColor={isDark ? "#666666" : "#999999"}
+                placeholderTextColor={isDark ? "#9a9a9a" : "#999999"}
                 value={customDir}
                 onChangeText={(text) => {
                   // Expand ~ to server home directory
