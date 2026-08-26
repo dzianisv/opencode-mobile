@@ -125,6 +125,13 @@ jobs:
           mkdir -p "$FDROID_DIR/repo"
           mkdir -p "$FDROID_DIR/metadata"
 
+          # Ship the committed app metadata (author/company, source-code link,
+          # license, description) into fdroidserver's metadata/ dir so `fdroid
+          # update` bakes it into the index. Without it, --create-metadata
+          # generates a minimal entry (name + version only, no author, no
+          # source link, license "Unknown") — see fdroid/metadata/cc.agentlabs.opencode.yml.
+          cp fdroid/metadata/cc.agentlabs.opencode.yml "$FDROID_DIR/metadata/"
+
           echo "${{ secrets.FDROID_REPO_KEYSTORE_B64 }}" | base64 -d > "$FDROID_DIR/repo-keystore.jks"
 
           cat > "$FDROID_DIR/config.yml" << CONFIGEOF
