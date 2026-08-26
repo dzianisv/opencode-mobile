@@ -49,6 +49,10 @@
         "label": "GitHub",
         "description": "View source code"
       },
+      "company": {
+        "label": "Company",
+        "description": "VIBE TECHNOLOGIES, LLC — agentlabs.cc"
+      },
       "docs": {
         "label": "Documentation",
         "description": "Learn how to use OpenCode"
