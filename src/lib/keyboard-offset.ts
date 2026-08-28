@@ -1,11 +1,15 @@
-// KeyboardAvoidingView computes its padding from a route-local view frame and
-// a global keyboard screenY. On Android this route begins below the native
-// stack header, so its vertical offset must include the complete header height.
+// iOS continues to use KeyboardAvoidingView's established offset. Android
+// applies the IME-reported height directly because RN 0.81's Android hide
+// event path can retain keyboardVerticalOffset as stale bottom padding.
 
 export const IOS_KEYBOARD_VERTICAL_OFFSET = 90
-export const ANDROID_HEADER_CONTENT_HEIGHT = 56
 
-export function keyboardVerticalOffset(platform: string, insetTop: number): number {
+export function keyboardPadding(platform: string, keyboardHeight: number): number {
+  if (platform !== "android") return 0
+  return Math.max(0, keyboardHeight)
+}
+
+export function keyboardVerticalOffset(platform: string, _insetTop: number): number {
   if (platform === "ios") return IOS_KEYBOARD_VERTICAL_OFFSET
-  return Math.max(0, insetTop) + ANDROID_HEADER_CONTENT_HEIGHT
+  return 0
 }

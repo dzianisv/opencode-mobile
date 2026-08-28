@@ -1,34 +1,34 @@
 import { test } from "node:test"
 import assert from "node:assert/strict"
 import {
-  ANDROID_HEADER_CONTENT_HEIGHT,
   IOS_KEYBOARD_VERTICAL_OFFSET,
+  keyboardPadding,
   keyboardVerticalOffset,
 } from "./keyboard-offset.ts"
+
+test("Android uses the IME-reported height as bottom padding", () => {
+  assert.equal(keyboardPadding("android", 351.28), 351.28)
+})
+
+test("Android hide and invalid metrics produce zero padding", () => {
+  assert.equal(keyboardPadding("android", 0), 0)
+  assert.equal(keyboardPadding("android", -20), 0)
+})
+
+test("iOS does not receive Android's explicit keyboard padding", () => {
+  assert.equal(keyboardPadding("ios", 351.28), 0)
+})
 
 test("iOS keeps its existing empirical offset", () => {
   assert.equal(keyboardVerticalOffset("ios", 0), IOS_KEYBOARD_VERTICAL_OFFSET)
   assert.equal(keyboardVerticalOffset("ios", 61.29), IOS_KEYBOARD_VERTICAL_OFFSET)
 })
 
-test("Android offsets by the complete native header height", () => {
-  assert.equal(keyboardVerticalOffset("android", 61.293), 117.293)
+test("Android does not use KeyboardAvoidingView's vertical offset", () => {
+  assert.equal(keyboardVerticalOffset("android", 61.293), 0)
 })
 
-test("Android includes header content when the top inset is zero or invalid", () => {
-  assert.equal(keyboardVerticalOffset("android", 0), ANDROID_HEADER_CONTENT_HEIGHT)
-  assert.equal(keyboardVerticalOffset("android", -20), ANDROID_HEADER_CONTENT_HEIGHT)
-})
-
-// Pixel 11 Pro / Android 17 regression guard. With only the 61.29 dp safe-area
-// inset, the input overlapped the custom Trime IME by 106 px. Adding the
-// standard 56 dp header content makes the computed padding equal IME height.
-test("Android offset reconciles route-local and screen coordinates", () => {
-  const routeBottom = 741.65
-  const keyboardScreenY = 507.67
-  const keyboardHeight = 351.28
-  const offset = keyboardVerticalOffset("android", 61.29)
-  const padding = routeBottom - (keyboardScreenY - offset)
-
-  assert.ok(Math.abs(padding - keyboardHeight) < 0.01, `expected ~${keyboardHeight}, got ${padding}`)
+test("Pixel 11 Pro measurement maps directly to the required padding", () => {
+  const keyboardHeight = 1168 / (1280 / 393)
+  assert.equal(keyboardPadding("android", keyboardHeight), keyboardHeight)
 })
