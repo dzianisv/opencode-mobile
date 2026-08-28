@@ -92,7 +92,7 @@ export function ModelPicker({ providers, selected, isDark, onSelect, sheetRef }:
       keyboardBlurBehavior="restore"
       android_keyboardInputMode="adjustResize"
       backgroundStyle={isDark ? s.sheetDark : s.sheet}
-      handleIndicatorStyle={{ backgroundColor: isDark ? "#666666" : "#cccccc" }}
+      handleIndicatorStyle={{ backgroundColor: isDark ? "#9a9a9a" : "#cccccc" }}
       backdropComponent={(props) => (
         <BottomSheetBackdrop {...props} disappearsOnIndex={-1} appearsOnIndex={0} opacity={0.5} />
       )}
@@ -105,7 +105,7 @@ export function ModelPicker({ providers, selected, isDark, onSelect, sheetRef }:
         <BottomSheetTextInput
           style={[s.search, isDark && s.searchDark]}
           placeholder={t("chat.modelPicker.searchPlaceholder")}
-          placeholderTextColor={isDark ? "#666666" : "#999999"}
+          placeholderTextColor={isDark ? "#9a9a9a" : "#999999"}
           value={search}
           onChangeText={setSearch}
           autoCorrect={false}
@@ -174,7 +174,7 @@ const s = StyleSheet.create({
     textTransform: "uppercase",
     letterSpacing: 0.5,
   },
-  metaDark: { color: "#666666" },
+  metaDark: { color: "#9a9a9a" },
   row: {
     flexDirection: "row",
     alignItems: "center",

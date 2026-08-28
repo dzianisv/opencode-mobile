@@ -1,7 +1,7 @@
 import { useState } from "react"
-import { View, Text, TouchableOpacity, StyleSheet, useColorScheme, Platform, ScrollView } from "react-native"
+import { View, Text, TouchableOpacity, StyleSheet, useColorScheme, Platform } from "react-native"
 import * as Clipboard from "expo-clipboard"
-import { WIDE_CONTENT_SCROLL_CONFIG } from "../../lib/scroll-config"
+import { WideScroll } from "../WideScroll"
 
 interface Props {
   code: string
@@ -28,11 +28,11 @@ export function CodeBlock({ code, language }: Props) {
           <Text style={[styles.copyBtn, isDark && styles.copyBtnDark]}>{copied ? "Copied!" : "Copy"}</Text>
         </TouchableOpacity>
       </View>
-      <ScrollView {...WIDE_CONTENT_SCROLL_CONFIG} testID="code-block-scroll" contentContainerStyle={styles.codeScroll}>
+      <WideScroll testID="code-block-scroll" contentContainerStyle={styles.codeScroll}>
         <Text style={[styles.code, isDark && styles.codeDark]} selectable>
           {code}
         </Text>
-      </ScrollView>
+      </WideScroll>
     </View>
   )
 }
@@ -77,6 +77,10 @@ const styles = StyleSheet.create({
   },
   codeScroll: {
     padding: 12,
+    // Right breathing room INSIDE the scrollable content: without it the
+    // longest line ends flush against the clipped edge when scrolled fully,
+    // reading as cut off even when it isn't.
+    paddingRight: 24,
   },
   code: {
     fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",

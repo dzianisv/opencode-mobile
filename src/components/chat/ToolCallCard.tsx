@@ -3,6 +3,7 @@ import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, ScrollView
 import { Ionicons } from "@expo/vector-icons"
 import { useTranslation } from "react-i18next"
 import type { Part } from "../../lib/sdk"
+import { toolTitle } from "../../lib/delegation-title"
 import { DiffView } from "./DiffView"
 
 const TOOL_ICONS: Record<string, string> = {
@@ -220,7 +221,7 @@ function TodoDetail({ input, isDark }: { input: unknown; isDark: boolean }) {
             <Ionicons
               name={done ? "checkbox" : "square-outline"}
               size={16}
-              color={done ? "#22c55e" : isDark ? "#666666" : "#999999"}
+              color={done ? "#22c55e" : isDark ? "#9a9a9a" : "#999999"}
             />
             <Text style={[s.todoText, isDark && s.todoTextDark, done && s.todoDone]} numberOfLines={2}>
               {String(item.content || item.title || "")}
@@ -321,6 +322,7 @@ export function ToolCallCard({ tool, isDark }: Props) {
   const error = tool.state?.error?.message
   const elapsed = duration(tool.state?.time?.start, tool.state?.time?.end)
   const hasDetail = tool.state?.input !== undefined || tool.state?.output !== undefined || error
+  const title = toolTitle(tool.tool, tool.state?.title, tool.state?.input)
 
   const toggle = useCallback(() => {
     if (hasDetail) setExpanded((v) => !v)
@@ -342,7 +344,7 @@ export function ToolCallCard({ tool, isDark }: Props) {
         <View style={s.headerLeft}>
           <Ionicons name={icon as any} size={16} color={color} />
           <Text style={[s.name, isDark && s.nameDark]} numberOfLines={1}>
-            {tool.state?.title || tool.tool || t("chat.toolCallCard.fallbackTitle")}
+            {title || t("chat.toolCallCard.fallbackTitle")}
           </Text>
           {elapsed && <Text style={[s.elapsed, isDark && s.elapsedDark]}>{elapsed}</Text>}
         </View>
@@ -354,7 +356,7 @@ export function ToolCallCard({ tool, isDark }: Props) {
             <Ionicons
               name={expanded ? "chevron-up" : "chevron-down"}
               size={16}
-              color={isDark ? "#666666" : "#999999"}
+              color={isDark ? "#9a9a9a" : "#999999"}
             />
           )}
         </View>
@@ -397,7 +399,7 @@ const s = StyleSheet.create({
   name: { fontSize: 13, fontWeight: "500", color: "#0a0a0a", flex: 1 },
   nameDark: { color: "#e5e5e5" },
   elapsed: { fontSize: 11, color: "#999999" },
-  elapsedDark: { color: "#666666" },
+  elapsedDark: { color: "#9a9a9a" },
 
   // Error
   errorBanner: {

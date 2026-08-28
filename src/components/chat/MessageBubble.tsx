@@ -5,6 +5,7 @@ import { Markdown } from "../markdown"
 import { ToolCallCard } from "./ToolCallCard"
 import { ReasoningBlock } from "./ReasoningBlock"
 import type { Message, Part } from "../../lib/sdk"
+import { messageUsage } from "../../lib/message-usage"
 
 const SCREEN_WIDTH = Dimensions.get("window").width
 
@@ -16,9 +17,12 @@ interface Props {
   message: Message
   parts: Part[]
   isDark: boolean
-  // Only wired up for user messages — long-press opens the "Edit message" /
-  // revert action sheet. Identified by messageID (not a closure over parts)
-  // so it stays correct even if the memo below bails on a stale render.
+  // Long-press opens the message action sheet. For user messages that sheet
+  // offers "Edit message" / revert; for both roles it offers copy and
+  // select-text (the only copy path assistant prose has — see
+  // src/lib/message-copy-text.ts). Identified by messageID (not a closure
+  // over parts) so it stays correct even if the memo below bails on a stale
+  // render.
   onLongPress?: (messageID: string) => void
 }
 
@@ -34,12 +38,13 @@ export const MessageBubble = memo(
     const fileParts = parts.filter((p) => p.type === "file" && isImageMime(p.mime))
     const text = textParts.map((p) => p.text).join("\n") || ""
     const reasoning = reasoningParts.map((p) => p.text).join("\n") || ""
+    const usage = messageUsage(message.tokens, message.cost)
 
     return (
       <TouchableOpacity
-        activeOpacity={isUser && onLongPress ? 0.7 : 1}
-        onLongPress={isUser && onLongPress ? () => onLongPress(message.id) : undefined}
-        disabled={!isUser || !onLongPress}
+        activeOpacity={onLongPress ? 0.7 : 1}
+        onLongPress={onLongPress ? () => onLongPress(message.id) : undefined}
+        disabled={!onLongPress}
         style={[
           s.bubble,
           isUser ? s.user : s.assistant,
@@ -102,10 +107,9 @@ export const MessageBubble = memo(
         ))}
 
         {/* Tokens/cost for assistant messages */}
-        {!isUser && message.tokens && (
+        {!isUser && usage && (
           <Text style={[s.tokens, isDark && s.tokensDark]}>
-            {message.tokens.input + message.tokens.output} tokens
-            {message.cost ? ` · $${message.cost.toFixed(4)}` : ""}
+            {usage}
           </Text>
         )}
       </TouchableOpacity>
@@ -156,7 +160,7 @@ const s = StyleSheet.create({
   markdownWrap: { marginHorizontal: -4 },
 
   tokens: { fontSize: 11, color: "#999999", marginTop: 8 },
-  tokensDark: { color: "#666666" },
+  tokensDark: { color: "#9a9a9a" },
 
   // Images
   imageScroll: { marginBottom: 8 },

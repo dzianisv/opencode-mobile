@@ -332,7 +332,7 @@ export default function AddConnectionScreen() {
           <TextInput
             style={[styles.input, styles.ipInput, isDark && styles.inputDark]}
             placeholder="192.168.1.100"
-            placeholderTextColor={isDark ? "#666666" : "#999999"}
+            placeholderTextColor={isDark ? "#9a9a9a" : "#999999"}
             value={ip}
             onChangeText={setIp}
             autoCapitalize="none"
@@ -344,7 +344,7 @@ export default function AddConnectionScreen() {
           <TextInput
             style={[styles.input, styles.portInput, isDark && styles.inputDark]}
             placeholder="4096"
-            placeholderTextColor={isDark ? "#666666" : "#999999"}
+            placeholderTextColor={isDark ? "#9a9a9a" : "#999999"}
             value={port}
             onChangeText={setPort}
             keyboardType="number-pad"
@@ -357,7 +357,7 @@ export default function AddConnectionScreen() {
         <TextInput
           style={[styles.input, isDark && styles.inputDark]}
           placeholder={t("connection.add.quick.namePlaceholder")}
-          placeholderTextColor={isDark ? "#666666" : "#999999"}
+          placeholderTextColor={isDark ? "#9a9a9a" : "#999999"}
           value={name}
           onChangeText={setName}
         />
@@ -367,7 +367,7 @@ export default function AddConnectionScreen() {
         <TextInput
           style={[styles.input, isDark && styles.inputDark]}
           placeholder={t("connection.add.quick.passwordPlaceholder")}
-          placeholderTextColor={isDark ? "#666666" : "#999999"}
+          placeholderTextColor={isDark ? "#9a9a9a" : "#999999"}
           value={password}
           onChangeText={setPassword}
           secureTextEntry
@@ -480,7 +480,7 @@ export default function AddConnectionScreen() {
               <TextInput
                 style={[styles.input, isDark && styles.inputDark, { marginTop: 12 }]}
                 placeholder="your@email.com"
-                placeholderTextColor={isDark ? "#666666" : "#999999"}
+                placeholderTextColor={isDark ? "#9a9a9a" : "#999999"}
                 value={waitlistEmail}
                 onChangeText={setWaitlistEmail}
                 autoCapitalize="none"
@@ -573,7 +573,7 @@ export default function AddConnectionScreen() {
       <TextInput
         style={[styles.input, isDark && styles.inputDark]}
         placeholder={t("connection.shared.namePlaceholder")}
-        placeholderTextColor={isDark ? "#666666" : "#999999"}
+        placeholderTextColor={isDark ? "#9a9a9a" : "#999999"}
         value={name}
         onChangeText={setName}
       />
@@ -589,7 +589,7 @@ export default function AddConnectionScreen() {
               ? "https://your-tunnel.trycloudflare.com"
               : "https://api.opencode.ai"
         }
-        placeholderTextColor={isDark ? "#666666" : "#999999"}
+        placeholderTextColor={isDark ? "#9a9a9a" : "#999999"}
         value={url}
         onChangeText={setUrl}
         autoCapitalize="none"
@@ -611,7 +611,7 @@ export default function AddConnectionScreen() {
       <TextInput
         style={[styles.input, isDark && styles.inputDark]}
         placeholder="/path/to/project"
-        placeholderTextColor={isDark ? "#666666" : "#999999"}
+        placeholderTextColor={isDark ? "#9a9a9a" : "#999999"}
         value={directory}
         onChangeText={setDirectory}
         autoCapitalize="none"
@@ -626,7 +626,7 @@ export default function AddConnectionScreen() {
       <TextInput
         style={[styles.input, isDark && styles.inputDark]}
         placeholder="admin"
-        placeholderTextColor={isDark ? "#666666" : "#999999"}
+        placeholderTextColor={isDark ? "#9a9a9a" : "#999999"}
         value={username}
         onChangeText={setUsername}
         autoCapitalize="none"
@@ -637,7 +637,7 @@ export default function AddConnectionScreen() {
       <TextInput
         style={[styles.input, isDark && styles.inputDark]}
         placeholder="password"
-        placeholderTextColor={isDark ? "#666666" : "#999999"}
+        placeholderTextColor={isDark ? "#9a9a9a" : "#999999"}
         value={password}
         onChangeText={setPassword}
         secureTextEntry

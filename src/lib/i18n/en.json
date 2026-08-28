@@ -95,7 +95,9 @@
     },
     "actions": {
       "editMessage": "Edit message",
-      "replace": "Replace"
+      "replace": "Replace",
+      "copyMessage": "Copy message",
+      "selectText": "Select text"
     },
     "alerts": {
       "messageActionsTitle": "Message actions",
@@ -123,6 +125,12 @@
       "imageFailedMessage": "One or more images could not be processed. Please try a different photo.",
       "speechErrorTitle": "Voice input failed",
       "speechErrorMessage": "Could not use voice input. Check your microphone permission and try again."
+    },
+    "selectText": {
+      "title": "Select text",
+      "copyAll": "Copy all",
+      "copied": "Copied!",
+      "hint": "Press and hold the text to select part of it."
     }
   },
   "connection": {
