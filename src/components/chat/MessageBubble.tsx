@@ -5,6 +5,7 @@ import { Markdown } from "../markdown"
 import { ToolCallCard } from "./ToolCallCard"
 import { ReasoningBlock } from "./ReasoningBlock"
 import type { Message, Part } from "../../lib/sdk"
+import { messageUsage } from "../../lib/message-usage"
 
 const SCREEN_WIDTH = Dimensions.get("window").width
 
@@ -37,6 +38,7 @@ export const MessageBubble = memo(
     const fileParts = parts.filter((p) => p.type === "file" && isImageMime(p.mime))
     const text = textParts.map((p) => p.text).join("\n") || ""
     const reasoning = reasoningParts.map((p) => p.text).join("\n") || ""
+    const usage = messageUsage(message.tokens, message.cost)
 
     return (
       <TouchableOpacity
@@ -105,10 +107,9 @@ export const MessageBubble = memo(
         ))}
 
         {/* Tokens/cost for assistant messages */}
-        {!isUser && message.tokens && (
+        {!isUser && usage && (
           <Text style={[s.tokens, isDark && s.tokensDark]}>
-            {message.tokens.input + message.tokens.output} tokens
-            {message.cost ? ` · $${message.cost.toFixed(4)}` : ""}
+            {usage}
           </Text>
         )}
       </TouchableOpacity>
