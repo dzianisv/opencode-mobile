@@ -39,6 +39,7 @@ import { useConnections } from "../../src/stores/connections"
 import { useAuth } from "../../src/stores/auth"
 import { useCatalog } from "../../src/stores/catalog"
 import { useSpeech } from "../../src/lib/speech"
+import { keyboardVerticalOffset } from "../../src/lib/keyboard-offset"
 
 // --- Builtin slash commands ---
 const BUILTIN_COMMANDS: SlashCommand[] = [
@@ -605,8 +606,13 @@ export default function SessionScreen() {
         // bottom toolbar + input were left completely hidden behind the
         // keyboard (#147). "padding" restores avoidance without depending
         // on native resize.
+        //
+        // The view frame is local to the route content below the native
+        // header, while keyboard screenY is global. Offset by the complete
+        // header (safe-area inset + the standard 56 dp Android header) to
+        // reconcile those coordinate spaces.
         behavior="padding"
-        keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 0}
+        keyboardVerticalOffset={keyboardVerticalOffset(Platform.OS, insets.top)}
       >
         {/* Session info pulldown */}
         <SessionInfo
