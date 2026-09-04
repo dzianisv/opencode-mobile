@@ -15,7 +15,8 @@ import { router } from "expo-router"
 import { Ionicons } from "@expo/vector-icons"
 import { useTranslation } from "react-i18next"
 import { useConnections } from "../../src/stores/connections"
-import type { ConnectionType } from "../../src/lib/types"
+import type { AuthMode, ConnectionType } from "../../src/lib/types"
+import { useEvents } from "../../src/stores/events"
 import { probeConnection, shareReport } from "../../src/lib/diagnostics"
 import { captureDiagnostic } from "../../src/lib/sentry"
 import { parseUrl } from "../../src/lib/diagnostics-classify"
@@ -45,6 +46,9 @@ export default function AddConnectionScreen() {
   const [directory, setDirectory] = useState("")
   const [username, setUsername] = useState("")
   const [password, setPassword] = useState("")
+  const [authMode, setAuthMode] = useState<AuthMode>("basic")
+  const [oidcIssuer, setOidcIssuer] = useState("")
+  const [oidcClientId, setOidcClientId] = useState("")
   const [isConnecting, setIsConnecting] = useState(false)
   const [waitlistEmail, setWaitlistEmail] = useState("")
   // "queued" = the POST failed but the signup is persisted on-device and will
@@ -179,14 +183,45 @@ export default function AddConnectionScreen() {
       return
     }
 
+    if (authMode === "oidc" && !oidcIssuer.trim()) {
+      Alert.alert(t("common.error"), t("connection.shared.alerts.enterIssuer"))
+      return
+    }
+    if (authMode === "oidc" && !oidcClientId.trim()) {
+      Alert.alert(t("common.error"), t("connection.shared.alerts.enterClientId"))
+      return
+    }
+
     track(AnalyticsEvent.ConnectionFormSubmitted, { mode: "advanced" })
     setIsConnecting(true)
 
-    // Pre-flight, mirroring Quick Connect: previously Advanced mode saved
-    // directly with no health check, so bad credentials (401/403) or an
-    // unreachable server silently became the active connection with zero
-    // feedback (issue #76). testConnection() also fires the
-    // connection_attempted/succeeded/failed analytics events.
+    if (authMode === "oidc") {
+      try {
+        const saved = await addConnection({
+          name: name.trim(),
+          type,
+          url: url.trim(),
+          directory: directory.trim() || undefined,
+          authMode: "oidc",
+          oidcIssuer: oidcIssuer.trim(),
+          oidcClientId: oidcClientId.trim(),
+        })
+        setIsConnecting(false)
+        if (saved.cancelled) {
+          Alert.alert(t("connection.shared.alerts.oidcLoginFailedTitle"), t("connection.shared.alerts.oidcLoginCancelledMessage"))
+        }
+        if (useConnections.getState().activeConnection) useEvents.getState().connect()
+        router.back()
+      } catch {
+        setIsConnecting(false)
+        Alert.alert(
+          t("connection.shared.alerts.saveFailedTitle"),
+          t("connection.shared.alerts.saveFailedMessage"),
+        )
+      }
+      return
+    }
+
     const result = await testConnection(
       {
         id: "",
@@ -195,6 +230,7 @@ export default function AddConnectionScreen() {
         url: url.trim(),
         directory: directory.trim() || undefined,
         username: username.trim() || undefined,
+        authMode,
       },
       "onboarding",
       password || undefined,
@@ -209,6 +245,7 @@ export default function AddConnectionScreen() {
             url: url.trim(),
             directory: directory.trim() || undefined,
             username: username.trim() || undefined,
+            authMode,
           },
           password || undefined,
         )
@@ -622,26 +659,87 @@ export default function AddConnectionScreen() {
       {/* Auth */}
       <Text style={[styles.sectionTitle, isDark && styles.textDark]}>{t("connection.shared.authentication")}</Text>
 
-      <Text style={[styles.label, isDark && styles.labelDark]}>{t("connection.shared.username")}</Text>
-      <TextInput
-        style={[styles.input, isDark && styles.inputDark]}
-        placeholder="admin"
-        placeholderTextColor={isDark ? "#666666" : "#999999"}
-        value={username}
-        onChangeText={setUsername}
-        autoCapitalize="none"
-        autoCorrect={false}
-      />
+      <Text style={[styles.label, isDark && styles.labelDark]}>{t("connection.shared.authMode")}</Text>
+      <View style={styles.typeContainer}>
+        {(
+          [
+            { mode: "none" as const, label: t("connection.shared.authModeNone") },
+            { mode: "basic" as const, label: t("connection.shared.authModeBasic") },
+            { mode: "oidc" as const, label: t("connection.shared.authModeOidc") },
+          ]
+        ).map((opt) => (
+          <TouchableOpacity
+            key={opt.mode}
+            style={[
+              styles.typeOption,
+              isDark && styles.typeOptionDark,
+              authMode === opt.mode && styles.typeOptionSelected,
+              authMode === opt.mode && isDark && styles.typeOptionSelectedDark,
+            ]}
+            onPress={() => setAuthMode(opt.mode)}
+          >
+            <Text
+              style={[
+                styles.typeLabel,
+                isDark && styles.textDark,
+                authMode === opt.mode && styles.typeLabelSelected,
+                authMode === opt.mode && isDark && styles.typeLabelSelectedDark,
+              ]}
+            >
+              {opt.label}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </View>
 
-      <Text style={[styles.label, isDark && styles.labelDark]}>{t("connection.shared.password")}</Text>
-      <TextInput
-        style={[styles.input, isDark && styles.inputDark]}
-        placeholder="password"
-        placeholderTextColor={isDark ? "#666666" : "#999999"}
-        value={password}
-        onChangeText={setPassword}
-        secureTextEntry
-      />
+      {authMode === "oidc" ? (
+        <>
+          <Text style={[styles.label, isDark && styles.labelDark]}>{t("connection.shared.oidcIssuer")}</Text>
+          <TextInput
+            style={[styles.input, isDark && styles.inputDark]}
+            placeholder={t("connection.shared.oidcIssuerPlaceholder")}
+            placeholderTextColor={isDark ? "#666666" : "#999999"}
+            value={oidcIssuer}
+            onChangeText={setOidcIssuer}
+            autoCapitalize="none"
+            autoCorrect={false}
+            keyboardType="url"
+          />
+          <Text style={[styles.label, isDark && styles.labelDark]}>{t("connection.shared.oidcClientId")}</Text>
+          <TextInput
+            style={[styles.input, isDark && styles.inputDark]}
+            placeholder="opencode-mobile"
+            placeholderTextColor={isDark ? "#666666" : "#999999"}
+            value={oidcClientId}
+            onChangeText={setOidcClientId}
+            autoCapitalize="none"
+            autoCorrect={false}
+          />
+          <Text style={[styles.hint, isDark && styles.hintDark]}>{t("connection.shared.oidcRedirectHint")}</Text>
+        </>
+      ) : authMode === "basic" ? (
+        <>
+          <Text style={[styles.label, isDark && styles.labelDark]}>{t("connection.shared.username")}</Text>
+          <TextInput
+            style={[styles.input, isDark && styles.inputDark]}
+            placeholder="admin"
+            placeholderTextColor={isDark ? "#666666" : "#999999"}
+            value={username}
+            onChangeText={setUsername}
+            autoCapitalize="none"
+            autoCorrect={false}
+          />
+          <Text style={[styles.label, isDark && styles.labelDark]}>{t("connection.shared.password")}</Text>
+          <TextInput
+            style={[styles.input, isDark && styles.inputDark]}
+            placeholder="password"
+            placeholderTextColor={isDark ? "#666666" : "#999999"}
+            value={password}
+            onChangeText={setPassword}
+            secureTextEntry
+          />
+        </>
+      ) : null}
 
       {/* Save */}
       <TouchableOpacity

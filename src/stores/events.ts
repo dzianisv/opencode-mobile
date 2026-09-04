@@ -8,6 +8,7 @@ import { addBreadcrumb } from "../lib/sentry"
 import { AnalyticsEvent, track } from "../lib/analytics"
 import { recordSuccessfulSession } from "../lib/store-review"
 import { isAuthError } from "../lib/api-error"
+import { clearOidcAccess } from "../lib/oidc-tokens"
 import { isSessionActuallyIdle } from "../lib/session-status-reconcile"
 import type { Client, Part, Session, Message } from "../lib/sdk"
 
@@ -458,6 +459,8 @@ export const useEvents = create<EventsState>((set, get) => ({
           // (issue #76: 309 events / 65 users). Stop and surface a distinct
           // state instead; the sessions screen offers a link to fix
           // credentials, which reconnects via connect() once saved.
+          const active = useConnections.getState().activeConnection
+          if (active?.authMode === "oidc") void clearOidcAccess(active.id)
           console.warn("[SSE] Authentication failed — stopping reconnect loop:", err)
           addBreadcrumb({
             category: "sse",

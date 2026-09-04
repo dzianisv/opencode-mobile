@@ -16,6 +16,16 @@ test("omits directory and auth headers when not provided", () => {
   assert.equal("Authorization" in h, false)
 })
 
+test("none / empty Bearer token omits Authorization", () => {
+  const empty = buildRequestHeaders({ auth: { token: "" } })
+  assert.equal("Authorization" in empty, false)
+})
+
+test("oidc sets a Bearer authorization header", () => {
+  const h = buildRequestHeaders({ auth: { token: "eyJhbGciOiJIUzI1NiJ9.e30.ok" } })
+  assert.equal(h["Authorization"], "Bearer eyJhbGciOiJIUzI1NiJ9.e30.ok")
+})
+
 test("passes ASCII directory through unencoded (server gets a readable path)", () => {
   const h = buildRequestHeaders({ directory: "/home/user/projects/app" })
   assert.equal(h["x-opencode-directory"], "/home/user/projects/app")

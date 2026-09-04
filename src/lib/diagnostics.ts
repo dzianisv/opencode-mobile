@@ -11,6 +11,7 @@ import { type Classification, type ProbeAttempt, type ParsedUrl, parseUrl, class
 import { chatwootConfigured, sendSupportReport } from "./chatwoot"
 import { hasTelemetryConsent, loadTelemetryConsent } from "./telemetry"
 import { redactHostAndUrls } from "./scrub"
+import { buildRequestHeaders, type RequestAuth } from "./headers"
 
 export type { Classification, ProbeAttempt } from "./diagnostics-classify"
 
@@ -71,13 +72,14 @@ async function timedFetch(name: string, target: string, init?: RequestInit, opts
 // own — this set lets formatReportForSupport redact them all regardless.
 const seenHosts = new Set<string>()
 
-export async function probeConnection(url: string, auth?: { username: string; password: string }): Promise<DiagnosticReport> {
+export async function probeConnection(url: string, auth?: RequestAuth): Promise<DiagnosticReport> {
   const parsed = parseUrl(url)
   if (parsed.host) seenHosts.add(parsed.host)
   log.info("diag", "probe start", url, "parsed", JSON.stringify(parsed))
 
+  const built = buildRequestHeaders({ auth })
   const headers: Record<string, string> = {}
-  if (auth) headers["Authorization"] = `Basic ${btoa(`${auth.username}:${auth.password}`)}`
+  if (built.Authorization) headers.Authorization = built.Authorization
 
   let health: ProbeAttempt
   let root: ProbeAttempt

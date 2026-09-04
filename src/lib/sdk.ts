@@ -3,7 +3,7 @@
 // but works in React Native environment
 // expo/fetch provides WinterCG-compliant fetch with ReadableStream support for SSE
 import { fetch as expoFetch } from "expo/fetch"
-import { buildRequestHeaders } from "./headers"
+import { buildRequestHeaders, type RequestAuth } from "./headers"
 import { SSEParser } from "./sse"
 import { apiErrorFor } from "./api-error"
 import { loadSessionList } from "./session-list"
@@ -14,10 +14,7 @@ export { ApiAuthError, isAuthError } from "./api-error"
 export interface ClientConfig {
   baseUrl: string
   directory?: string
-  auth?: {
-    username: string
-    password: string
-  }
+  auth?: RequestAuth
 }
 
 export interface Session {

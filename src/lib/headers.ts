@@ -4,9 +4,11 @@
 //
 // Relies only on `btoa`, which is available in both Hermes (RN) and Node >= 16.
 
+export type RequestAuth = { username: string; password: string } | { token: string }
+
 export interface HeaderConfig {
   directory?: string
-  auth?: { username: string; password: string }
+  auth?: RequestAuth
 }
 
 // `btoa` is Latin1-only and throws a range error on any character outside
@@ -18,6 +20,14 @@ export interface HeaderConfig {
 // round-trip it unchanged.
 function toBase64Utf8(str: string): string {
   return btoa(unescape(encodeURIComponent(str)))
+}
+
+function authorizationValue(auth: RequestAuth): string | undefined {
+  if ("token" in auth) {
+    if (!auth.token) return undefined
+    return `Bearer ${auth.token}`
+  }
+  return `Basic ${toBase64Utf8(`${auth.username}:${auth.password}`)}`
 }
 
 export function buildRequestHeaders(config: HeaderConfig): Record<string, string> {
@@ -36,8 +46,8 @@ export function buildRequestHeaders(config: HeaderConfig): Record<string, string
   }
 
   if (config.auth) {
-    const credentials = toBase64Utf8(`${config.auth.username}:${config.auth.password}`)
-    headers["Authorization"] = `Basic ${credentials}`
+    const value = authorizationValue(config.auth)
+    if (value) headers["Authorization"] = value
   }
 
   return headers

@@ -105,6 +105,8 @@ Open the app, tap **Add Connection**, and choose your connection type:
 
 Enter the password you set in Step 1, tap **Connect**, and you're in.
 
+**OIDC (Authentik / any IdP in front of the server):** Advanced connection → Auth mode **OIDC** → issuer URL + public client ID. Register redirect URI `opencode://auth` on the IdP. The reverse proxy must validate `Authorization: Bearer`. See [docs/oidc.md](docs/oidc.md).
+
 ---
 
 ## How It Works

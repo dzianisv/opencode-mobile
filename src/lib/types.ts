@@ -1,4 +1,6 @@
-// Connection types for multiple server support
+import type { AuthMode } from "./auth-mode"
+
+export type { AuthMode }
 export type ConnectionType = "local" | "tunnel" | "cloud"
 
 export interface ServerConnection {
@@ -6,10 +8,10 @@ export interface ServerConnection {
   name: string
   type: ConnectionType
   url: string
-  // For auth
   username?: string
-  // Password stored separately in SecureStore
-  // Directory to use for this connection
+  authMode?: AuthMode
+  oidcIssuer?: string
+  oidcClientId?: string
   directory?: string
   // When last successfully connected
   lastConnected?: number

@@ -184,6 +184,7 @@ export default function SessionsScreen() {
     switchDirectory,
     addRecentDirectory,
     recentDirectories,
+    loginOidc,
   } = useConnections()
   const authError = useEvents((s) => s.authError)
   const reconnect = useEvents((s) => s.connect)
@@ -485,16 +486,33 @@ export default function SessionsScreen() {
         <Ionicons name="lock-closed-outline" size={64} color={isDark ? "#444444" : "#cccccc"} />
         <Text style={[styles.emptyTitle, isDark && styles.textDark]}>{t("sessionsList.empty.authFailedTitle")}</Text>
         <Text style={[styles.emptySubtitle, isDark && styles.metaDark]}>
-          {t("sessionsList.empty.authFailedSubtitle", { name: activeConnection.name })}
+          {activeConnection.authMode === "oidc"
+            ? t("sessionsList.empty.authFailedOidcSubtitle", { name: activeConnection.name })
+            : t("sessionsList.empty.authFailedSubtitle", { name: activeConnection.name })}
         </Text>
         <View style={styles.authErrorButtonRow}>
           <TouchableOpacity
             style={[styles.addButton, isDark && styles.addButtonDark]}
-            onPress={() => router.push(`/connection/${activeConnection.id}`)}
+            onPress={() => {
+              if (activeConnection.authMode !== "oidc") {
+                router.push(`/connection/${activeConnection.id}`)
+                return
+              }
+              void loginOidc(activeConnection.id).then((result) => {
+                if (result.ok) {
+                  reconnect()
+                  return
+                }
+                if (result.cancelled) return
+                Alert.alert(t("connection.shared.alerts.oidcLoginFailedTitle"), t("connection.shared.alerts.oidcLoginFailedMessage"))
+              })
+            }}
             testID="fix-connection-button"
           >
             <Text style={[styles.addButtonText, isDark && styles.addButtonTextDark]}>
-              {t("sessionsList.empty.checkCredentialsButton")}
+              {activeConnection.authMode === "oidc"
+                ? t("sessionsList.empty.signInButton")
+                : t("sessionsList.empty.checkCredentialsButton")}
             </Text>
           </TouchableOpacity>
           <TouchableOpacity
