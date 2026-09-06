@@ -7,11 +7,11 @@ import {
   TouchableOpacity,
   StyleSheet,
   useColorScheme,
-  KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
   Alert,
 } from "react-native"
+import { KeyboardStickyView } from "react-native-keyboard-controller"
 import { useLocalSearchParams, Stack, useRouter, useFocusEffect } from "expo-router"
 import { Ionicons } from "@expo/vector-icons"
 import { useSafeAreaInsets } from "react-native-safe-area-context"
@@ -591,22 +591,8 @@ export default function SessionScreen() {
         }}
       />
 
-      <KeyboardAvoidingView
+      <View
         style={[s.container, isDark && s.containerDark]}
-        // Both platforms use "padding" so the composer/toolbar is pushed up
-        // above the keyboard via JS-measured keyboard height.
-        //
-        // Android previously relied on the native android:windowSoftInputMode
-        // (adjustResize, see AndroidManifest.xml) with behavior={undefined}
-        // to let the OS resize the window (see #70/#53). Since adopting
-        // Expo's mandatory edge-to-edge display, Android no longer resizes
-        // the window when the keyboard opens — the system assumes insets are
-        // handled dynamically — so adjustResize became a no-op and the
-        // bottom toolbar + input were left completely hidden behind the
-        // keyboard (#147). "padding" restores avoidance without depending
-        // on native resize.
-        behavior="padding"
-        keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 0}
       >
         {/* Session info pulldown */}
         <SessionInfo
@@ -740,6 +726,10 @@ export default function SessionScreen() {
           <SlashPopover query={slashQuery} commands={allCommands} isDark={isDark} onSelect={handleSlashSelect} />
         )}
 
+        {/* Composer sticks above the keyboard (edge-to-edge safe).
+            offset = closed-keyboard inset so the bar rests on the
+            gesture nav pill instead of overlapping it. */}
+        <KeyboardStickyView offset={{ closed: -insets.bottom, opened: 0 }}>
         {/* Agent/model toolbar */}
         <View style={[s.toolbar, isDark && s.toolbarDark]}>
           <TouchableOpacity
@@ -838,7 +828,8 @@ export default function SessionScreen() {
             )}
           </View>
         </View>
-      </KeyboardAvoidingView>
+        </KeyboardStickyView>
+      </View>
 
       {/* Model picker bottom sheet */}
       <ModelPicker
