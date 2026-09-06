@@ -4,6 +4,7 @@ import { StatusBar } from "expo-status-bar"
 import { useColorScheme, View, ActivityIndicator, AppState } from "react-native"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { GestureHandlerRootView } from "react-native-gesture-handler"
+import { KeyboardProvider } from "react-native-keyboard-controller"
 import { BottomSheetModalProvider } from "@gorhom/bottom-sheet"
 import { I18nextProvider, useTranslation } from "react-i18next"
 import i18n from "../src/lib/i18n/config"
@@ -171,6 +172,7 @@ function RootLayout() {
     <ErrorBoundary>
       <I18nextProvider i18n={i18n}>
       <GestureHandlerRootView style={{ flex: 1 }}>
+        <KeyboardProvider statusBarTranslucent navigationBarTranslucent>
         <BottomSheetModalProvider>
           <QueryClientProvider client={queryClient}>
             <AuthGate>
@@ -212,6 +214,7 @@ function RootLayout() {
             </AuthGate>
           </QueryClientProvider>
         </BottomSheetModalProvider>
+        </KeyboardProvider>
       </GestureHandlerRootView>
       {/* Telemetry consent modal — shown once on first launch */}
       <TelemetryConsentModal

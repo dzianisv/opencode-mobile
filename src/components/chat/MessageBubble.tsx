@@ -1,5 +1,5 @@
 import { memo } from "react"
-import { View, Text, Image, StyleSheet, ScrollView, TouchableOpacity, Dimensions } from "react-native"
+import { View, Text, Image, StyleSheet, ScrollView, TouchableOpacity, Dimensions, ActivityIndicator } from "react-native"
 import { Ionicons } from "@expo/vector-icons"
 import { Markdown } from "../markdown"
 import { ToolCallCard } from "./ToolCallCard"
@@ -96,6 +96,14 @@ export const MessageBubble = memo(
             </View>
           ))}
 
+        {/* Typing placeholder — assistant message arrived before any part */}
+        {!isUser && text.length === 0 && reasoning.length === 0 && toolParts.length === 0 && fileParts.length === 0 && (
+          <View style={s.typingRow}>
+            <ActivityIndicator size="small" color="#8b5cf6" />
+            <Text style={[s.typingText, isDark && s.typingTextDark]}>Typing…</Text>
+          </View>
+        )}
+
         {/* Tool calls */}
         {toolParts.map((tool) => (
           <ToolCallCard key={tool.id} tool={tool} isDark={isDark} />
@@ -170,4 +178,8 @@ const s = StyleSheet.create({
   },
   imageLabel: { fontSize: 10, color: "#666666", marginTop: 2, maxWidth: 200 },
   imageLabelDark: { color: "#888888" },
+
+  typingRow: { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 4 },
+  typingText: { fontSize: 14, color: "#8b5cf6", fontStyle: "italic" },
+  typingTextDark: { color: "#a78bfa" },
 })
