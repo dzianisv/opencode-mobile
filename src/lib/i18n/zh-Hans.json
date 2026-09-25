@@ -6,6 +6,7 @@
     "delete": "删除",
     "retry": "重试",
     "save": "保存",
+    "close": "关闭",
     "shareReport": "分享报告"
   },
   "settings": {
@@ -81,7 +82,16 @@
       "reconnecting": "正在重新连接…（第 {{attempt}} 次尝试）",
       "connected": "已连接 ✓",
       "reverted": "消息已撤回 — 重新发送以确认",
-      "undo": "撤销"
+      "undo": "撤销",
+      "dismiss": "忽略"
+    },
+    "sheet": {
+      "thinking": "思考过程",
+      "tool": "工具",
+      "input": "输入",
+      "result": "结果",
+      "error": "错误",
+      "file": "文件"
     },
     "empty": {
       "title": "开始一段对话",
@@ -95,7 +105,10 @@
     },
     "actions": {
       "editMessage": "编辑消息",
-      "replace": "替换"
+      "replace": "替换",
+      "selectText": "选择文本",
+      "copyAll": "复制全部",
+      "copied": "已复制"
     },
     "alerts": {
       "messageActionsTitle": "消息操作",

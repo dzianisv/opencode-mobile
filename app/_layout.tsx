@@ -4,6 +4,7 @@ import { StatusBar } from "expo-status-bar"
 import { useColorScheme, View, ActivityIndicator, AppState } from "react-native"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { GestureHandlerRootView } from "react-native-gesture-handler"
+import { KeyboardProvider } from "react-native-keyboard-controller"
 import { BottomSheetModalProvider } from "@gorhom/bottom-sheet"
 import { I18nextProvider, useTranslation } from "react-i18next"
 import i18n from "../src/lib/i18n/config"
@@ -120,6 +121,22 @@ function RootLayout() {
     return () => sub.remove()
   }, [])
 
+  // Android freezes JS timers and usually drops the SSE socket while the app
+  // sits in the background (Doze/app standby), and the server may close idle
+  // streams too. On return to foreground, re-establish the stream immediately
+  // instead of waiting out the reconnect backoff (whose timers were frozen),
+  // and resync messages/permissions missed while away. reconnectNow() is
+  // idempotent, so an "active" fired by a transient "inactive" (biometric
+  // prompt, app switcher) is harmless.
+  useEffect(() => {
+    const sub = AppState.addEventListener("change", (next) => {
+      if (next === "active" && sseStarted.current) {
+        useEvents.getState().reconnectNow()
+      }
+    })
+    return () => sub.remove()
+  }, [])
+
   // Connect/disconnect SSE and load catalog when client changes
   useEffect(() => {
     if (client && !sseStarted.current) {
@@ -169,6 +186,10 @@ function RootLayout() {
 
   return (
     <ErrorBoundary>
+      {/* react-native-keyboard-controller: drives keyboard avoidance from
+          native WindowInsets instead of the legacy RN Keyboard events, which
+          misreport under Android's mandatory edge-to-edge mode (Expo SDK 54). */}
+      <KeyboardProvider>
       <I18nextProvider i18n={i18n}>
       <GestureHandlerRootView style={{ flex: 1 }}>
         <BottomSheetModalProvider>
@@ -226,6 +247,7 @@ function RootLayout() {
         }}
       />
       </I18nextProvider>
+      </KeyboardProvider>
     </ErrorBoundary>
   )
 }

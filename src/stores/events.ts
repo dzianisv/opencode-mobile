@@ -49,6 +49,11 @@ interface EventsState {
 
   connect: () => void
   disconnect: () => void
+  // Force an immediate reconnect + full resync, bypassing the backoff loop.
+  // Called when the app returns to the foreground: Android freezes JS timers
+  // and usually kills the SSE socket while backgrounded, so the backoff
+  // timers that were scheduled never ran and the stream is stale.
+  reconnectNow: () => void
 }
 
 let controller: AbortController | null = null
@@ -69,8 +74,12 @@ const PROLONGED_DISCONNECT_MS = 30_000
 // optimistic removals.
 export async function refreshPending(client: Client, sessionID: string) {
   try {
-    const [perms, questions] = await Promise.all([client.permission.list(), client.question.list()])
-    const sessionPerms = (perms || []).map(normalizePendingPermission).filter((p): p is PendingPermission => !!p && p.sessionID === sessionID)
+    // v2 permission/form lists are session-scoped — pass the session so
+    // pending prompts are found regardless of the server's active location.
+    const [perms, questions] = await Promise.all([client.permission.list(sessionID), client.question.list(sessionID)])
+    const sessionPerms = (perms || [])
+      .map(normalizePendingPermission)
+      .filter((p): p is PendingPermission => !!p && p.sessionID === sessionID)
     const sessionQuestions = (questions || []).filter((q: Record<string, unknown>) => q.sessionID === sessionID)
     useEvents.setState((state) => ({
       permissions: { ...state.permissions, [sessionID]: mergePendingPermissions([], sessionPerms) },
@@ -512,6 +521,34 @@ export const useEvents = create<EventsState>((set, get) => ({
         }
       }
     })()
+  },
+
+  reconnectNow: () => {
+    const connState = useConnections.getState()
+    if (!connState.client) return
+    console.log("[SSE] Foreground reconnect — re-establishing event stream")
+    if (reconnectTimer) {
+      clearTimeout(reconnectTimer)
+      reconnectTimer = null
+    }
+    controller?.abort()
+    controller = null
+    // Reset backoff state first: connect() gates its post-reconnect busy
+    // resync on reconnectAttempts > 0, and a foreground resume must resync
+    // even from a previously "stable" (but actually dead) connection — so we
+    // run the resync explicitly below instead.
+    set({ reconnectAttempts: 0, lastDisconnectAt: null })
+    get().connect()
+    void resyncBusySessions()
+    const sessions = useSessions.getState()
+    if (sessions.currentSession) {
+      sessions.refreshMessages()
+      const session = sessions.currentSession
+      const client = session.directory
+        ? connState.clientForDirectory(session.directory) ?? connState.client
+        : connState.client
+      if (client) void refreshPending(client, session.id)
+    }
   },
 
   disconnect: () => {
