@@ -7,6 +7,7 @@ export type Classification =
   | "malformed-url"
   | "no-internet"
   | "server-unreachable"
+  | "auth-required"
   | "auth-failed"
   | "health-failed"
   | "tls-error"
@@ -21,6 +22,7 @@ export interface ProbeAttempt {
   durationMs: number
   error?: string
   errorCause?: string
+  authProvided?: boolean
 }
 
 export interface ParsedUrl {
@@ -67,6 +69,21 @@ export function classify(
   // as ok:true and told the user "connection actually works now" while the
   // password was wrong. `requireOk` (v0.4.8) stopped the lie; this makes the
   // remaining message actionable so the user stops retrying blind.
+  // 401/403 with no credentials sent is a different problem from rejected
+  // credentials: the probe never authenticated, so the server's answer says
+  // nothing about the saved password. This happens when the user runs the
+  // diagnostic before typing the password (Quick Connect, empty field) —
+  // telling them "the server rejected your credentials" sends them
+  // re-typing a password that may be perfectly fine.
+  if ((health.status === 401 || health.status === 403) && !health.authProvided) {
+    return {
+      classification: "auth-required",
+      summary:
+        `The server is running and requires authentication (HTTP ${health.status}), ` +
+        `but this probe sent no credentials. Enter the server password — and the username too, ` +
+        `if the server sets OPENCODE_SERVER_USERNAME (it defaults to "opencode") — then retry.`,
+    }
+  }
   if (health.status === 401 || health.status === 403) {
     return {
       classification: "auth-failed",
