@@ -48,6 +48,7 @@
     },
     "plugins": [
       "expo-router",
+      "./plugins/withKeyboardInsets",
       "expo-secure-store",
       "expo-local-authentication",
       [
