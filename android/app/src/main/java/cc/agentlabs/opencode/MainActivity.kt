@@ -2,6 +2,9 @@ package cc.agentlabs.opencode
 
 import android.os.Build
 import android.os.Bundle
+import android.view.View
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
 
 import com.facebook.react.ReactActivity
 import com.facebook.react.ReactActivityDelegate
@@ -17,6 +20,17 @@ class MainActivity : ReactActivity() {
     // This is required for expo-splash-screen.
     setTheme(R.style.AppTheme);
     super.onCreate(null)
+
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.VANILLA_ICE_CREAM) {
+      val root = findViewById<View>(android.R.id.content)
+      val bottom = root.paddingBottom
+      // Android 15+ no longer resizes edge-to-edge windows for the IME.
+      ViewCompat.setOnApplyWindowInsetsListener(root) { view, insets ->
+        view.setPadding(view.paddingLeft, view.paddingTop, view.paddingRight, bottom + insets.getInsets(WindowInsetsCompat.Type.ime()).bottom)
+        insets
+      }
+      ViewCompat.requestApplyInsets(root)
+    }
   }
 
   /**
