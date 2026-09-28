@@ -37,6 +37,10 @@
       "package": "cc.agentlabs.opencode",
       "versionCode": 42,
       "usesCleartextTraffic": true,
+      "permissions": [
+        "android.permission.FOREGROUND_SERVICE",
+        "android.permission.FOREGROUND_SERVICE_DATA_SYNC"
+      ],
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#0F172A"
@@ -69,8 +73,7 @@
         "expo-image-picker",
         {
           "photosPermission": "OpenCode can attach images from your photo library to messages to your AI coding agent.",
-          "cameraPermission": "OpenCode can capture images with your camera and attach them to messages to your AI coding agent.",
-          "microphonePermission": false
+          "cameraPermission": "OpenCode can capture images with your camera and attach them to messages to your AI coding agent."
         }
       ],
       [
@@ -80,7 +83,8 @@
           "speechRecognitionPermission": "OpenCode uses speech recognition so you can dictate prompts to your AI coding agent hands-free."
         }
       ],
-      "expo-localization"
+      "expo-localization",
+      "./plugins/with-background-monitor"
     ],
     "experiments": {
       "typedRoutes": true,

@@ -20,6 +20,7 @@ import { addBreadcrumb, wrap } from "../src/lib/sentry"
 import { loadTelemetryConsent, setTelemetryConsent } from "../src/lib/telemetry"
 import { initAnalytics, trackAppOpened } from "../src/lib/analytics"
 import { flushPendingSignups } from "../src/lib/waitlist-queue-storage"
+import { startBackgroundMonitor, stopBackgroundMonitor } from "../src/lib/background-monitor"
 
 const queryClient = new QueryClient()
 
@@ -115,7 +116,12 @@ function RootLayout() {
     }
     flush()
     const sub = AppState.addEventListener("change", (next) => {
-      if (next === "active") flush()
+      if (next !== "active") return
+      flush()
+      if (useConnections.getState().client) {
+        void startBackgroundMonitor()
+        useEvents.getState().resume()
+      }
     })
     return () => sub.remove()
   }, [])
@@ -126,6 +132,7 @@ function RootLayout() {
       sseStarted.current = true
       useEvents.getState().connect()
       useCatalog.getState().load()
+      void startBackgroundMonitor()
       // Request OS notification permission once we have a live connection —
       // the in-context moment the user will start running agent tasks they'll
       // want to be pinged about. Previously this was only ever requested when
@@ -138,13 +145,11 @@ function RootLayout() {
         notifPermissionRequested.current = true
         void notifications.setup()
       }
-    } else if (!client && sseStarted.current) {
-      sseStarted.current = false
-      useEvents.getState().disconnect()
     }
     return () => {
       if (sseStarted.current) {
         sseStarted.current = false
+        void stopBackgroundMonitor()
         useEvents.getState().disconnect()
       }
     }

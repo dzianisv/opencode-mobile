@@ -56,6 +56,7 @@ interface EventsState {
   >
 
   connect: () => void
+  resume: () => void
   disconnect: () => void
 }
 
@@ -477,6 +478,20 @@ export const useEvents = create<EventsState>((set, get) => ({
         }
       }
     })()
+  },
+
+  resume: () => {
+    get().connect()
+    void resyncBusySessions()
+
+    const session = useSessions.getState().currentSession
+    if (!session) return
+
+    const connections = useConnections.getState()
+    const client = session.directory
+      ? connections.clientForDirectory(session.directory) ?? connections.client
+      : connections.client
+    if (client) void refreshPending(client, session.id)
   },
 
   disconnect: () => {

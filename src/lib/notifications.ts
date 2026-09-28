@@ -99,17 +99,15 @@ Notifications.setNotificationHandler({
 export async function setup(): Promise<boolean> {
   if (!Device.isDevice) return false
 
+  // Android 13+ does not show the notification permission prompt until the
+  // app has a channel.
+  await ensureChannel()
+
   const { status: existing } = await Notifications.getPermissionsAsync()
-  if (existing === "granted") {
-    await ensureChannel()
-    return true
-  }
+  if (existing === "granted") return true
 
   const { status } = await Notifications.requestPermissionsAsync()
-  if (status !== "granted") return false
-
-  await ensureChannel()
-  return true
+  return status === "granted"
 }
 
 export async function granted(): Promise<boolean> {
