@@ -2,6 +2,7 @@ import { View, Text, StyleSheet, ActivityIndicator } from "react-native"
 import { useTranslation } from "react-i18next"
 import { useEvents } from "../../stores/events"
 import { useSessions } from "../../stores/sessions"
+import { isSessionWorking } from "../../lib/session-status-hydration"
 
 interface Props {
   sessionID: string
@@ -14,11 +15,7 @@ export function StatusIndicator({ sessionID, isDark }: Props) {
   const text = useEvents((s) => s.statusText[sessionID])
   const optimistic = useSessions((s) => s.sending[sessionID])
 
-  // SSE status is the source of truth. The optimistic `sending` flag only
-  // covers the gap between the user tapping send and SSE confirming busy.
-  // Once SSE reports idle, the indicator hides regardless of the optimistic flag.
-  const sseBusy = status && status.type !== "idle"
-  const busy = sseBusy || (optimistic && !status)
+  const busy = isSessionWorking(status, !!optimistic)
   if (!busy) return null
 
   const label =

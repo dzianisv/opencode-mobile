@@ -49,6 +49,11 @@ export interface Session {
   }
 }
 
+export type SessionStatus =
+  | { type: "idle" }
+  | { type: "busy" }
+  | { type: "retry"; attempt: number; message: string }
+
 export interface Message {
   id: string
   sessionID: string
@@ -372,6 +377,8 @@ export function createClient(config: ClientConfig) {
         ),
 
       get: (sessionID: string) => request<Session>(config, `/session/${sessionID}`),
+
+      status: () => request<Record<string, SessionStatus>>(config, "/session/status"),
 
       create: (params?: { title?: string }) =>
         request<Session>(config, "/session", {

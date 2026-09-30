@@ -56,6 +56,8 @@ function SessionItem({
   onDelete: () => void
 }) {
   const { t } = useTranslation()
+  const status = useEvents((s) => s.sessionStatus[session.id])
+  const working = status?.type === "busy" || status?.type === "retry"
 
   const onPress = () => {
     router.push({
@@ -82,6 +84,15 @@ function SessionItem({
       onLongPress={onLongPress}
       testID={`session-item-${session.id}`}
     >
+      {working && (
+        <View style={styles.sessionActivity} testID={`session-activity-${session.id}`}>
+          <ActivityIndicator
+            size="small"
+            color={isDark ? "#a78bfa" : "#6d28d9"}
+            accessibilityLabel={t("chat.statusIndicator.working")}
+          />
+        </View>
+      )}
       <View style={styles.sessionContent}>
         <View style={styles.sessionHeader}>
           <Text style={[styles.sessionTitle, isDark && styles.textDark]} numberOfLines={1}>
@@ -187,6 +198,7 @@ export default function SessionsScreen() {
   } = useConnections()
   const authError = useEvents((s) => s.authError)
   const reconnect = useEvents((s) => s.connect)
+  const refreshSessionStatuses = useEvents((s) => s.refreshSessionStatuses)
   const loadCatalog = useCatalog((s) => s.load)
   const dirSheetRef = useRef<BottomSheet>(null)
   const browserSheetRef = useRef<BottomSheet>(null)
@@ -198,6 +210,11 @@ export default function SessionsScreen() {
   // Directories collapsed in the grouped session list. Empty by default —
   // all groups start expanded (#67).
   const [collapsedDirs, setCollapsedDirs] = useState<Set<string>>(new Set())
+
+  const refreshSessions = useCallback(async () => {
+    await loadSessions()
+    await refreshSessionStatuses()
+  }, [loadSessions, refreshSessionStatuses])
 
   const toggleGroup = useCallback((directory: string) => {
     setCollapsedDirs((prev) => {
@@ -244,32 +261,32 @@ export default function SessionsScreen() {
   const handleSwitchDirectory = useCallback(
     async (dir?: string) => {
       await switchDirectory(dir)
-      loadSessions()
+      refreshSessions()
       refreshProject()
       loadCatalog()
     },
-    [switchDirectory, loadSessions, refreshProject, loadCatalog],
+    [switchDirectory, refreshSessions, refreshProject, loadCatalog],
   )
 
   useFocusEffect(
     useCallback(() => {
       if (client) {
-        loadSessions()
+        refreshSessions()
         refreshProject()
       }
-    }, [client, loadSessions, refreshProject]),
+    }, [client, refreshSessions, refreshProject]),
   )
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true)
     try {
-      await Promise.all([loadSessions(), refreshProject()])
+      await Promise.all([refreshSessions(), refreshProject()])
     } catch (err) {
       console.error("Refresh failed:", err)
     } finally {
       setRefreshing(false)
     }
-  }, [loadSessions, refreshProject])
+  }, [refreshSessions, refreshProject])
 
   const handleRename = useCallback((session: Session) => {
     setRenameText(session.title || "")
@@ -286,14 +303,14 @@ export default function SessionsScreen() {
       await renameClient.session.update(renaming.id, { title })
       setRenaming(null)
       setRenameText("")
-      loadSessions()
+      refreshSessions()
     } catch (err) {
       console.error("Rename failed:", err)
       Alert.alert(t("sessionsList.alerts.renameFailedTitle"), t("sessionsList.alerts.renameFailedMessage"))
     } finally {
       renamingInFlight.current = false
     }
-  }, [renaming, renameText, client, clientForDirectory, loadSessions, t])
+  }, [renaming, renameText, client, clientForDirectory, refreshSessions, t])
 
   const handleDelete = useCallback(
     (session: Session) => {
@@ -970,6 +987,12 @@ const styles = StyleSheet.create({
   },
   sessionContent: {
     flex: 1,
+  },
+  sessionActivity: {
+    width: 24,
+    marginRight: 8,
+    alignItems: "center",
+    justifyContent: "center",
   },
   sessionHeader: {
     flexDirection: "row",

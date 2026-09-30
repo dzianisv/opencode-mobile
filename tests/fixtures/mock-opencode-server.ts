@@ -89,6 +89,8 @@ export interface MockServerOptions {
    * open regression for GitHub issues #46/#48).
    */
   seedSessions?: boolean
+  /** Session IDs returned as busy by the directory-scoped GET /session/status endpoint. */
+  busySessionIDs?: string[]
   /**
    * Pre-populate a session (id "seed-diff", in DEFAULT_DIRECTORY so it shows
    * up on the normal home-tab session list) with ONE assistant message that
@@ -212,12 +214,14 @@ export function createMockOpencodeServer(opts: MockServerOptions) {
     replyText = DEFAULT_REPLY_TEXT,
     replyDelayMs = 300,
     seedSessions = false,
+    busySessionIDs = [],
     seedDiff = false,
   } = opts
 
   const sessions = new Map<string, StoredSession>()
   const messagesBySession = new Map<string, StoredMessage[]>()
   const sseClients = new Set<http.ServerResponse>()
+  const busySessions = new Set(busySessionIDs)
 
   if (seedDiff) {
     const now = Date.now()
@@ -553,6 +557,18 @@ export function createMockOpencodeServer(opts: MockServerOptions) {
     // returns every session, ignoring the x-opencode-directory header.
     if (method === "GET" && path === "/experimental/session") {
       return json(res, 200, Array.from(sessions.values()))
+    }
+    if (method === "GET" && path === "/session/status") {
+      const directory = requestDirectory(req)
+      return json(
+        res,
+        200,
+        Object.fromEntries(
+          Array.from(sessions.values())
+            .filter((session) => session.directory === directory && busySessions.has(session.id))
+            .map((session) => [session.id, { type: "busy" }]),
+        ),
+      )
     }
     if (method === "GET" && path === "/session") {
       // Directory-less "all sessions across all projects" list: the app's

@@ -39,6 +39,7 @@ import { useConnections } from "../../src/stores/connections"
 import { useAuth } from "../../src/stores/auth"
 import { useCatalog } from "../../src/stores/catalog"
 import { useSpeech } from "../../src/lib/speech"
+import { isSessionWorking } from "../../src/lib/session-status-hydration"
 
 // --- Builtin slash commands ---
 const BUILTIN_COMMANDS: SlashCommand[] = [
@@ -101,8 +102,11 @@ export default function SessionScreen() {
     unrevertSession,
   } = useSessions()
 
-  // Derive sending state for this specific session
-  const isSending = useSessions((s) => !!(currentSession && s.sending[currentSession.id]))
+  // Tasks may start from another client, so server status must drive the
+  // composer as well as the optimistic flag set by this device.
+  const optimisticSending = useSessions((s) => !!(currentSession && s.sending[currentSession.id]))
+  const serverStatus = useEvents((s) => (currentSession ? s.sessionStatus[currentSession.id] : undefined))
+  const isSending = isSessionWorking(serverStatus, optimisticSending)
 
   const { authenticateForMessage } = useAuth()
   const { client, clientForDirectory } = useConnections()

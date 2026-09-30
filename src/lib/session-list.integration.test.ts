@@ -22,7 +22,7 @@ before(async () => {
   // --seed-sessions pre-populates two sessions in two DIFFERENT directories:
   //   seed-default -> /mock/project        (updated now-120s)
   //   seed-other   -> /mock/project/other-dir (updated now-60s, more recent)
-  mock = createMockOpencodeServer({ port: PORT, seedSessions: true })
+  mock = createMockOpencodeServer({ port: PORT, seedSessions: true, busySessionIDs: ["seed-default", "seed-other"] })
   await mock.listen()
   base = mock.url
 })
@@ -78,6 +78,16 @@ test("hit the experimental endpoint, not the directory-scoped one", async () => 
   // The global endpoint returns everything.
   const global = await (await fetch(`${base}/experimental/session`)).json()
   assert.equal(global.length, 2, "/experimental/session returns all sessions globally")
+})
+
+test("session status snapshots are scoped to each session directory", async () => {
+  const defaultStatus = await (await fetch(`${base}/session/status`)).json()
+  const otherStatus = await (
+    await fetch(`${base}/session/status`, { headers: { "x-opencode-directory": "/mock/project/other-dir" } })
+  ).json()
+
+  assert.deepEqual(defaultStatus, { "seed-default": { type: "busy" } })
+  assert.deepEqual(otherStatus, { "seed-other": { type: "busy" } })
 })
 
 test("older servers (404 on /experimental/session) fall back to /session and still list globally", async () => {

@@ -9,10 +9,8 @@ import { AnalyticsEvent, track } from "../lib/analytics"
 import { recordSuccessfulSession } from "../lib/store-review"
 import { isAuthError } from "../lib/api-error"
 import { isSessionActuallyIdle } from "../lib/session-status-reconcile"
-import type { Client, Part, Session, Message } from "../lib/sdk"
-
-// Session status from the server
-type SessionStatus = { type: "idle" } | { type: "busy" } | { type: "retry"; attempt: number; message: string }
+import { mergeSessionStatusSnapshot } from "../lib/session-status-hydration"
+import type { Client, Part, Session, Message, SessionStatus } from "../lib/sdk"
 
 interface EventsState {
   connected: boolean
@@ -57,6 +55,7 @@ interface EventsState {
 
   connect: () => void
   disconnect: () => void
+  refreshSessionStatuses: () => Promise<void>
 }
 
 let controller: AbortController | null = null
@@ -154,6 +153,46 @@ export const useEvents = create<EventsState>((set, get) => ({
   statusText: {},
   permissions: {},
   questions: {},
+
+  refreshSessionStatuses: async () => {
+    const sessions = useSessions.getState().sessions
+    if (sessions.length === 0) return
+
+    const connection = useConnections.getState()
+    const rootClient = connection.client
+    if (!rootClient) return
+    const groups = new Map<string, string[]>()
+    for (const session of sessions) {
+      groups.set(session.directory, [...(groups.get(session.directory) ?? []), session.id])
+    }
+
+    const baseline = get().sessionStatus
+    const entries = [...groups.entries()]
+    const results = await Promise.allSettled(
+      entries.map(([directory]) => {
+        const client = connection.clientForDirectory(directory) ?? rootClient
+        return client.session.status()
+      }),
+    )
+
+    if (useConnections.getState().client !== rootClient) return
+
+    set((state) => {
+      let sessionStatus = state.sessionStatus
+      let statusText = state.statusText
+      for (const [index, result] of results.entries()) {
+        if (result.status === "rejected") {
+          console.warn("[Events] Failed to refresh session status for", entries[index][0], result.reason)
+          continue
+        }
+        sessionStatus = mergeSessionStatusSnapshot(sessionStatus, baseline, result.value, entries[index][1])
+        for (const id of entries[index][1]) {
+          if (sessionStatus[id]?.type === "idle" && statusText[id]) statusText = { ...statusText, [id]: "" }
+        }
+      }
+      return { sessionStatus, statusText }
+    })
+  },
 
   connect: () => {
     controller?.abort()
