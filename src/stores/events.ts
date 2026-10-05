@@ -9,6 +9,8 @@ import { AnalyticsEvent, track } from "../lib/analytics"
 import { recordSuccessfulSession } from "../lib/store-review"
 import { isAuthError } from "../lib/api-error"
 import { isSessionActuallyIdle } from "../lib/session-status-reconcile"
+import { AppState } from "react-native"
+import { mergePendingPermissions, normalizePendingPermission, normalizePermissionEvent, type PendingPermission } from "../lib/permissions"
 import type { Client, Part, Session, Message } from "../lib/sdk"
 
 // Session status from the server
@@ -28,17 +30,7 @@ interface EventsState {
   sessionStatus: Record<string, SessionStatus>
   statusText: Record<string, string>
   // Permissions & questions (pending per session)
-  permissions: Record<
-    string,
-    Array<{
-      id: string
-      sessionID: string
-      permission: string
-      patterns: string[]
-      metadata: Record<string, unknown>
-      tool?: { messageID: string; callID: string }
-    }>
-  >
+  permissions: Record<string, PendingPermission[]>
   questions: Record<
     string,
     Array<{
@@ -78,15 +70,43 @@ const PROLONGED_DISCONNECT_MS = 30_000
 export async function refreshPending(client: Client, sessionID: string) {
   try {
     const [perms, questions] = await Promise.all([client.permission.list(), client.question.list()])
-    const sessionPerms = (perms || []).filter((p: Record<string, unknown>) => p.sessionID === sessionID)
+    const sessionPerms = (perms || []).map(normalizePendingPermission).filter((p): p is PendingPermission => !!p && p.sessionID === sessionID)
     const sessionQuestions = (questions || []).filter((q: Record<string, unknown>) => q.sessionID === sessionID)
     useEvents.setState((state) => ({
-      permissions: { ...state.permissions, [sessionID]: sessionPerms as any },
+      permissions: { ...state.permissions, [sessionID]: mergePendingPermissions([], sessionPerms) },
       questions: { ...state.questions, [sessionID]: sessionQuestions as any },
     }))
   } catch (err) {
     console.warn("[Events] Failed to refresh pending:", err)
   }
+}
+
+async function refreshAllPending() {
+  const connectionState = useConnections.getState()
+  const clients = new Set<Client>()
+  if (connectionState.client) clients.add(connectionState.client)
+  for (const session of useSessions.getState().sessions) {
+    if (!session.directory) continue
+    const client = connectionState.clientForDirectory(session.directory)
+    if (client) clients.add(client)
+  }
+  await Promise.all([...clients].map(async (client) => {
+    try {
+      const pending = await client.permission.list()
+      const grouped = new Map<string, PendingPermission[]>()
+      for (const value of pending || []) {
+        const normalized = normalizePendingPermission(value)
+        if (normalized) grouped.set(normalized.sessionID, [...(grouped.get(normalized.sessionID) || []), normalized])
+      }
+      useEvents.setState((state) => {
+        const permissions = { ...state.permissions }
+        for (const [sessionID, items] of grouped) permissions[sessionID] = mergePendingPermissions(permissions[sessionID] || [], items)
+        return { permissions }
+      })
+    } catch (err) {
+      console.warn("[Events] Failed to reconcile pending permissions:", err)
+    }
+  }))
 }
 
 // Re-sync any session currently marked "busy" against the server after an
@@ -232,6 +252,7 @@ export const useEvents = create<EventsState>((set, get) => ({
           if (isReconnect && !resyncedAfterReconnect) {
             resyncedAfterReconnect = true
             void resyncBusySessions()
+            void refreshAllPending()
           }
 
           const payload = (event as any).payload || event
@@ -370,15 +391,16 @@ export const useEvents = create<EventsState>((set, get) => ({
               break
             }
 
-            case "permission.asked": {
-              const req = props as any
-              if (!req.id || !req.sessionID) break
+            case "permission.asked":
+            case "permission.v2.asked": {
+              const req = normalizePermissionEvent({ type, properties: props })
+              if (!req) break
               const existing = get().permissions[req.sessionID] || []
               if (existing.some((item) => item.id === req.id)) break
               set((state) => ({
                 permissions: {
                   ...state.permissions,
-                  [req.sessionID]: [...(state.permissions[req.sessionID] || []), req],
+                  [req.sessionID]: mergePendingPermissions(state.permissions[req.sessionID] || [], [req]),
                 },
               }))
               notify({
@@ -400,6 +422,19 @@ export const useEvents = create<EventsState>((set, get) => ({
             }
 
             case "permission.replied": {
+              const sessionID = props.sessionID as string
+              const requestID = props.requestID as string
+              if (!sessionID || !requestID) break
+              set((state) => ({
+                permissions: {
+                  ...state.permissions,
+                  [sessionID]: (state.permissions[sessionID] || []).filter((p) => p.id !== requestID),
+                },
+              }))
+              break
+            }
+
+            case "permission.v2.replied": {
               const sessionID = props.sessionID as string
               const requestID = props.requestID as string
               if (!sessionID || !requestID) break
@@ -502,3 +537,7 @@ export const useEvents = create<EventsState>((set, get) => ({
     })
   },
 }))
+
+AppState.addEventListener("change", (state) => {
+  if (state === "active") void refreshAllPending()
+})
