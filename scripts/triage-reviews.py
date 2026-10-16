@@ -48,14 +48,75 @@ MARKER_RE = re.compile(r"<!-- review-triage:([^>]*?) -->")
 SCOPES = ["https://www.googleapis.com/auth/androidpublisher"]
 
 STOPWORDS = {
-    "the", "and", "for", "that", "this", "with", "have", "has", "not",
-    "you", "your", "but", "app", "when", "just", "very", "also", "from",
-    "are", "was", "were", "its", "it's", "can't", "cant", "dont", "don't",
-    "wont", "won't", "them", "they", "their", "there", "here", "what",
-    "would", "could", "should", "been", "being", "than", "then", "into",
-    "about", "even", "still", "again", "after", "before", "which", "some",
-    "only", "more", "most", "much", "many", "will", "does", "did", "how",
-    "why", "get", "got", "use", "used", "using", "please", "make", "made",
+    "the",
+    "and",
+    "for",
+    "that",
+    "this",
+    "with",
+    "have",
+    "has",
+    "not",
+    "you",
+    "your",
+    "but",
+    "app",
+    "when",
+    "just",
+    "very",
+    "also",
+    "from",
+    "are",
+    "was",
+    "were",
+    "its",
+    "it's",
+    "can't",
+    "cant",
+    "dont",
+    "don't",
+    "wont",
+    "won't",
+    "them",
+    "they",
+    "their",
+    "there",
+    "here",
+    "what",
+    "would",
+    "could",
+    "should",
+    "been",
+    "being",
+    "than",
+    "then",
+    "into",
+    "about",
+    "even",
+    "still",
+    "again",
+    "after",
+    "before",
+    "which",
+    "some",
+    "only",
+    "more",
+    "most",
+    "much",
+    "many",
+    "will",
+    "does",
+    "did",
+    "how",
+    "why",
+    "get",
+    "got",
+    "use",
+    "used",
+    "using",
+    "please",
+    "make",
+    "made",
 }
 
 
@@ -64,7 +125,10 @@ def env_client():
     if not raw:
         # Fail visibly (issue #61 done-criteria): a missing credential must
         # turn the workflow run red, not report success while doing nothing.
-        print("ERROR: GOOGLE_SERVICE_ACCOUNT_JSON not set — cannot fetch reviews.", file=sys.stderr)
+        print(
+            "ERROR: GOOGLE_SERVICE_ACCOUNT_JSON not set — cannot fetch reviews.",
+            file=sys.stderr,
+        )
         sys.exit(1)
     info = json.loads(raw)
     creds = service_account.Credentials.from_service_account_info(info, scopes=SCOPES)
@@ -76,11 +140,15 @@ def fetch_reviews(service):
     results = []
     token = None
     while True:
-        resp = service.reviews().list(
-            packageName=PACKAGE_NAME,
-            maxResults=100,
-            **({"token": token} if token else {}),
-        ).execute()
+        resp = (
+            service.reviews()
+            .list(
+                packageName=PACKAGE_NAME,
+                maxResults=100,
+                **({"token": token} if token else {}),
+            )
+            .execute()
+        )
         for review in resp.get("reviews", []):
             comment = review.get("comments", [{}])[0].get("userComment", {})
             ts = int(comment.get("lastModified", {}).get("seconds", 0))
@@ -89,15 +157,17 @@ def fetch_reviews(service):
             dt = datetime.fromtimestamp(ts, tz=timezone.utc)
             if dt < cutoff:
                 continue
-            results.append({
-                "review_id": review.get("reviewId", ""),
-                # author name is intentionally not carried past this point —
-                # it never enters the aggregated public issue.
-                "rating": int(comment.get("starRating", 0) or 0),
-                "text": comment.get("text", ""),
-                "date": dt.strftime("%Y-%m-%d"),
-                "lang": comment.get("reviewerLanguage", "en"),
-            })
+            results.append(
+                {
+                    "review_id": review.get("reviewId", ""),
+                    # author name is intentionally not carried past this point —
+                    # it never enters the aggregated public issue.
+                    "rating": int(comment.get("starRating", 0) or 0),
+                    "text": comment.get("text", ""),
+                    "date": dt.strftime("%Y-%m-%d"),
+                    "lang": comment.get("reviewerLanguage", "en"),
+                }
+            )
         token = resp.get("tokenPagination", {}).get("nextPageToken")
         if not token:
             break
@@ -120,12 +190,19 @@ def common_terms(reviews, top_n=8):
 def find_existing_issue():
     result = subprocess.run(
         [
-            "gh", "issue", "list",
-            "--repo", REPO,
-            "--search", f'"{ISSUE_TITLE}" in:title',
-            "--state", "open",
-            "--json", "number,title,body",
-            "--limit", "10",
+            "gh",
+            "issue",
+            "list",
+            "--repo",
+            REPO,
+            "--search",
+            f'"{ISSUE_TITLE}" in:title',
+            "--state",
+            "open",
+            "--json",
+            "number,title,body",
+            "--limit",
+            "10",
         ],
         capture_output=True,
         text=True,
@@ -177,7 +254,9 @@ def build_body(reviews, review_ids_marker):
         "| --- | --- | --- | --- |",
     ]
     for r in sorted(reviews, key=lambda r: (r["rating"], r["date"])):
-        lines.append(f"| `{r['review_id']}` | {r['rating']}★ | {r['date']} | {r['lang']} |")
+        lines.append(
+            f"| `{r['review_id']}` | {r['rating']}★ | {r['date']} | {r['lang']} |"
+        )
 
     lines += [
         "",
@@ -191,6 +270,82 @@ def build_body(reviews, review_ids_marker):
     return "\n".join(lines) + "\n"
 
 
+TRIAGE_LABEL = "user-feedback"
+
+
+def ensure_label():
+    """Best-effort creation of the triage label. Never fatal: if this
+    fails (missing permissions etc.), create_issue falls back to an
+    unlabeled issue, so review feedback is never lost again — the
+    2026-10-13/15 runs crashed here on 'user-feedback' not found."""
+    result = subprocess.run(
+        [
+            "gh",
+            "label",
+            "create",
+            TRIAGE_LABEL,
+            "--repo",
+            REPO,
+            "--color",
+            "d4c5f9",
+            "--description",
+            "Play Store review feedback",
+        ],
+        capture_output=True,
+        text=True,
+        env={**os.environ, "GH_TOKEN": GH_TOKEN},
+    )
+    exists = "already exist" in (result.stderr or "").lower()
+    if result.returncode != 0 and not exists:
+        print(
+            f"  ⚠️ gh label create failed: {(result.stderr or '').strip()}",
+            file=sys.stderr,
+        )
+
+
+def create_issue(body_path):
+    create = [
+        "gh",
+        "issue",
+        "create",
+        "--repo",
+        REPO,
+        "--title",
+        ISSUE_TITLE,
+        "--body-file",
+        body_path,
+    ]
+    labeled = subprocess.run(
+        create + ["--label", TRIAGE_LABEL],
+        capture_output=True,
+        text=True,
+        env={**os.environ, "GH_TOKEN": GH_TOKEN},
+    )
+    if labeled.returncode == 0:
+        print("  ✅ Created triage issue")
+        return
+    if TRIAGE_LABEL not in (labeled.stderr or ""):
+        raise subprocess.CalledProcessError(
+            labeled.returncode, labeled.args, stderr=labeled.stderr
+        )
+    print(
+        f"  ⚠️ label '{TRIAGE_LABEL}' unavailable "
+        f"({(labeled.stderr or '').strip()}); creating unlabeled",
+        file=sys.stderr,
+    )
+    plain = subprocess.run(
+        create,
+        capture_output=True,
+        text=True,
+        env={**os.environ, "GH_TOKEN": GH_TOKEN},
+    )
+    if plain.returncode != 0:
+        raise subprocess.CalledProcessError(
+            plain.returncode, plain.args, stderr=plain.stderr
+        )
+    print("  ✅ Created triage issue (unlabeled)")
+
+
 def write_issue(existing, body):
     with tempfile.NamedTemporaryFile("w", suffix=".md", delete=False) as f:
         f.write(body)
@@ -199,27 +354,22 @@ def write_issue(existing, body):
         if existing:
             subprocess.run(
                 [
-                    "gh", "issue", "edit", str(existing["number"]),
-                    "--repo", REPO,
-                    "--body-file", body_path,
+                    "gh",
+                    "issue",
+                    "edit",
+                    str(existing["number"]),
+                    "--repo",
+                    REPO,
+                    "--body-file",
+                    body_path,
                 ],
                 check=True,
                 env={**os.environ, "GH_TOKEN": GH_TOKEN},
             )
             print(f"  ✅ Updated issue #{existing['number']}")
         else:
-            subprocess.run(
-                [
-                    "gh", "issue", "create",
-                    "--repo", REPO,
-                    "--title", ISSUE_TITLE,
-                    "--body-file", body_path,
-                    "--label", "user-feedback",
-                ],
-                check=True,
-                env={**os.environ, "GH_TOKEN": GH_TOKEN},
-            )
-            print("  ✅ Created triage issue")
+            ensure_label()
+            create_issue(body_path)
     finally:
         os.unlink(body_path)
 
@@ -231,7 +381,9 @@ def main():
     print(f"Found {len(reviews)} review(s) in window.")
 
     # Material = actionable = potential bugs/problems worth triaging.
-    actionable = sorted({r["review_id"] for r in reviews if r["rating"] <= 3 and r["review_id"]})
+    actionable = sorted(
+        {r["review_id"] for r in reviews if r["rating"] <= 3 and r["review_id"]}
+    )
     actionable_reviews = [r for r in reviews if r["review_id"] in set(actionable)]
     current_marker = ",".join(actionable)
     print(f"Actionable (≤3★): {len(actionable)}")
@@ -255,7 +407,9 @@ def main():
     write_issue(existing, body)
 
     avg = sum(r["rating"] for r in reviews) / len(reviews) if reviews else 0
-    print(f"\nSummary: {len(reviews)} reviews, avg rating {avg:.1f}★, {len(actionable)} actionable.")
+    print(
+        f"\nSummary: {len(reviews)} reviews, avg rating {avg:.1f}★, {len(actionable)} actionable."
+    )
 
 
 if __name__ == "__main__":
