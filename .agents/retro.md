@@ -96,3 +96,15 @@ Never repeat the same uid target more than 3 times.
 **Correct pattern**: when a 403/401 differs between "identity" endpoints and "resource-scoped" endpoints for the *same* token from the *same* origin, suspect the resource identifier (org slug, project slug, tenant id) before suspecting network/IP infrastructure. Test it directly: hardcode the known-good identifier in a throwaway CI step and compare status codes from the same runner in the same run — this isolates secret-value bugs from token/network bugs in one API call, no waiting on a second infra channel.
 
 **Time cost**: ~20 min from wake to fix, because the probe workflow escalated one variable at a time (egress IP → curl vs Node fetch → listing vs detail endpoint → hardcoded org) instead of jumping straight to the identifier-substitution test. Next time: when two endpoints on the same token/origin diverge in status code, test identifier substitution first — it's the cheapest experiment that can falsify "it's the network."
+
+---
+
+## 2026-10-16: missing repo label crashed the review triage funnel (lost user feedback, 2+ days)
+
+**Problem**: `scripts/triage-reviews.py` created the triage issue with `gh issue create --label user-feedback`, but the label was never created in the repo. Every scheduled run that found actionable ≤3★ reviews crashed at issue creation (`could not add label: 'user-feedback' not found`), so real Play review feedback was silently dropped (2026-10-13 and 2026-10-15 runs).
+
+**Mistakes**: shipped a workflow whose external side effect (a repo label) was never verified to exist; and nothing surfaced the failed scheduled runs — red cron runs sat unnoticed because a failed scheduled run generates no page.
+
+**Correct pattern**: when a workflow creates a labeled issue, create the label in the same change (or ensure it at runtime), and treat a red scheduled run as lost signal, not noise. The shipped fix makes label problems non-fatal (`ensure_label()` + unlabeled fallback in `create_issue()`) so feedback can never be dropped by a label/permission issue; genuine gh failures still fail the run red.
+
+**Time cost**: ~2–4 days of dropped review signal before a routine state pass caught it. A one-line `gh label create` at workflow-introduction time (or a daily red-run triage) would have prevented it.
