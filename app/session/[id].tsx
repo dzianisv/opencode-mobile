@@ -7,7 +7,6 @@ import {
   TouchableOpacity,
   StyleSheet,
   useColorScheme,
-  KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
   Alert,
@@ -20,6 +19,12 @@ import * as ImagePicker from "expo-image-picker"
 import * as ImageManipulator from "expo-image-manipulator"
 import * as Clipboard from "expo-clipboard"
 import type BottomSheet from "@gorhom/bottom-sheet"
+// KeyboardAvoidingView from react-native-keyboard-controller (not react-native
+// core): core KAV relies on legacy Keyboard events whose metrics misreport
+// under Android's mandatory edge-to-edge mode (Expo SDK 54 / RN 0.81), leaving
+// the composer hidden behind the keyboard. This library drives avoidance from
+// native WindowInsets and is the standard fix for that setup.
+import { KeyboardAvoidingView } from "react-native-keyboard-controller"
 import {
   MessageBubble,
   PermissionPrompt,
@@ -30,6 +35,7 @@ import {
   VariantPicker,
   ImageAttachments,
   SessionInfo,
+  MessageTextSheet,
   type SlashCommand,
   type Attachment,
 } from "../../src/components/chat"
@@ -39,6 +45,7 @@ import { useConnections } from "../../src/stores/connections"
 import { useAuth } from "../../src/stores/auth"
 import { useCatalog } from "../../src/stores/catalog"
 import { useSpeech } from "../../src/lib/speech"
+import { messagePartsToSelectableText } from "../../src/lib/message-text"
 
 // --- Builtin slash commands ---
 const BUILTIN_COMMANDS: SlashCommand[] = [
@@ -85,6 +92,8 @@ export default function SessionScreen() {
   const [input, setInput] = useState("")
   const [attachments, setAttachments] = useState<Attachment[]>([])
   const [showInfo, setShowInfo] = useState(false)
+  // Raw text of the message opened in the full-screen selection sheet
+  const [textSheet, setTextSheet] = useState<string | null>(null)
 
   const {
     currentSession,
@@ -93,6 +102,7 @@ export default function SessionScreen() {
     isLoading,
     loadingMore,
     hasMore,
+    error,
     selectSession,
     sendMessage,
     abortSession,
@@ -190,10 +200,9 @@ export default function SessionScreen() {
     [messages, parts, revertMessageID],
   )
 
-  // Tracks the latest composer text without pulling `input` into
-  // handleMessageLongPress's deps — kept as a plain ref assignment (not
-  // state) so the callback below stays referentially stable across
-  // keystrokes for MessageBubble's custom memo comparator.
+  // Tracks the latest composer text without pulling `input` into startEditFlow's
+  // deps — kept as a plain ref assignment (not state) so the callback stays
+  // referentially stable across keystrokes for MessageBubble's memo comparator.
   const inputRef = useRef(input)
   inputRef.current = input
 
@@ -218,38 +227,62 @@ export default function SessionScreen() {
     )
   }, [t])
 
-  // Stable across renders (reads fresh state via getState() rather than
-  // closing over props) so MessageBubble's custom memo comparator can bail
-  // safely without risking a stale handler.
-  const handleMessageLongPress = useCallback((messageID: string) => {
-    Alert.alert(t("session.alerts.messageActionsTitle"), undefined, [
-      { text: t("common.cancel"), style: "cancel" },
-      {
-        text: t("session.actions.editMessage"),
-        onPress: () => {
-          const doRevert = async () => {
-            const result = await useSessions.getState().revertToMessage(messageID)
-            applyRevertResult(result)
-          }
-          // Editing overwrites the composer — don't silently clobber an
-          // in-progress unsent draft.
-          if (inputRef.current.trim()) {
-            Alert.alert(
-              t("session.alerts.replaceDraftTitle"),
-              t("session.alerts.replaceDraftMessage"),
-              [
-                { text: t("common.cancel"), style: "cancel" },
-                { text: t("session.actions.replace"), style: "destructive", onPress: doRevert },
-              ],
-              { cancelable: false },
-            )
-            return
-          }
-          doRevert()
-        },
-      },
-    ])
-  }, [applyRevertResult, t])
+  // Full-screen selectable view: native text selection can't be trusted inside
+  // FlatList rows on Android (react-native#46999), so selection happens in a
+  // plain ScrollView outside the list. Reached from the assistant bubble's
+  // "Select text" button (a tap — assistant bubbles have no long-press) and
+  // from the user bubble's long-press action sheet. Covers the whole message:
+  // assistant text, reasoning and tool calls (name/input/result/error), not
+  // just text parts. Stable so MessageBubble's memo comparator can bail early.
+  const openSelectTextSheet = useCallback(
+    (messageID: string) => {
+      const messageParts = useSessions.getState().parts[messageID] || []
+      setTextSheet(
+        messagePartsToSelectableText(messageParts, {
+          thinking: t("session.sheet.thinking"),
+          tool: t("session.sheet.tool"),
+          input: t("session.sheet.input"),
+          result: t("session.sheet.result"),
+          error: t("session.sheet.error"),
+          file: t("session.sheet.file"),
+        }),
+      )
+    },
+    [t],
+  )
+
+  // Editing a user message reverts the session to it and loads it into the
+  // composer. Reached from the user bubble's "Edit" button and from its
+  // long-press action sheet. Stable so MessageBubble's memo comparator bails.
+  const startEditFlow = useCallback(
+    (messageID: string) => {
+      const doRevert = async () => {
+        const result = await useSessions.getState().revertToMessage(messageID)
+        applyRevertResult(result)
+      }
+      // Editing overwrites the composer — don't silently clobber an
+      // in-progress unsent draft.
+      if (inputRef.current.trim()) {
+        Alert.alert(
+          t("session.alerts.replaceDraftTitle"),
+          t("session.alerts.replaceDraftMessage"),
+          [
+            { text: t("common.cancel"), style: "cancel" },
+            { text: t("session.actions.replace"), style: "destructive", onPress: doRevert },
+          ],
+          { cancelable: false },
+        )
+        return
+      }
+      doRevert()
+    },
+    [applyRevertResult, t],
+  )
+
+  // Message actions live in the bubble header as buttons (Select text / Edit),
+  // so there is no long-press action sheet here any more — holding a message
+  // must not pop a menu, because a long-press on the bubble competed with
+  // horizontal scrolling in code blocks and with text selection.
 
   const scrollToBottom = useCallback((animated = true) => {
     flatListRef.current?.scrollToOffset({ offset: 0, animated })
@@ -593,19 +626,21 @@ export default function SessionScreen() {
 
       <KeyboardAvoidingView
         style={[s.container, isDark && s.containerDark]}
-        // Both platforms use "padding" so the composer/toolbar is pushed up
-        // above the keyboard via JS-measured keyboard height.
-        //
-        // Android previously relied on the native android:windowSoftInputMode
-        // (adjustResize, see AndroidManifest.xml) with behavior={undefined}
-        // to let the OS resize the window (see #70/#53). Since adopting
-        // Expo's mandatory edge-to-edge display, Android no longer resizes
-        // the window when the keyboard opens — the system assumes insets are
-        // handled dynamically — so adjustResize became a no-op and the
-        // bottom toolbar + input were left completely hidden behind the
-        // keyboard (#147). "padding" restores avoidance without depending
-        // on native resize.
+        // "padding" pushes the composer/toolbar above the keyboard. On Android
+        // the padding is driven by react-native-keyboard-controller's native
+        // inset tracking (see import note above); on iOS by the keyboard frame
+        // events. History: this screen previously used the core RN KAV with
+        // behavior="padding" (#147), which regressed under edge-to-edge — the
+        // core component's JS-measured keyboard height no longer matched the
+        // real inset, so the input stayed hidden behind the keyboard.
         behavior="padding"
+        // automaticOffset: measure this view's true on-screen position via
+        // native viewPositionInWindow instead of the layout-relative frame.
+        // Under RN core edge-to-edge the content area is already inset by
+        // status/nav bars, so layout-relative math under-counts the keyboard
+        // padding by exactly those insets (composer ends up partly behind the
+        // keyboard — measured 609px of padding for an 820px IME inset).
+        automaticOffset
         keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 0}
       >
         {/* Session info pulldown */}
@@ -625,6 +660,23 @@ export default function SessionScreen() {
           }}
           onClose={() => setShowInfo(false)}
         />
+
+        {/* Full-screen selectable text (message action sheet -> "Select text") */}
+        <MessageTextSheet visible={textSheet !== null} text={textSheet ?? ""} onClose={() => setTextSheet(null)} />
+
+        {/* Session error (agent run failed) — session.error SSE event sets
+            this while the user is viewing the session. Dismissible; also
+            cleared by the next send. */}
+        {error && (
+          <View style={[s.banner, s.bannerError]}>
+            <Text style={[s.bannerText, s.bannerErrorText]} numberOfLines={3}>
+              {error}
+            </Text>
+            <TouchableOpacity onPress={() => useSessions.setState({ error: null })} hitSlop={8}>
+              <Text style={s.bannerErrorAction}>{t("session.banners.dismiss")}</Text>
+            </TouchableOpacity>
+          </View>
+        )}
 
         {/* SSE reconnect/connected banner */}
         {reconnectAttempts > 0 && (
@@ -675,7 +727,8 @@ export default function SessionScreen() {
                   message={item.message}
                   parts={item.parts}
                   isDark={isDark}
-                  onLongPress={handleMessageLongPress}
+                  onSelectText={openSelectTextSheet}
+                  onEdit={startEditFlow}
                 />
               )}
               contentContainerStyle={s.messageList}
@@ -1056,6 +1109,17 @@ const s = StyleSheet.create({
   bannerReconnecting: { backgroundColor: "#92400e" },
   bannerConnected: { backgroundColor: "#065f46" },
   bannerText: { color: "#ffffff", fontSize: 13, fontWeight: "500" },
+
+  // Session error banner (agent run failed)
+  bannerError: {
+    backgroundColor: "#991b1b",
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    gap: 12,
+  },
+  bannerErrorAction: { color: "#fecaca", fontSize: 13, fontWeight: "700" },
+  bannerErrorText: { flex: 1 },
 
   // Pending revert (edit message) banner
   bannerRevert: {

@@ -1,3 +1,5 @@
+import type { ServerApi } from "./api-detect"
+
 // Connection types for multiple server support
 export type ConnectionType = "local" | "tunnel" | "cloud"
 
@@ -15,6 +17,12 @@ export interface ServerConnection {
   lastConnected?: number
   // Is this the active connection?
   active?: boolean
+  // Which server API the last probe found. "v1" means the server predates the
+  // /api/ rewrite (opencode <= 1.18.x) and gets the legacy transport from
+  // sdk-v1.ts. Absent means "not probed yet", which behaves as v2.
+  api?: ServerApi
+  // Server version reported by that probe, shown in the connection UI.
+  serverVersion?: string
 }
 
 export interface AppSettings {
