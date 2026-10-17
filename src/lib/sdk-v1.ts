@@ -14,6 +14,9 @@ import { fetch as expoFetch } from "expo/fetch"
 import { buildRequestHeaders } from "./headers"
 import { SSEParser } from "./sse"
 import { apiErrorFor } from "./api-error"
+import { legacyPromptBody } from "./composer-prompt"
+import { permissionReplyRequest } from "./permissions"
+import { readWithIdleTimeout } from "./sse-lifecycle"
 import { loadSessionList } from "./session-list"
 import type { FileRoot } from "./file-roots"
 
@@ -288,7 +291,9 @@ export function createV1Client(config: ClientConfig) {
         let receivedFirstByte = false
         try {
           while (true) {
-            const { done, value } = await reader.read()
+            const chunk = await readWithIdleTimeout(reader)
+            if (chunk === "idle") throw new Error("Event stream idle — no heartbeat received")
+            const { done, value } = chunk
             if (done) {
               console.log("[SSE] stream ended")
               break
@@ -299,7 +304,11 @@ export function createV1Client(config: ClientConfig) {
               console.log(`[SSE] first byte received (${value?.byteLength ?? 0} bytes)`)
             }
 
-            for (const data of parser.push(decoder.decode(value, { stream: true }))) {
+            const frames = parser.push(decoder.decode(value, { stream: true }))
+            if (frames.length === 0 && value?.byteLength) {
+              yield { type: "server.heartbeat", properties: {} }
+            }
+            for (const data of frames) {
               try {
                 yield JSON.parse(data)
               } catch (err) {
@@ -381,6 +390,10 @@ export function createV1Client(config: ClientConfig) {
 
       get: (sessionID: string) => request<Session>(config, `/session/${sessionID}`),
 
+      // Older servers don't expose an authoritative status map. Callers fall
+      // back to the newest message's completed/error state after reconnect.
+      status: async () => null,
+
       create: (params?: { title?: string }) =>
         request<Session>(config, "/session", {
           method: "POST",
@@ -415,7 +428,7 @@ export function createV1Client(config: ClientConfig) {
       ): Promise<void> => {
         const url = `${config.baseUrl}/session/${sessionID}/prompt_async`
         const headers = createHeaders(config)
-        const body = JSON.stringify(params)
+        const body = JSON.stringify(legacyPromptBody(params))
         const response = await fetchWithTimeout(url, {
           method: "POST",
           headers,
@@ -480,11 +493,13 @@ export function createV1Client(config: ClientConfig) {
       list: () =>
         request<Array<{ id: string; sessionID: string; tool: string; input: unknown }>>(config, "/permission"),
 
-      reply: (requestID: string, reply: "once" | "always" | "reject") =>
-        request<boolean>(config, `/permission/${requestID}/reply`, {
+      reply: (requestID: string, reply: "once" | "always" | "reject") => {
+        const endpoint = permissionReplyRequest("v1", requestID, reply)
+        return request<boolean>(config, endpoint.path, {
           method: "POST",
-          body: JSON.stringify({ reply }),
-        }),
+          body: JSON.stringify(endpoint.body),
+        })
+      },
     },
 
     question: {

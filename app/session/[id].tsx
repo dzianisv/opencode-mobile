@@ -7,6 +7,8 @@ import {
   TouchableOpacity,
   StyleSheet,
   useColorScheme,
+  useWindowDimensions,
+  Keyboard,
   Platform,
   ActivityIndicator,
   Alert,
@@ -46,6 +48,7 @@ import { useAuth } from "../../src/stores/auth"
 import { useCatalog } from "../../src/stores/catalog"
 import { useSpeech } from "../../src/lib/speech"
 import { messagePartsToSelectableText } from "../../src/lib/message-text"
+import { composerMaxHeight, keyboardVerticalOffset } from "../../src/lib/session-layout"
 
 // --- Builtin slash commands ---
 const BUILTIN_COMMANDS: SlashCommand[] = [
@@ -84,16 +87,32 @@ export default function SessionScreen() {
   const colorScheme = useColorScheme()
   const isDark = colorScheme === "dark"
   const insets = useSafeAreaInsets()
+  const { height: windowHeight, fontScale } = useWindowDimensions()
   const { t } = useTranslation()
 
   const flatListRef = useRef<FlatList>(null)
   const modelSheetRef = useRef<BottomSheet>(null)
   const variantSheetRef = useRef<BottomSheet>(null)
   const [input, setInput] = useState("")
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const submittingRef = useRef(false)
+  const [keyboardY, setKeyboardY] = useState<number | null>(null)
   const [attachments, setAttachments] = useState<Attachment[]>([])
   const [showInfo, setShowInfo] = useState(false)
   // Raw text of the message opened in the full-screen selection sheet
   const [textSheet, setTextSheet] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (Platform.OS !== "android") return
+    const show = Keyboard.addListener("keyboardDidShow", (event) => setKeyboardY(event.endCoordinates.screenY))
+    const hide = Keyboard.addListener("keyboardDidHide", () => setKeyboardY(null))
+    setKeyboardY(Keyboard.metrics()?.screenY ?? null)
+    return () => {
+      show.remove()
+      hide.remove()
+    }
+  }, [])
+  const inputMaxHeight = composerMaxHeight(Platform.OS, windowHeight, keyboardY, insets.top, fontScale)
 
   const {
     currentSession,
@@ -104,6 +123,9 @@ export default function SessionScreen() {
     hasMore,
     error,
     selectSession,
+    loadDraft,
+    setDraft,
+    clearDraft,
     sendMessage,
     abortSession,
     loadOlderMessages,
@@ -111,16 +133,36 @@ export default function SessionScreen() {
     unrevertSession,
   } = useSessions()
 
+  // The native stack keeps inactive session screens mounted while another
+  // route is selected. Until this route's focus load finishes, the single
+  // session store can still contain the previous route's data.
+  const currentSessionMatchesRoute = currentSession?.id === id
+  const selectedSession = currentSessionMatchesRoute ? currentSession : null
+
+  const inputRef = useRef(input)
+  inputRef.current = input
+  const inputRevision = useRef(0)
+  const setComposerInput = useCallback((update: string | ((previous: string) => string)) => {
+    const next = typeof update === "function" ? update(inputRef.current) : update
+    inputRevision.current += 1
+    inputRef.current = next
+    setInput(next)
+    if (id) {
+      if (next.length > 0) setDraft(id, next)
+      else clearDraft(id)
+    }
+  }, [clearDraft, id, setDraft])
+
   // Derive sending state for this specific session
-  const isSending = useSessions((s) => !!(currentSession && s.sending[currentSession.id]))
+  const isSending = useSessions((s) => !!(id && s.sending[id]))
 
   const { authenticateForMessage } = useAuth()
   const { client, clientForDirectory } = useConnections()
 
   // Use directory-aware client for sessions that belong to a project other than the active one
   const sessionClient = useMemo(
-    () => (currentSession?.directory ? (clientForDirectory(currentSession.directory) ?? client) : client),
-    [currentSession?.directory, clientForDirectory, client],
+    () => (selectedSession?.directory ? (clientForDirectory(selectedSession.directory) ?? client) : client),
+    [selectedSession?.directory, clientForDirectory, client],
   )
 
   // Catalog
@@ -136,11 +178,11 @@ export default function SessionScreen() {
   const cycleAgent = catalog.cycleAgent
 
   // Permission & question state
-  const sessionID = currentSession?.id
+  const sessionID = id
   const permissions = useEvents((s) => (sessionID ? s.permissions[sessionID] : undefined)) || []
   const questions = useEvents((s) => (sessionID ? s.questions[sessionID] : undefined)) || []
 
-  const shortDir = getShortDir(currentSession?.directory)
+  const shortDir = getShortDir(selectedSession?.directory)
   const [showScrollButton, setShowScrollButton] = useState(false)
 
   // SSE reconnect banner
@@ -151,8 +193,8 @@ export default function SessionScreen() {
   // Voice input — transcript appends to the text input on completion
   const speech = useSpeech(
     useCallback((text: string) => {
-      setInput((prev) => (prev ? prev + " " + text : text))
-    }, []),
+      setComposerInput((prev) => (prev ? prev + " " + text : text))
+    }, [setComposerInput]),
   )
 
   // Surface speech recognition failures (e.g. mic permission denied). Keyed
@@ -185,27 +227,26 @@ export default function SessionScreen() {
   // "temp-" IDs (assigned client-side before the server responds, see
   // sendMessage) aren't part of that sort order — always keep them so a
   // message sent concurrently with a revert isn't hidden.
-  const revertMessageID = currentSession?.revert?.messageID
+  const revertMessageID = selectedSession?.revert?.messageID
 
   // Inverted FlatList: data is reversed (newest first) so newest renders at bottom
   const messageData = useMemo(
     () =>
-      (messages || [])
+      currentSessionMatchesRoute
+        ? (messages || [])
         .filter((msg) => !revertMessageID || msg.id.startsWith("temp-") || msg.id < revertMessageID)
         .map((msg) => ({
           message: msg,
           parts: (parts && parts[msg.id]) || [],
         }))
-        .reverse(),
-    [messages, parts, revertMessageID],
+        .reverse()
+        : [],
+    [currentSessionMatchesRoute, messages, parts, revertMessageID],
   )
 
   // Tracks the latest composer text without pulling `input` into startEditFlow's
   // deps — kept as a plain ref assignment (not state) so the callback stays
   // referentially stable across keystrokes for MessageBubble's memo comparator.
-  const inputRef = useRef(input)
-  inputRef.current = input
-
   const applyRevertResult = useCallback((result: Awaited<ReturnType<typeof revertToMessage>>) => {
     if (!result.ok) {
       if (result.reason === "unsupported") {
@@ -217,7 +258,7 @@ export default function SessionScreen() {
       }
       return
     }
-    setInput(result.text)
+    setComposerInput(result.text)
     // Restore attachments in the same shape the composer's own picker
     // functions (pickFromLibrary/pickFromCamera/pasteFromClipboard) use.
     setAttachments(
@@ -225,7 +266,7 @@ export default function SessionScreen() {
         .filter((f): f is typeof f & { url: string; mime: string } => !!f.url && !!f.mime)
         .map((f) => ({ uri: f.url, mime: f.mime, filename: f.filename })),
     )
-  }, [t])
+  }, [setComposerInput, t])
 
   // Full-screen selectable view: native text selection can't be trusted inside
   // FlatList rows on Android (react-native#46999), so selection happens in a
@@ -298,6 +339,20 @@ export default function SessionScreen() {
   useFocusEffect(
     useCallback(() => {
       if (!id) return
+      // Load the session-specific encrypted draft on focus. The revision guard
+      // prevents a slower SecureStore read from overwriting text typed while it
+      // was in flight, and `focused` prevents a previous route's read landing
+      // after the user switches sessions.
+      let focused = true
+      const revision = ++inputRevision.current
+      inputRef.current = ""
+      setInput("")
+      void loadDraft(id).then((draft) => {
+        if (!focused || inputRevision.current !== revision) return
+        inputRef.current = draft
+        setInput(draft)
+      }).catch((err) => console.warn("[Session] Failed to restore composer draft:", err))
+
       selectSession(id, directory).then(() => {
         // Re-fetch pending permissions/questions from the server to recover from
         // missed SSE events or failed optimistic removals
@@ -305,11 +360,13 @@ export default function SessionScreen() {
         const c = directory ? (connState.clientForDirectory(directory) ?? connState.client) : connState.client
         if (c) refreshPending(c, id)
       })
-    }, [id, directory]),
+      return () => { focused = false }
+    }, [id, directory, loadDraft, selectSession]),
   )
 
   // Sync model chip from latest assistant message
   useEffect(() => {
+    if (!currentSessionMatchesRoute) return
     if (!messages || messages.length === 0) return
     for (let i = messages.length - 1; i >= 0; i--) {
       const msg = messages[i]
@@ -322,7 +379,7 @@ export default function SessionScreen() {
         return
       }
     }
-  }, [currentSession?.id, messages?.length])
+  }, [currentSessionMatchesRoute, currentSession?.id, messages?.length])
 
   // Slash command handler
   const handleSlashSelect = useCallback(
@@ -333,18 +390,18 @@ export default function SessionScreen() {
             router.back()
             return
           case "model":
-            setInput("")
+            setComposerInput("")
             modelSheetRef.current?.expand()
             return
           case "agent":
-            setInput("")
+            setComposerInput("")
             cycleAgent()
             return
         }
       }
-      setInput(`/${cmd.trigger} `)
+      setComposerInput(`/${cmd.trigger} `)
     },
-    [router, cycleAgent],
+    [router, cycleAgent, setComposerInput],
   )
 
   // --- Image picking ---
@@ -427,12 +484,12 @@ export default function SessionScreen() {
     if (hasText) {
       const text = await Clipboard.getStringAsync()
       if (text) {
-        setInput((prev) => prev + text)
+        setComposerInput((prev) => prev + text)
         return
       }
     }
     Alert.alert(t("session.alerts.emptyClipboardTitle"), t("session.alerts.emptyClipboardMessage"))
-  }, [t])
+  }, [setComposerInput, t])
 
   const removeAttachment = useCallback((index: number) => {
     setAttachments((prev) => prev.filter((_, i) => i !== index))
@@ -440,46 +497,62 @@ export default function SessionScreen() {
 
   // --- Send ---
   const handleSend = async () => {
-    if (!input.trim() && attachments.length === 0) return
-    const authenticated = await authenticateForMessage()
-    if (!authenticated) {
-      Alert.alert(t("session.alerts.authRequiredTitle"), t("session.alerts.authRequiredMessage"))
-      return
+    if (submittingRef.current) return
+    const text = inputRef.current
+    const files = [...attachments]
+    if (!text.trim() && files.length === 0) return
+    submittingRef.current = true
+    setIsSubmitting(true)
+
+    const sessionID = selectedSession?.id
+    const clearSubmittedDraft = () => {
+      // Text entry is disabled while the request is pending. Still compare the
+      // value so a programmatic edit (e.g. a route/revert action) is never lost.
+      if (inputRef.current === text) {
+        inputRef.current = ""
+        setInput("")
+        if (sessionID) clearDraft(sessionID)
+      }
+      setAttachments((current) => current.filter((file) => !files.includes(file)))
     }
 
-    const text = input.trim()
-    const files = [...attachments]
-    setInput("")
-    setAttachments([])
+    try {
+      const authenticated = await authenticateForMessage()
+      if (!authenticated) {
+        Alert.alert(t("session.alerts.authRequiredTitle"), t("session.alerts.authRequiredMessage"))
+        return
+      }
+      if (!currentSessionMatchesRoute || !selectedSession) return
 
-    // Server slash commands (no attachments for commands)
-    if (text.startsWith("/") && files.length === 0) {
-      const [cmdName, ...args] = text.split(" ")
-      const name = cmdName.slice(1)
-      const match = serverCommands.find((c) => c.name === name)
-      if (match && sessionClient && currentSession) {
-        sessionClient.session
-          .command(currentSession.id, {
+      // Server slash commands are parsed as commands; regular prompts are sent
+      // byte-for-byte as composed, including leading/trailing whitespace.
+      if (text.startsWith("/") && files.length === 0) {
+        const [cmdName, ...args] = text.trim().split(" ")
+        const name = cmdName.slice(1)
+        const match = serverCommands.find((c) => c.name === name)
+        if (match && sessionClient) {
+          await sessionClient.session.command(selectedSession.id, {
             command: name,
             arguments: args.join(" "),
             agent,
             model: model ? `${model.providerID}/${model.modelID}` : undefined,
           })
-          .catch((err) => console.error("Command failed:", err))
-        return
+          clearSubmittedDraft()
+          return
+        }
       }
-    }
 
-    // Messages are queued server-side when the session is busy.
-    // No need to abort - just send and it will be processed after current response.
-    try {
+      // Messages are queued server-side when the session is busy. Keep the
+      // encrypted draft and attachments until the submission POST is accepted.
       await sendMessage(text, model || undefined, agent || undefined, files, variant || undefined)
+      clearSubmittedDraft()
     } catch (err) {
       console.error("Send failed:", err)
-      // Restore the user's text and attachments so their input isn't lost.
-      setInput((prev) => (prev ? prev : text))
-      setAttachments((prev) => (prev.length ? prev : files))
+      // Nothing was cleared, so the complete draft remains available to retry.
       Alert.alert(t("session.alerts.sendFailedTitle"), t("session.alerts.sendFailedMessage"))
+    } finally {
+      submittingRef.current = false
+      setIsSubmitting(false)
     }
   }
 
@@ -603,7 +676,7 @@ export default function SessionScreen() {
     <>
       <Stack.Screen
         options={{
-          title: currentSession?.title || t("session.titleFallback"),
+          title: selectedSession?.title || t("session.titleFallback"),
           headerRight: () => (
             <View style={s.headerRight}>
               {shortDir && (
@@ -641,11 +714,11 @@ export default function SessionScreen() {
         // padding by exactly those insets (composer ends up partly behind the
         // keyboard — measured 609px of padding for an 820px IME inset).
         automaticOffset
-        keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 0}
+        keyboardVerticalOffset={keyboardVerticalOffset(Platform.OS, insets.top)}
       >
         {/* Session info pulldown */}
         <SessionInfo
-          session={currentSession}
+          session={selectedSession}
           messages={messages || []}
           providers={providers}
           visible={showInfo}
@@ -701,7 +774,7 @@ export default function SessionScreen() {
                 // The composer was prefilled with the reverted message's text/
                 // attachments (see applyRevertResult) — clear it so Undo doesn't
                 // leave a stale draft that could be sent as a duplicate.
-                setInput("")
+                setComposerInput("")
                 setAttachments([])
               }}
               hitSlop={8}
@@ -765,7 +838,7 @@ export default function SessionScreen() {
         )}
 
         {/* Status */}
-        {currentSession && <StatusIndicator sessionID={currentSession.id} isDark={isDark} />}
+        {selectedSession && <StatusIndicator sessionID={selectedSession.id} isDark={isDark} />}
 
         {/* Permissions */}
         {permissions.map((perm) => (
@@ -849,7 +922,7 @@ export default function SessionScreen() {
             </TouchableOpacity>
 
             <TextInput
-              style={[s.input, isDark && s.inputDark, speech.listening && s.inputListening]}
+              style={[s.input, isDark && s.inputDark, speech.listening && s.inputListening, { maxHeight: inputMaxHeight }]}
               placeholder={
                 speech.listening
                   ? t("session.input.placeholderListening")
@@ -859,10 +932,10 @@ export default function SessionScreen() {
               }
               placeholderTextColor={speech.listening ? "#ef4444" : isDark ? "#666666" : "#999999"}
               value={speech.listening ? speech.transcript : input}
-              onChangeText={speech.listening ? undefined : setInput}
-              editable={!speech.listening}
+              onChangeText={speech.listening ? undefined : setComposerInput}
+              editable={!speech.listening && !isSubmitting}
               multiline
-              maxLength={10000}
+              scrollEnabled
               testID="chat-message-input"
             />
             {/* Stop button: only when busy and no input */}
@@ -885,7 +958,7 @@ export default function SessionScreen() {
             )}
             {/* Send button: when there's input */}
             {!speech.listening && (input.trim() || attachments.length > 0) && (
-              <TouchableOpacity style={s.sendBtn} onPress={handleSend} testID="chat-send-button">
+              <TouchableOpacity style={s.sendBtn} onPress={handleSend} disabled={isSubmitting} testID="chat-send-button">
                 <Ionicons name="send" size={20} color="#ffffff" />
               </TouchableOpacity>
             )}

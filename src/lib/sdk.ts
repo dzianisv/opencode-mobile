@@ -16,6 +16,7 @@ import { apiErrorFor, isAuthStatus } from "./api-error"
 import { loadSessionList } from "./session-list"
 import { v2PromptBody } from "./composer-prompt"
 import { readWithIdleTimeout } from "./sse-lifecycle"
+import { permissionReplyRequest } from "./permissions"
 import type { FileRoot } from "./file-roots"
 import { createV1Client } from "./sdk-v1"
 import { apiForUnprobedServer, detectServerApi, type ProbeRequest, type ServerApi, type ServerIdentity } from "./api-detect"
@@ -484,6 +485,32 @@ function createV2Client(config: ClientConfig) {
 
       get: getSession,
 
+      status: async (): Promise<Record<string, { type: "idle" | "busy" | "retry"; attempt?: number; message?: string }> | null> => {
+        try {
+          // Present on the latest stable v1.19.x HTTP API and current v2 API.
+          return await request(config, appendQuery("/api/session/status", loc()))
+        } catch (err) {
+          if (!(err instanceof ApiError) || err.status !== 404) throw err
+          // Early v2 builds exposed an active-only map instead. A missing
+          // session in that response is idle; keep this 404-only fallback.
+          try {
+            const body = await request<{ data?: Record<string, { type?: string; attempt?: number; message?: string }> }>(
+              config,
+              appendQuery("/api/session/active", loc()),
+            )
+            return Object.fromEntries(Object.entries(body.data || {}).map(([sessionID, value]) => [
+              sessionID,
+              value.type === "retry"
+                ? { type: "retry" as const, attempt: value.attempt, message: value.message }
+                : { type: "busy" as const },
+            ]))
+          } catch (fallbackError) {
+            if (fallbackError instanceof ApiError && fallbackError.status === 404) return null
+            throw fallbackError
+          }
+        }
+      },
+
       create: async (params?: { title?: string }): Promise<Session> => {
         const body = await request<{ data: V2SessionInfo }>(config, "/api/session", {
           method: "POST",
@@ -641,11 +668,10 @@ function createV2Client(config: ClientConfig) {
       reply: async (requestID: string, reply: "once" | "always" | "reject"): Promise<boolean> => {
         const known = pendingRequestInfo(requestID)
         if (!known) throw new Error(`Unknown permission request: ${requestID}`)
-        await request<void>(config, `/api/session/${known.sessionID}/permission/${requestID}/reply`, {
+        const endpoint = permissionReplyRequest("v2", requestID, reply, known.sessionID)
+        await request<void>(config, endpoint.path, {
           method: "POST",
-          // v1.19.3's /api route accepts the same `reply` field as v1; the
-          // server's public Permission.ReplyBody schema is authoritative here.
-          body: JSON.stringify({ reply }),
+          body: JSON.stringify(endpoint.body),
         })
         return true
       },

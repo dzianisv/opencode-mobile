@@ -1,6 +1,6 @@
 import assert from "node:assert/strict"
 import test from "node:test"
-import { mergePendingPermissions, normalizePermissionEvent } from "./permissions.ts"
+import { mergePendingPermissions, normalizePermissionEvent, permissionReplyRequest } from "./permissions.ts"
 
 test("normalizes legacy permission asks", () => {
   assert.deepEqual(normalizePermissionEvent({ type: "permission.asked", properties: {
@@ -24,4 +24,21 @@ test("deduplicates replayed IDs and lets the latest request data win", () => {
     id: "p", sessionID: "s", action: "bash", resources: ["safe"],
   } })!
   assert.deepEqual(mergePendingPermissions([item], [item]), [item])
+})
+
+for (const reply of ["once", "always", "reject"] as const) {
+  test(`builds the v1 and v2 ${reply} reply endpoint and wire value`, () => {
+    assert.deepEqual(permissionReplyRequest("v1", "per_1", reply), {
+      path: "/permission/per_1/reply",
+      body: { reply },
+    })
+    assert.deepEqual(permissionReplyRequest("v2", "per_1", reply, "ses_1"), {
+      path: "/api/session/ses_1/permission/per_1/reply",
+      body: { reply },
+    })
+  })
+}
+
+test("v2 reply refuses to form a global request without the owning session", () => {
+  assert.throws(() => permissionReplyRequest("v2", "per_1", "once"), /requires its sessionID/)
 })
