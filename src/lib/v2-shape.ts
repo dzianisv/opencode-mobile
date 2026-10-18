@@ -595,12 +595,24 @@ export class V2EventTranslator {
         return [ev("session.status", { sessionID, status: { type: "busy" } })]
 
       case "session.execution.succeeded":
-      case "session.execution.interrupted":
+      case "session.execution.interrupted": {
+        if (!sessionID) return []
+        return [ev("session.status", { sessionID, status: { type: "idle" } })]
+      }
+
       case "session.execution.failed": {
         if (!sessionID) return []
         const out: Event[] = []
-        if (raw.type === "session.execution.failed") {
-          out.push(ev("session.error", { sessionID, error: { message: structuredErrorMessage(d.error) } }))
+        const errorMessage = structuredErrorMessage(d.error)
+        out.push(ev("session.error", { sessionID, error: { message: errorMessage } }))
+        let latest: Message | undefined
+        for (const m of this.assistants.values()) {
+          if (m.sessionID === sessionID) latest = m
+        }
+        if (latest) {
+          const msg: Message = { ...latest, error: { message: errorMessage } }
+          this.assistants.set(latest.id, msg)
+          out.push(ev("message.updated", { info: msg }))
         }
         out.push(ev("session.status", { sessionID, status: { type: "idle" } }))
         return out
