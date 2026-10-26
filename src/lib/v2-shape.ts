@@ -37,6 +37,8 @@ export interface V2SessionInfo {
   revert?: { messageID: string; partID?: string }
   location: V2LocationRef
   time: { created: number; updated: number; archived?: number; idle?: number }
+  cost?: number
+  tokens?: V2Tokens
 }
 
 export interface V2ToolContent {
@@ -223,6 +225,8 @@ export function toSession(info: V2SessionInfo): Session {
       updated: info.time?.updated ?? 0,
       archived: info.time?.archived,
     },
+    cost: info.cost,
+    tokens: info.tokens,
     revert: info.revert ? { messageID: info.revert.messageID, partID: info.revert.partID } : undefined,
   }
 }
@@ -652,21 +656,12 @@ export class V2EventTranslator {
       }
 
       case "session.usage.updated": {
-        // Usage lands per-run; attribute it to the latest assistant message we
-        // synthesized for this session (what the token/cost UI reads).
         if (!sessionID) return []
-        let latest: Message | undefined
-        for (const m of this.assistants.values()) {
-          if (m.sessionID === sessionID) latest = m
-        }
-        if (!latest) return []
-        const msg: Message = {
-          ...latest,
-          cost: d.cost ?? latest.cost,
-          tokens: d.tokens ? { input: d.tokens.input, output: d.tokens.output, reasoning: d.tokens.reasoning, cache: d.tokens.cache } : latest.tokens,
-        }
-        this.assistants.set(latest.id, msg)
-        return [ev("message.updated", { info: msg })]
+        return [ev("session.usage.updated", {
+          sessionID,
+          cost: d.cost,
+          tokens: d.tokens ? { input: d.tokens.input, output: d.tokens.output, reasoning: d.tokens.reasoning, cache: d.tokens.cache } : undefined,
+        })]
       }
 
       case "session.text.started":

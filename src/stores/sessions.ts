@@ -622,6 +622,22 @@ export const useSessions = create<SessionsState>((set, get) => ({
         }))
         break
       }
+
+      case "session.usage.updated": {
+        const sessionID = props.sessionID as string | undefined
+        if (!sessionID) return
+        const usage = {
+          ...(typeof props.cost === "number" ? { cost: props.cost } : {}),
+          ...(props.tokens ? { tokens: props.tokens as Session["tokens"] } : {}),
+        }
+        set((state) => ({
+          sessions: state.sessions.map((session) => session.id === sessionID ? { ...session, ...usage } : session),
+          currentSession: state.currentSession?.id === sessionID
+            ? { ...state.currentSession, ...usage }
+            : state.currentSession,
+        }))
+        break
+      }
     }
   },
 }))

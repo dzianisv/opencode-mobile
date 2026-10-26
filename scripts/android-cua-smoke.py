@@ -1339,15 +1339,15 @@ def run_scenario_hello_world_e2e(
 
     # ------------------------------------------------------------------
     # Phase 2: Create session in specific project directory
-    # The '+' FAB long-press opens a modal with a custom directory input.
+    # The '+' FAB opens a modal with a custom directory input.
     # ------------------------------------------------------------------
     ok = _phase(
         "open_project",
         goal=(
             "You are on the Sessions list screen of OpenCode Mobile. "
             "You need to create a NEW session in a specific project directory. "
-            "To do this: LONG-PRESS the '+' button (FAB, bottom-right corner) — "
-            "hold it for 1 second until a modal sheet appears. "
+            "To do this: tap the '+' button (FAB, bottom-right corner) "
+            "to open the new-session sheet. "
             "The modal will show 'Current Directory' and a text input labelled "
             "'Or use a different folder'. "
             f"Tap that text input and type the path: {project_dir} "

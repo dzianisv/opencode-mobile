@@ -51,6 +51,13 @@ export interface Session {
     deletions: number
     files: number
   }
+  cost?: number
+  tokens?: {
+    input: number
+    output: number
+    reasoning?: number
+    cache?: { read: number; write: number }
+  }
   // Present while a message (and everything after it) is pending revert —
   // the server keeps the underlying messages until the next prompt/summarize
   // call runs cleanup (or the revert is undone via session.unrevert).

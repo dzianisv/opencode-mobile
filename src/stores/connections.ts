@@ -79,7 +79,7 @@ function buildClient(
 // Decide which transport a connection needs. A recorded probe is reused; a
 // connection saved before this existed (or saved while the server was down) is
 // probed once here and the answer is written back onto the stored record. When
-// the probe cannot classify the server we keep the previous behaviour (v2)
+  // the probe cannot classify the server we keep the previous behavior (v1)
 // instead of refusing to load a connection the user can still see and edit.
 async function resolveApi(
   connection: ServerConnection,

@@ -34,7 +34,7 @@ for (const reply of ["once", "always", "reject"] as const) {
     })
     assert.deepEqual(permissionReplyRequest("v2", "per_1", reply, "ses_1"), {
       path: "/api/session/ses_1/permission/per_1/reply",
-      body: { reply },
+      body: { decision: reply },
     })
   })
 }

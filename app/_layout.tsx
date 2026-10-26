@@ -94,7 +94,9 @@ function RootLayout() {
       if (!last) return
       const connections = useConnections.getState()
       if (last.connectionID && connections.activeConnection?.id !== last.connectionID) return
-      router.replace({
+      // Keep the sessions tab underneath the restored screen so Back remains
+      // available after process recreation.
+      router.push({
         pathname: "/session/[id]",
         params: { id: last.sessionID, ...(last.directory ? { directory: last.directory } : {}) },
       } as never)

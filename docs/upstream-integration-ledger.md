@@ -1,15 +1,14 @@
 # Upstream integration ledger
 
-This branch was compared against all 19 open upstream pull requests in
-`dzianisv/opencode-mobile` as of 2026-10-17. The purpose was to carry over
-fixes addressing Android reliability, prompt retention, and OpenCode API
-compatibility without replacing the fork's PR #216 base.
+This branch was reconciled with upstream `main` as of 2026-10-26 after PRs #216
+and #217 merged. It carries only the remaining Android reliability, prompt
+retention, and OpenCode API compatibility work.
 
 ## Integrated
 
 | PR | Purpose | Status | Implementation |
 | --- | --- | --- | --- |
-| #209 | OpenCode v2 server support with v1 compatibility | **Integrated** | Commit `4bf0380` plus working-tree extensions. The app detects v1/v2 transports via content-type probing and maps v2 session, message, event, form, provider, and permission shapes onto existing interfaces. PermissionV2 uses current event names (`permission.v2.asked`/`permission.v2.replied`), `source.callID`, and `{reply}` wire body. See [`v2-api-map.md`](v2-api-map.md). |
+| #209 | OpenCode v2 server support with v1 compatibility | **Authoritative base** | Original commit `bb395bef` was applied as `f527aa6`, preserving bluetoe-99's authorship, then resolved semantically against merged #216. `sdk.ts`, `sdk-v1.ts`, and `v2-shape.ts` remain the single transport/normalization implementation; PR #218 layers lifecycle, drafts, reconciliation, and long-prompt integrity rather than maintaining a competing adapter. |
 | #211 | Distinguish 401 with no credentials from rejected credentials | **Integrated** | Commit `83da1ac`. Diagnostics differentiate an authentication challenge when no credentials were sent from a rejection of supplied credentials. |
 | #191 | Preserve per-session message drafts | **Adapted** | `src/lib/session-drafts.ts` and `src/stores/sessions.ts` implement encrypted per-session draft storage using SecureStore. Drafts flush on background and restore after process recreation. |
 
@@ -28,7 +27,8 @@ compatibility without replacing the fork's PR #216 base.
 
 | PR | Purpose | Status | Decision |
 | --- | --- | --- | --- |
-| #217 | Never lose Play review feedback to a missing label | **Rejected** | Play Store tooling concern; unrelated to app stability or API compatibility. |
+| #217 | Never lose Play review feedback to a missing label | **Already merged** | Present in upstream `main` as `7d2acc8`; not duplicated here. |
+| #216 | PermissionV2 and keyboard avoidance | **Already merged** | Present in upstream `main` as `c980c9e`; conflict resolution retained its normalizer and avoided duplicate commits. |
 | #215 | Navigate previous and next message starts | **Rejected** | Chat navigation feature; orthogonal to stability/API work. |
 | #200 | Title swarm delegation rows | **Rejected** | Chat UI label fix; unrelated to this branch's scope. |
 | #199 | Link repository and publisher on F-Droid and in Settings | **Rejected** | Metadata/branding change; not a stability fix. |
@@ -40,7 +40,5 @@ compatibility without replacing the fork's PR #216 base.
 
 ## Verification status
 
-- `npm run typecheck` passes.
-- The Node 22 test run passes all 395 tests.
-- `./gradlew assembleRelease` succeeds with Node 22 and Sentry auto-upload disabled. The resulting APK reports application ID `cc.agentlabs.opencode.test`, keeping it installable alongside the production app.
-- No Android device was attached during this run, so the APK has not been installed or lifecycle-tested on-device. Live OpenCode v2 server interoperability also remains to be exercised against a running v2 server.
+- Production identity remains `cc.agentlabs.opencode`; the isolated `testRelease` build type adds `.test` and the name `OpenCode Test` without production signing material.
+- Verification results and the final APK manifest/hash are recorded in the PR description and build manifest after the final build.

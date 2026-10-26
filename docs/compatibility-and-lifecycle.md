@@ -6,7 +6,7 @@
 | --- | --- | --- |
 | opencode 1.18.x (v1) | **Supported** | The original transport in `src/lib/sdk-v1.ts`. Still the common case via `npm install -g opencode-ai`. |
 | opencode 1.19.x (v1) | **Supported** | Same v1 transport; no breaking API changes observed. |
-| opencode 2.x (v2) | **Supported (unit-tested)** | The v2 transport in `src/lib/sdk.ts` with `src/lib/v2-shape.ts` normalization. Live server interoperability not yet verified. |
+| opencode 2.x (v2) | **Supported (captured/live-probe tested)** | The v2 transport in `src/lib/sdk.ts` with `src/lib/v2-shape.ts` normalization. PR #209 verified v2.0.16; the current branch still requires a fresh end-to-end run against an available v2 server. |
 
 ## Version/capability detection
 
@@ -31,7 +31,7 @@ default to v1 behavior.
 ### v2 (current)
 
 - Event: `permission.v2.asked` with `source.callID` and nested `PermissionV2` shape.
-- Reply: `POST /api/session/{id}/permission/{requestID}/reply` with `{reply: "once"|"always"|"reject"}`.
+- Reply: `POST /api/session/{id}/permission/{requestID}/reply`. v2.0.16 uses `{decision}`; newer PermissionV2 builds use `{reply}`. The client retries only 400/422 schema failures with the newer field.
 - Some v2 builds also emit `permission.asked` / `permission.replied`; the translator accepts both shapes.
 
 See [`v2-api-map.md`](v2-api-map.md) for the full protocol map.
@@ -64,7 +64,7 @@ The `TransportState` type in `src/lib/sse-lifecycle.ts` tracks:
 
 ### Idle connection detection
 
-A half-open SSE read times out (configurable, default 60s) and cancels its reader. This prevents the app from showing a "connected" state when the server has stopped sending data.
+A half-open SSE read times out after 45 seconds and cancels its reader. This allows three missed 15-second v2 heartbeats before treating the stream as dead.
 
 ## Session recovery
 
@@ -87,10 +87,11 @@ A half-open SSE read times out (configurable, default 60s) and cancels its reade
 
 ## Pending permission and question reconciliation
 
-- On reconnect, `refreshAllPending()` fetches all pending permissions and questions from the server.
+- On the first live event stream and after reconnect, `refreshAllPending()` fetches pending permissions and questions from the server.
 - New items trigger notifications with generic lock-screen text.
 - Existing items are deduplicated by ID.
-- The pending registry is updated atomically.
+- A revision guard prevents a stale list response from overwriting a newer SSE ask/reply.
+- Reply failures reconcile with the server instead of restoring stale snapshots that another client may already have resolved.
 
 ## Draft persistence
 
@@ -123,5 +124,5 @@ A half-open SSE read times out (configurable, default 60s) and cancels its reade
 - **Keyboard behavior**: Layout helpers are unit-tested, but actual IME interaction varies by device and keyboard app.
 - **SSE lifecycle**: Reconnection logic is unit-tested with mocked streams, but real network interruption and server restart behavior requires device testing.
 - **Process recreation**: Session restoration is implemented but requires device testing to verify across actual process death scenarios.
-- **OpenCode v2 live compatibility**: Protocol shapes are unit-tested against captured v2 events, but a live v2 server has not been tested.
+- **OpenCode v2 live compatibility**: PR #209 verified v2.0.16 and the user has connected this app to a 2.x server, but the current integration branch has not completed the full live matrix in this document.
 - **Long-prompt server acceptance**: Client-side tests verify prompt integrity, but server-side acceptance of very long prompts depends on the server's configuration.

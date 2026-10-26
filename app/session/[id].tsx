@@ -591,64 +591,59 @@ export default function SessionScreen() {
 
   const handlePermissionReply = async (requestID: string, reply: "once" | "always" | "reject") => {
     if (!sessionClient || !sessionID) return
-    // Snapshot for rollback
-    const snapshot = useEvents.getState().permissions[sessionID] || []
     // Optimistically remove from UI
     useEvents.setState((state) => ({
       permissions: {
         ...state.permissions,
-        [sessionID]: snapshot.filter((p) => p.id !== requestID),
+        [sessionID]: (state.permissions[sessionID] || []).filter((p) => p.id !== requestID),
       },
     }))
     try {
       await sessionClient.permission.reply(requestID, reply)
     } catch (err) {
       console.error("Permission reply failed:", err)
-      // Restore the prompt so the user can retry
-      useEvents.setState((state) => ({
-        permissions: { ...state.permissions, [sessionID]: snapshot },
-      }))
-      Alert.alert(t("session.alerts.replyFailedTitle"), t("session.alerts.replyFailedMessage"))
+      await refreshPending(sessionClient, sessionID)
+      if ((useEvents.getState().permissions[sessionID] || []).some((permission) => permission.id === requestID)) {
+        Alert.alert(t("session.alerts.replyFailedTitle"), t("session.alerts.replyFailedMessage"))
+      }
     }
   }
 
   const handleQuestionReply = async (requestID: string, answers: string[][]) => {
     if (!sessionClient || !sessionID) return
-    const snapshot = useEvents.getState().questions[sessionID] || []
     useEvents.setState((state) => ({
       questions: {
         ...state.questions,
-        [sessionID]: snapshot.filter((q) => q.id !== requestID),
+        [sessionID]: (state.questions[sessionID] || []).filter((q) => q.id !== requestID),
       },
     }))
     try {
       await sessionClient.question.reply(requestID, answers)
     } catch (err) {
       console.error("Question reply failed:", err)
-      useEvents.setState((state) => ({
-        questions: { ...state.questions, [sessionID]: snapshot },
-      }))
-      Alert.alert(t("session.alerts.replyFailedTitle"), t("session.alerts.replyFailedMessage"))
+      await refreshPending(sessionClient, sessionID)
+      if ((useEvents.getState().questions[sessionID] || []).some((question) => question.id === requestID)) {
+        Alert.alert(t("session.alerts.replyFailedTitle"), t("session.alerts.replyFailedMessage"))
+      }
     }
   }
 
   const handleQuestionReject = async (requestID: string) => {
     if (!sessionClient || !sessionID) return
-    const snapshot = useEvents.getState().questions[sessionID] || []
     useEvents.setState((state) => ({
       questions: {
         ...state.questions,
-        [sessionID]: snapshot.filter((q) => q.id !== requestID),
+        [sessionID]: (state.questions[sessionID] || []).filter((q) => q.id !== requestID),
       },
     }))
     try {
       await sessionClient.question.reject(requestID)
     } catch (err) {
       console.error("Question reject failed:", err)
-      useEvents.setState((state) => ({
-        questions: { ...state.questions, [sessionID]: snapshot },
-      }))
-      Alert.alert(t("session.alerts.rejectFailedTitle"), t("session.alerts.rejectFailedMessage"))
+      await refreshPending(sessionClient, sessionID)
+      if ((useEvents.getState().questions[sessionID] || []).some((question) => question.id === requestID)) {
+        Alert.alert(t("session.alerts.rejectFailedTitle"), t("session.alerts.rejectFailedMessage"))
+      }
     }
   }
 
@@ -677,6 +672,20 @@ export default function SessionScreen() {
       <Stack.Screen
         options={{
           title: selectedSession?.title || t("session.titleFallback"),
+          headerLeft: () => (
+            <TouchableOpacity
+              accessibilityRole="button"
+              accessibilityLabel="Back to sessions"
+              onPress={() => {
+                if (router.canGoBack()) router.back()
+                else router.replace("/")
+              }}
+              hitSlop={12}
+              style={{ paddingRight: 16 }}
+            >
+              <Ionicons name="arrow-back" size={24} color={isDark ? "#ffffff" : "#0a0a0a"} />
+            </TouchableOpacity>
+          ),
           headerRight: () => (
             <View style={s.headerRight}>
               {shortDir && (

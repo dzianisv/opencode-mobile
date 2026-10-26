@@ -76,5 +76,8 @@ export async function detectServerApi(probe: ProbeRequest): Promise<ServerIdenti
 
 /** True when a detected server is old enough that v2-only affordances must be hidden. */
 export function isLegacyApi(api: ServerApi | undefined): boolean {
-  return api === "v1"
+  // Connections saved before protocol detection existed were v1 connections.
+  // If an offline launch cannot probe them, preserving that shipped behavior is
+  // safer than silently routing every call to v2-only endpoints.
+  return api !== "v2"
 }

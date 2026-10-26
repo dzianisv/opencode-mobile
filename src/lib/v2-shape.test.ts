@@ -33,6 +33,8 @@ test("toSession maps v2 location/time/revert into the app shape", () => {
     title: "Hello",
     location: { directory: "/srv/proj" },
     time: { created: 10, updated: 20 },
+    cost: 2.5,
+    tokens: { input: 100, output: 20 },
     revert: { messageID: "msg_9" },
     parentID: "ses_0",
   }
@@ -45,6 +47,8 @@ test("toSession maps v2 location/time/revert into the app shape", () => {
     title: "Hello",
     version: "",
     time: { created: 10, updated: 20, archived: undefined },
+    cost: 2.5,
+    tokens: { input: 100, output: 20 },
     revert: { messageID: "msg_9", partID: undefined },
   })
 })
@@ -167,6 +171,7 @@ test("translator replays a live execution flow into v1-style events", () => {
     ev("session.text.delta", { sessionID: "ses_1", assistantMessageID: "msg_a2", ordinal: 0, delta: "3+3=" }),
     ev("session.text.delta", { sessionID: "ses_1", assistantMessageID: "msg_a2", ordinal: 0, delta: "6" }),
     ev("session.text.ended", { sessionID: "ses_1", assistantMessageID: "msg_a2", ordinal: 0, text: "3+3=6" }),
+    ev("session.step.ended", { sessionID: "ses_1", assistantMessageID: "msg_a2", finish: "stop", cost: 0.01, tokens: { input: 3, output: 1 } }),
     ev("session.usage.updated", { sessionID: "ses_1", cost: 1, tokens: { input: 9, output: 4 } }),
     ev("session.execution.succeeded", { sessionID: "ses_1" }),
   ]
@@ -209,10 +214,13 @@ test("translator replays a live execution flow into v1-style events", () => {
     .filter((p) => p.type === "text")
   assert.deepEqual(textParts.map((p) => p.text), ["", "3+3=", "3+3=6", "3+3=6"])
 
-  // Usage attaches cost/tokens to the latest assistant message
+  // Per-step usage remains on the assistant; cumulative usage is session-scoped.
   const lastUpdate = messageUpdates[messageUpdates.length - 1].properties.info as { cost?: number; tokens?: { input: number } }
-  assert.equal(lastUpdate.cost, 1)
-  assert.equal(lastUpdate.tokens?.input, 9)
+  assert.equal(lastUpdate.cost, 0.01)
+  assert.equal(lastUpdate.tokens?.input, 3)
+  const usage = out.find((event) => event.type === "session.usage.updated")
+  assert.equal(usage?.properties.cost, 1)
+  assert.deepEqual(usage?.properties.tokens, { input: 9, output: 4, reasoning: undefined, cache: undefined })
 
   // Execution end -> idle status
   const last = out[out.length - 1]

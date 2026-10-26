@@ -18,12 +18,12 @@ export function permissionReplyRequest(
   requestID: string,
   reply: PermissionReply,
   sessionID?: string,
-): { path: string; body: { reply: PermissionReply } } {
+): { path: string; body: { reply: PermissionReply } | { decision: PermissionReply } } {
   if (protocol === "v2") {
     if (!sessionID) throw new Error("A v2 permission reply requires its sessionID")
     return {
       path: `/api/session/${encodeURIComponent(sessionID)}/permission/${encodeURIComponent(requestID)}/reply`,
-      body: { reply },
+      body: { decision: reply },
     }
   }
   return { path: `/permission/${encodeURIComponent(requestID)}/reply`, body: { reply } }

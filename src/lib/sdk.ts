@@ -15,8 +15,9 @@ import { SSEParser } from "./sse"
 import { apiErrorFor, isAuthStatus } from "./api-error"
 import { loadSessionList } from "./session-list"
 import { v2PromptBody } from "./composer-prompt"
-import { readWithIdleTimeout } from "./sse-lifecycle"
+import { readWithIdleTimeout, SSE_IDLE_TIMEOUT_MS } from "./sse-lifecycle"
 import { permissionReplyRequest } from "./permissions"
+import { normalizeSessionStatusResponse } from "./session-status"
 import type { FileRoot } from "./file-roots"
 import { createV1Client } from "./sdk-v1"
 import { detectServerApi, type ProbeRequest, type ServerApi, type ServerIdentity } from "./api-detect"
@@ -59,7 +60,8 @@ export interface ClientConfig {
     password: string
   }
   // Which server API this connection speaks, as recorded by probeServer().
-  // Omitted means "v2" (today's behaviour); "v1" routes to the legacy client in
+  // Omitted preserves the legacy v1 transport until a successful probe records
+  // the protocol; "v1" routes to the legacy client in
   // sdk-v1.ts, which speaks the pre-1.19 routes (/session, /global/event,
   // /question, /permission) that the v2 server no longer serves.
   api?: ServerApi
@@ -84,6 +86,13 @@ export interface Session {
     additions: number
     deletions: number
     files: number
+  }
+  cost?: number
+  tokens?: {
+    input: number
+    output: number
+    reasoning?: number
+    cache?: { read: number; write: number }
   }
   // Present while a message (and everything after it) is pending revert —
   // v2 keeps the staged boundary until the next prompt commits it or
@@ -306,34 +315,6 @@ async function fetchWithTimeout(url: string, options: RequestInit = {}, timeoutM
   }
 }
 
-// Minimal shape of a stream reader we need for the idle watchdog (expo/fetch
-// returns its own ReadableStream reader type; structural typing avoids fighting
-// with it).
-type ReaderLike = {
-  read: () => Promise<{ done?: boolean; value?: Uint8Array }>
-  cancel?: () => Promise<void>
-}
-
-// The v2 server emits an SSE comment frame (`: heartbeat`) every 15s, so any
-// bytes on the wire prove the connection is alive. 45s of total silence means
-// the stream is dead — the usual case after Android backgrounds/freezes the
-// app, where the socket goes half-open: `read()` hangs forever instead of
-// reporting a close. Without this watchdog the app would sit "connected" with
-// a frozen event stream until the next HTTP call happens to fail.
-const SSE_IDLE_TIMEOUT_MS = 45_000
-
-async function readWithIdleTimeout(reader: ReaderLike, ms: number): Promise<{ done?: boolean; value?: Uint8Array } | "idle"> {
-  let timer: ReturnType<typeof setTimeout> | undefined
-  // Swallow the read rejection: if the fetch is aborted while this race is
-  // settling, the losing read promise must not become an unhandled rejection.
-  const read = reader.read().catch(() => ({ done: true, value: undefined }))
-  try {
-    return await Promise.race([read, new Promise<"idle">((resolve) => { timer = setTimeout(() => resolve("idle"), ms) })])
-  } finally {
-    clearTimeout(timer)
-  }
-}
-
 function createV2Client(config: ClientConfig) {
   // Normalize once: a trailing slash on baseUrl (e.g. pasted into Advanced
   // mode or the Edit screen) would otherwise survive into every
@@ -379,7 +360,7 @@ function createV2Client(config: ClientConfig) {
         let receivedFirstByte = false
         try {
           while (true) {
-            const chunk = await readWithIdleTimeout(reader as ReaderLike, SSE_IDLE_TIMEOUT_MS)
+            const chunk = await readWithIdleTimeout(reader)
             if (chunk === "idle") {
               console.warn(`[SSE] no data for ${SSE_IDLE_TIMEOUT_MS / 1000}s (server heartbeats every 15s) — dropping dead stream`)
               void reader.cancel?.().catch(() => {})
@@ -510,7 +491,8 @@ function createV2Client(config: ClientConfig) {
       status: async (): Promise<Record<string, { type: "idle" | "busy" | "retry"; attempt?: number; message?: string }> | null> => {
         try {
           // Present on the latest stable v1.19.x HTTP API and current v2 API.
-          return await request(config, appendQuery("/api/session/status", loc()))
+          const body = await request<unknown>(config, appendQuery("/api/session/status", loc()))
+          return normalizeSessionStatusResponse(body)
         } catch (err) {
           if (!(err instanceof ApiError) || err.status !== 404) throw err
           // Early v2 builds exposed an active-only map instead. A missing
@@ -697,10 +679,20 @@ function createV2Client(config: ClientConfig) {
         const known = pendingRequestInfo(requestID)
         if (!known) throw new Error(`Unknown permission request: ${requestID}`)
         const endpoint = permissionReplyRequest("v2", requestID, reply, known.sessionID)
-        await request<void>(config, endpoint.path, {
-          method: "POST",
-          body: JSON.stringify(endpoint.body),
-        })
+        try {
+          await request<void>(config, endpoint.path, {
+            method: "POST",
+            body: JSON.stringify(endpoint.body),
+          })
+        } catch (error) {
+          // v2.0.16 used `decision`; newer PermissionV2 builds use `reply`.
+          // Retry only schema-validation responses, never auth/network errors.
+          if (!(error instanceof ApiError) || (error.status !== 400 && error.status !== 422)) throw error
+          await request<void>(config, endpoint.path, {
+            method: "POST",
+            body: JSON.stringify({ reply }),
+          })
+        }
         return true
       },
     },

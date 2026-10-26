@@ -39,6 +39,8 @@ capture in `/tmp/opencode/events_full.txt`.
 14. **Permissions**: list `GET /api/session/{id}/permission` → `{data:[Permission.Request]}`;
     Permission.Request = `{id:"per...", sessionID, action, resources:[string], save?, metadata?, source?, message?}`;
     reply `POST /api/session/{id}/permission/{requestID}/reply {decision:"once"|"always"|"reject", message?}`.
+    Newer PermissionV2 builds renamed the body field to `reply`; the client uses
+    the v2.0.16 `decision` schema first and retries only 400/422 validation failures.
     Global list: `GET /api/permission/request`.
 15. **Questions → Forms**: `GET /api/session/{id}/form` → `{data:[Form.Info]}`;
     Form.Info = `{id:"frm_...", sessionID, title, fields}` (typed fields: string/number/integer/boolean/multiselect/external);
@@ -71,7 +73,10 @@ Text: `session.text.started|delta|ended {assistantMessageID, ordinal, delta|text
 Reasoning: `session.reasoning.started|delta|ended` (same shape, `ended` has full `text`)
 Tools: `session.tool.input.started {id,name}`, `.input.delta`, `.input.ended {text}`,
 `.called {id, input, executed}`, `.progress`, `.success {id, content:[Tool.Content], metadata, executed}`, `.failed`
-Usage: `session.usage.updated {sessionID, cost, tokens}`, `.usage.recorded`
+Usage: `session.step.ended` is per-assistant-step usage. `session.usage.updated
+{sessionID, cost, tokens}` is a cumulative session snapshot and must never be
+written onto the latest assistant message; `.usage.recorded` covers auxiliary
+session work such as compaction/title generation.
 Inbox: `session.inbox.enqueued {inboxID, sessionID, item}`, `.delivered`, `.cancelled`, `.delivery.changed`
 Lifecycle: `session.created`, `session.updated`, `session.deleted`, `session.renamed`, `session.moved`, `session.forked`, `session.viewed`, `session.metadata.updated`
 Selections: `session.agent.selected`, `session.model.selected`

@@ -74,8 +74,8 @@ test("detectServerApi rejects a server that answers HTML everywhere", async () =
   )
 })
 
-test("isLegacyApi only reports v1", () => {
+test("isLegacyApi preserves v1 behavior for saved, unprobed connections", () => {
   assert.equal(isLegacyApi("v1"), true)
   assert.equal(isLegacyApi("v2"), false)
-  assert.equal(isLegacyApi(undefined), false)
+  assert.equal(isLegacyApi(undefined), true)
 })
