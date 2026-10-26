@@ -5,6 +5,8 @@ import {
   TextInput,
   TouchableOpacity,
   ScrollView,
+  KeyboardAvoidingView,
+  Platform,
   StyleSheet,
   useColorScheme,
   ActivityIndicator,
@@ -133,6 +135,10 @@ export default function AddConnectionScreen() {
             name: name.trim() || t("connection.shared.namePlaceholder"),
             type: "local",
             url: serverUrl,
+            // Carry the transport the pre-flight probe already determined, so the
+            // save does not probe the same server a second time.
+            api: result.api,
+            serverVersion: result.serverVersion,
           },
           password || undefined,
         )
@@ -209,6 +215,8 @@ export default function AddConnectionScreen() {
             url: url.trim(),
             directory: directory.trim() || undefined,
             username: username.trim() || undefined,
+            api: result.api,
+            serverVersion: result.serverVersion,
           },
           password || undefined,
         )
@@ -315,8 +323,13 @@ export default function AddConnectionScreen() {
   // Quick connect mode - simplified
   if (mode === "quick") {
     return (
-      <ScrollView
+      <KeyboardAvoidingView
         style={[styles.container, isDark && styles.containerDark]}
+        behavior="padding"
+        keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 0}
+      >
+      <ScrollView
+        style={{ flex: 1 }}
         contentContainerStyle={styles.content}
         keyboardShouldPersistTaps="handled"
       >
@@ -516,13 +529,19 @@ export default function AddConnectionScreen() {
           <Ionicons name="chevron-forward" size={16} color={isDark ? "#888888" : "#666666"} />
         </TouchableOpacity>
       </ScrollView>
+      </KeyboardAvoidingView>
     )
   }
 
   // Advanced mode - full options
   return (
-    <ScrollView
+    <KeyboardAvoidingView
       style={[styles.container, isDark && styles.containerDark]}
+      behavior="padding"
+      keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 0}
+    >
+    <ScrollView
+      style={{ flex: 1 }}
       contentContainerStyle={styles.content}
       keyboardShouldPersistTaps="handled"
     >
@@ -658,6 +677,7 @@ export default function AddConnectionScreen() {
         )}
       </TouchableOpacity>
     </ScrollView>
+    </KeyboardAvoidingView>
   )
 }
 

@@ -12,3 +12,13 @@ export const MAX_NOTIF_BODY = 200
 export function sanitizeBody(s: string | undefined, fallback: string): string {
   return (s ? s.replace(/[\x00-\x1f\x7f]/g, " ").trim().slice(0, MAX_NOTIF_BODY) : "") || fallback
 }
+
+/** Permission details are server-controlled and can contain sensitive paths. */
+export function permissionNotificationBody(): string {
+  return "A tool needs your approval"
+}
+
+/** Keep arbitrary server question text off the lock screen as well. */
+export function questionNotificationBody(): string {
+  return "The assistant has a question"
+}

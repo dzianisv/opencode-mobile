@@ -7,11 +7,11 @@ import path from "node:path"
  * Tripwire for the "poisoned persistent memory" class of bug (a scanner
  * flagged us for it; see the triage in the security notes).
  *
- * The app is a thin client: sessions, messages and tool output live on the
- * opencode server and are held in memory by the zustand stores. Nothing that
- * a model or a tool produced is ever written to on-device storage, so there
- * is no persistent store an injected instruction could sit in and be replayed
- * from on the next launch.
+ * Sessions, messages and tool output live on the opencode server and are held
+ * in memory by the zustand stores. The one message-like exception is an
+ * unsubmitted composer draft: it is user-authored and stored encrypted in
+ * SecureStore so Android process recreation does not silently discard it.
+ * Model/tool output is never written to on-device storage.
  *
  * That property is worth keeping, and it is invisible in review: it only
  * breaks the day someone adds a well-meaning "cache the last conversation" or
@@ -20,14 +20,16 @@ import path from "node:path"
  * to this list and say what it holds, which is the moment to ask whether the
  * value is user/config data or model output.
  *
- * Rule: keys listed here must hold user-entered config, consent flags or
- * counters. Never message text, session titles, tool results or any other
- * model-derived content.
+ * Rule: keys listed here may hold user-entered config, consent flags, counters,
+ * or encrypted unsubmitted user-authored drafts. Never persist session
+ * transcripts, session titles, tool results or any model-derived content.
  */
 const ALLOWED_PERSISTED_KEYS = new Map<string, string>([
   ["SETTINGS_KEY", "user's app settings (theme, notification prefs)"],
   ["CONNECTIONS_KEY", "user-entered server connections"],
   ["`${PASSWORDS_PREFIX}${id}`", "user-entered server password, per connection"],
+  ["LAST_SESSION_KEY", "user's last selected session reference (ID and directory only)"],
+  ["writeSessionDraft(SecureStore, sessionID, text)", "encrypted, user-authored unsent composer draft, per session"],
   ["RECENT_DIRS_KEY", "directories the user picked, for the recents list"],
   ["AUTH_SETTINGS_KEY", "biometric/app-lock preference"],
   ["COUNT_KEY", "store-review: launch counter"],
@@ -60,6 +62,11 @@ test("every on-device write uses a reviewed key, never model-generated content",
         unknown.push(`${path.relative(SRC, file)}: ${key}`)
       }
     }
+    if (code.includes("writeSessionDraft(SecureStore, sessionID, text)")) {
+      // This helper stores only user-authored composer drafts in SecureStore.
+      // It is intentionally a distinct, reviewed persistence path.
+      continue
+    }
   }
 
   assert.deepEqual(
@@ -78,6 +85,7 @@ test("the allowlist itself stays live (no keys left behind after a refactor)", (
   const used = new Set(
     [...code.matchAll(/SecureStore\.setItemAsync\(\s*([^,]+?)\s*,/g)].map((match) => match[1].trim()),
   )
+  if (code.includes("writeSessionDraft(SecureStore, sessionID, text)")) used.add("writeSessionDraft(SecureStore, sessionID, text)")
   const stale = [...ALLOWED_PERSISTED_KEYS.keys()].filter((key) => !used.has(key))
 
   assert.deepEqual(stale, [], `Allowlist entries no longer written anywhere — delete them:\n${stale.join("\n")}`)

@@ -125,7 +125,7 @@ Use `gh api /repos/<owner>/<repo>/git/refs/tags/v1.1.5` to get SHAs.
 
 ---
 
-#### M-03: `permission.asked` notification can leak tool file-path patterns
+#### M-03: `permission.asked` notification can leak tool file-path patterns — addressed
 
 **File:** `src/stores/events.ts:294`
 **Description:**
@@ -133,8 +133,8 @@ Use `gh api /repos/<owner>/<repo>/git/refs/tags/v1.1.5` to get SHAs.
 body: req.patterns?.join(", ") || "A tool needs your approval",
 ```
 When the opencode AI agent requests a file-access permission, the notification body shows the glob patterns (e.g., `/home/user/secrets/*.env`). These patterns can appear on the device lock screen before the user authenticates, visible to someone with physical device access.
-**Remediation:** Replace the notification body with a generic string ("A tool is requesting file access — open app to review") and only reveal patterns inside the locked/authenticated app.
-**Status:** Open
+**Remediation:** Permission and question notifications now use fixed generic title/body text. Tool resources and question content are shown only in the in-app prompt.
+**Status:** Addressed in the Android stability follow-up.
 
 ---
 
@@ -221,7 +221,7 @@ When the opencode AI agent requests a file-access permission, the notification b
 
 4. **[M-02] Pin critical third-party GitHub Actions to commit SHAs**, especially `r0adkll/upload-google-play` which runs with the Play Store service account JSON in scope.
 
-5. **[M-03] Sanitize `permission.asked` notification body.** Replace file-path patterns in lock-screen notifications with a generic message.
+5. ~~**[M-03] Sanitize `permission.asked` notification body.**~~ Addressed: permission and question notifications now use generic text.
 
 ---
 

@@ -2,13 +2,15 @@ import { create } from "zustand"
 import { useConnections } from "./connections"
 import { useSessions, abortedSessions } from "./sessions"
 import { send as notify } from "../lib/notifications"
-import { sanitizeBody } from "../lib/notify-format"
+import { permissionNotificationBody, questionNotificationBody, sanitizeBody } from "../lib/notify-format"
 import { statusFromPart } from "../lib/status-labels"
 import { addBreadcrumb } from "../lib/sentry"
 import { AnalyticsEvent, track } from "../lib/analytics"
 import { recordSuccessfulSession } from "../lib/store-review"
 import { isAuthError } from "../lib/api-error"
 import { isSessionActuallyIdle } from "../lib/session-status-reconcile"
+import { sessionActivityFromMessages, shouldReconnectOnResume, shouldResetRetries, reconnectDelayMs, type TransportState } from "../lib/sse-lifecycle"
+import { mergePendingPermissions, normalizePendingPermission, normalizePermissionEvent, type PendingPermission } from "../lib/permissions"
 import type { Client, Part, Session, Message } from "../lib/sdk"
 
 // Session status from the server
@@ -16,6 +18,7 @@ type SessionStatus = { type: "idle" } | { type: "busy" } | { type: "retry"; atte
 
 interface EventsState {
   connected: boolean
+  transport: TransportState
   // Set when the last connection attempt failed with 401/403 — the server
   // rejected our credentials, not a transient network issue. The reconnect
   // loop stops retrying in this case (see connect()) since hammering a
@@ -28,17 +31,7 @@ interface EventsState {
   sessionStatus: Record<string, SessionStatus>
   statusText: Record<string, string>
   // Permissions & questions (pending per session)
-  permissions: Record<
-    string,
-    Array<{
-      id: string
-      sessionID: string
-      permission: string
-      patterns: string[]
-      metadata: Record<string, unknown>
-      tool?: { messageID: string; callID: string }
-    }>
-  >
+  permissions: Record<string, PendingPermission[]>
   questions: Record<
     string,
     Array<{
@@ -57,19 +50,25 @@ interface EventsState {
 
   connect: () => void
   disconnect: () => void
+  background: () => void
+  // Force an immediate reconnect + full resync, bypassing the backoff loop.
+  // Called when the app returns to the foreground: Android freezes JS timers
+  // and usually kills the SSE socket while backgrounded, so the backoff
+  // timers that were scheduled never ran and the stream is stale.
+  reconnectNow: () => void
 }
 
 let controller: AbortController | null = null
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null
+let appBackgrounded = false
 
 // Sessions that emitted session.error since they last went busy. SessionStatus
 // has no error variant — an errored session still ends with a busy -> idle
 // transition — so without this mark an errored run would count as a success
 // toward the once-ever store review prompt.
 const erroredSessions = new Set<string>()
+const sessionStatusRevision = new Map<string, number>()
 
-const RECONNECT_DELAYS_MS = [1000, 2000, 4000, 8000, 15000] as const
-const STABLE_CONNECTION_MS = 10_000
 const PROLONGED_DISCONNECT_MS = 30_000
 
 // Re-fetch pending permissions and questions from the server for a session.
@@ -77,16 +76,109 @@ const PROLONGED_DISCONNECT_MS = 30_000
 // optimistic removals.
 export async function refreshPending(client: Client, sessionID: string) {
   try {
-    const [perms, questions] = await Promise.all([client.permission.list(), client.question.list()])
-    const sessionPerms = (perms || []).filter((p: Record<string, unknown>) => p.sessionID === sessionID)
+    // v2 permission/form lists are session-scoped — pass the session so
+    // pending prompts are found regardless of the server's active location.
+    const [perms, questions] = await Promise.all([client.permission.list(sessionID), client.question.list(sessionID)])
+    const sessionPerms = (perms || []).map(normalizePendingPermission).filter((p): p is PendingPermission => !!p && p.sessionID === sessionID)
     const sessionQuestions = (questions || []).filter((q: Record<string, unknown>) => q.sessionID === sessionID)
     useEvents.setState((state) => ({
-      permissions: { ...state.permissions, [sessionID]: sessionPerms as any },
+      permissions: { ...state.permissions, [sessionID]: mergePendingPermissions([], sessionPerms) },
       questions: { ...state.questions, [sessionID]: sessionQuestions as any },
     }))
   } catch (err) {
     console.warn("[Events] Failed to refresh pending:", err)
   }
+}
+
+async function refreshAllPending() {
+  const connectionState = useConnections.getState()
+  const sessionsState = useSessions.getState()
+  const sessionsByID = new Map(sessionsState.sessions.map((session) => [session.id, session]))
+  if (sessionsState.currentSession) sessionsByID.set(sessionsState.currentSession.id, sessionsState.currentSession)
+  const sessionIDs = new Set([...sessionsByID.keys(), ...Object.keys(useEvents.getState().permissions)])
+  const groups = new Map<string, { client: Client; sessionIDs: Set<string> }>()
+  const clientFor = (directory?: string) => directory
+    ? connectionState.clientForDirectory(directory) ?? connectionState.client
+    : connectionState.client
+
+  for (const sessionID of sessionIDs) {
+    const session = sessionsByID.get(sessionID)
+    const directory = session?.directory ?? connectionState.activeConnection?.directory
+    const key = directory ?? ""
+    let group = groups.get(key)
+    if (!group) {
+      const client = clientFor(directory)
+      if (!client) continue
+      group = { client, sessionIDs: new Set() }
+      groups.set(key, group)
+    }
+    group.sessionIDs.add(sessionID)
+  }
+  if (groups.size === 0 && connectionState.client) {
+    groups.set(connectionState.activeConnection?.directory ?? "", { client: connectionState.client, sessionIDs: new Set() })
+  }
+
+  await Promise.all([...groups.values()].map(async ({ client, sessionIDs: knownSessionIDs }) => {
+    try {
+      const [pending, questions] = await Promise.all([client.permission.list(), client.question.list()])
+      const permissionsBySession = new Map<string, PendingPermission[]>()
+      const questionsBySession = new Map<string, Array<{ id: string; sessionID: string }>>()
+      for (const value of pending || []) {
+        const normalized = normalizePendingPermission(value)
+        if (normalized) permissionsBySession.set(normalized.sessionID, [...(permissionsBySession.get(normalized.sessionID) || []), normalized])
+      }
+      for (const question of questions || []) {
+        if (question?.sessionID) questionsBySession.set(question.sessionID, [...(questionsBySession.get(question.sessionID) || []), question])
+      }
+      const previous = useEvents.getState()
+      for (const [sessionID, items] of permissionsBySession) {
+        const existingIDs = new Set((previous.permissions[sessionID] || []).map((item) => item.id))
+        for (const item of items) {
+          if (existingIDs.has(item.id)) continue
+          notify({
+            category: "permissions",
+            title: "Agent needs approval",
+            body: permissionNotificationBody(),
+            sessionId: item.sessionID,
+            dedupeKey: `perm-${item.id}`,
+            dedupeCooldownMs: 60_000,
+          })
+          existingIDs.add(item.id)
+        }
+      }
+      for (const [sessionID, items] of questionsBySession) {
+        const existingIDs = new Set((previous.questions[sessionID] || []).map((item) => item.id))
+        for (const item of items) {
+          if (existingIDs.has(item.id)) continue
+          notify({
+            category: "questions",
+            title: "Input needed",
+            body: questionNotificationBody(),
+            sessionId: sessionID,
+            dedupeKey: `question-${item.id}`,
+            dedupeCooldownMs: 60_000,
+          })
+          existingIDs.add(item.id)
+        }
+      }
+      useEvents.setState((state) => {
+        const permissions = { ...state.permissions }
+        const currentQuestions = { ...state.questions }
+        const affected = new Set([...knownSessionIDs, ...permissionsBySession.keys(), ...questionsBySession.keys()])
+        for (const sessionID of affected) {
+          const items = permissionsBySession.get(sessionID) || []
+          if (items.length) permissions[sessionID] = mergePendingPermissions([], items)
+          else delete permissions[sessionID]
+          const sessionQuestions = questionsBySession.get(sessionID) || []
+          if (sessionQuestions.length) currentQuestions[sessionID] = sessionQuestions as typeof currentQuestions[string]
+          else delete currentQuestions[sessionID]
+        }
+        return { permissions, questions: currentQuestions }
+      })
+    } catch (err) {
+      console.warn("[Events] Failed to reconcile pending permissions:", err)
+    }
+  }))
 }
 
 // Re-sync any session currently marked "busy" against the server after an
@@ -103,8 +195,9 @@ export async function refreshPending(client: Client, sessionID: string) {
 // before writing, so a real session.status event that lands while the fetch
 // is in flight (e.g. the session went busy again) wins over this resync.
 async function resyncBusySessions() {
+  const currentSessionID = useSessions.getState().currentSession?.id
   const busySessionIDs = Object.entries(useEvents.getState().sessionStatus)
-    .filter(([, status]) => status.type === "busy")
+    .filter(([sessionID, status]) => status.type === "busy" && sessionID !== currentSessionID)
     .map(([sessionID]) => sessionID)
   if (busySessionIDs.length === 0) return
 
@@ -145,8 +238,45 @@ async function resyncBusySessions() {
   )
 }
 
+async function reconcileOpenSession() {
+  const session = useSessions.getState().currentSession
+  if (!session) return
+  const revision = sessionStatusRevision.get(session.id) ?? 0
+  const connectionState = useConnections.getState()
+  const client = session.directory
+    ? connectionState.clientForDirectory(session.directory) ?? connectionState.client
+    : connectionState.client
+  if (!client) return
+
+  const errorBefore = useSessions.getState().error
+  await useSessions.getState().refreshMessages()
+  if (useSessions.getState().currentSession?.id !== session.id) return
+  const state = useSessions.getState()
+  if (state.error && state.error !== errorBefore) return
+  const authoritativeStatus = await client.session.status().catch((err) => {
+    console.warn("[Events] Failed to reconcile authoritative session status:", err)
+    return null
+  })
+  if (useSessions.getState().currentSession?.id !== session.id) return
+
+  const fallbackActivity = sessionActivityFromMessages(state.messages)
+  const serverStatus = authoritativeStatus?.[session.id]
+  const activity = serverStatus?.type ?? (authoritativeStatus ? "idle" : fallbackActivity)
+  if (activity !== "unknown" && (sessionStatusRevision.get(session.id) ?? 0) === revision) {
+    const status: SessionStatus = serverStatus?.type === "retry" || activity === "retry"
+      ? { type: "retry", attempt: serverStatus?.attempt ?? 1, message: serverStatus?.message ?? "Retrying" }
+      : { type: activity }
+    useEvents.setState((current) => ({
+      sessionStatus: { ...current.sessionStatus, [session.id]: status },
+      statusText: activity === "idle" ? { ...current.statusText, [session.id]: "" } : current.statusText,
+    }))
+    useSessions.setState((current) => ({ sending: { ...current.sending, [session.id]: activity !== "idle" } }))
+  }
+}
+
 export const useEvents = create<EventsState>((set, get) => ({
   connected: false,
+  transport: "idle",
   authError: false,
   reconnectAttempts: 0,
   lastDisconnectAt: null,
@@ -168,7 +298,7 @@ export const useEvents = create<EventsState>((set, get) => ({
 
     controller = new AbortController()
     const currentController = controller
-    set({ connected: true, authError: false })
+    set({ connected: false, transport: get().reconnectAttempts > 0 ? "reconnecting" : "connecting", authError: false })
     console.log("[SSE] Connecting to event stream...")
     addBreadcrumb({ category: "sse", message: "connecting" })
 
@@ -181,11 +311,7 @@ export const useEvents = create<EventsState>((set, get) => ({
       // failed retries can't re-arm the check on every attempt.
       const isReconnect = get().reconnectAttempts > 0
       let resyncedAfterReconnect = false
-      const stableTimer = setTimeout(() => {
-        if (!currentController.signal.aborted) {
-          set({ reconnectAttempts: 0, lastDisconnectAt: null })
-        }
-      }, STABLE_CONNECTION_MS)
+      let receivedData = false
 
       const scheduleReconnect = (reason: unknown) => {
         if (reconnectScheduled || currentController.signal.aborted) return
@@ -194,7 +320,7 @@ export const useEvents = create<EventsState>((set, get) => ({
         const reconnectAttempts = state.reconnectAttempts + 1
         const lastDisconnectAt = state.lastDisconnectAt ?? Date.now()
         const disconnectedFor = Date.now() - lastDisconnectAt
-        set({ connected: false, reconnectAttempts, lastDisconnectAt })
+        set({ connected: false, transport: "reconnecting", reconnectAttempts, lastDisconnectAt })
 
         if (disconnectedFor >= PROLONGED_DISCONNECT_MS) {
           notify({
@@ -207,8 +333,7 @@ export const useEvents = create<EventsState>((set, get) => ({
           })
         }
 
-        const baseDelay = RECONNECT_DELAYS_MS[Math.min(reconnectAttempts - 1, RECONNECT_DELAYS_MS.length - 1)]
-        const jitteredDelay = Math.min(15_000, Math.round(baseDelay * (0.75 + Math.random() * 0.5)))
+        const jitteredDelay = reconnectDelayMs(reconnectAttempts)
         console.warn(`[SSE] Connection lost, reconnecting in ${jitteredDelay}ms:`, reason)
         addBreadcrumb({
           category: "sse",
@@ -226,12 +351,21 @@ export const useEvents = create<EventsState>((set, get) => ({
         for await (const event of client.global.events(currentController.signal)) {
           if (currentController.signal.aborted) break
 
+          if (!receivedData) {
+            receivedData = true
+            if (shouldResetRetries(true)) {
+              set({ connected: true, transport: "live", reconnectAttempts: 0, lastDisconnectAt: null })
+            }
+          }
+
           // The stream is genuinely live again (we're actually receiving
           // data, not just optimistically marked "connected") — resync once
           // per reconnect, not on every event.
           if (isReconnect && !resyncedAfterReconnect) {
             resyncedAfterReconnect = true
             void resyncBusySessions()
+            void refreshAllPending()
+            void reconcileOpenSession()
           }
 
           const payload = (event as any).payload || event
@@ -243,6 +377,7 @@ export const useEvents = create<EventsState>((set, get) => ({
               const sessionID = props.sessionID as string
               const status = props.status as SessionStatus
               if (!sessionID) break
+              sessionStatusRevision.set(sessionID, (sessionStatusRevision.get(sessionID) ?? 0) + 1)
 
               // Detect busy → idle transition for completion notification
               const previous = get().sessionStatus[sessionID]
@@ -370,28 +505,22 @@ export const useEvents = create<EventsState>((set, get) => ({
               break
             }
 
-            case "permission.asked": {
-              const req = props as any
-              if (!req.id || !req.sessionID) break
+            case "permission.asked":
+            case "permission.v2.asked": {
+              const req = normalizePermissionEvent({ type, properties: props })
+              if (!req) break
               const existing = get().permissions[req.sessionID] || []
               if (existing.some((item) => item.id === req.id)) break
               set((state) => ({
                 permissions: {
                   ...state.permissions,
-                  [req.sessionID]: [...(state.permissions[req.sessionID] || []), req],
+                  [req.sessionID]: mergePendingPermissions(state.permissions[req.sessionID] || [], [req]),
                 },
               }))
               notify({
                 category: "permissions",
                 title: "Agent needs approval",
-                body: sanitizeBody(
-                  req.permission
-                    ? req.patterns?.length
-                      ? `${req.permission}: ${req.patterns.join(", ")}`
-                      : req.permission
-                    : req.patterns?.join(", "),
-                  "A tool needs your approval",
-                ),
+                body: permissionNotificationBody(),
                 sessionId: req.sessionID,
                 dedupeKey: `perm-${req.id}`,
                 dedupeCooldownMs: 60_000,
@@ -400,6 +529,19 @@ export const useEvents = create<EventsState>((set, get) => ({
             }
 
             case "permission.replied": {
+              const sessionID = props.sessionID as string
+              const requestID = props.requestID as string
+              if (!sessionID || !requestID) break
+              set((state) => ({
+                permissions: {
+                  ...state.permissions,
+                  [sessionID]: (state.permissions[sessionID] || []).filter((p) => p.id !== requestID),
+                },
+              }))
+              break
+            }
+
+            case "permission.v2.replied": {
               const sessionID = props.sessionID as string
               const requestID = props.requestID as string
               if (!sessionID || !requestID) break
@@ -425,8 +567,8 @@ export const useEvents = create<EventsState>((set, get) => ({
               }))
               notify({
                 category: "questions",
-                title: req.questions?.[0]?.header || "Input needed",
-                body: sanitizeBody(req.questions?.[0]?.question, "The assistant has a question"),
+                title: "Input needed",
+                body: questionNotificationBody(),
                 sessionId: req.sessionID,
                 dedupeKey: `question-${req.id}`,
                 dedupeCooldownMs: 60_000,
@@ -466,17 +608,47 @@ export const useEvents = create<EventsState>((set, get) => ({
             data: { status: err.status },
           })
           track(AnalyticsEvent.ConnectionFailed, { source: "sse", error_class: "unauthorized" })
-          set({ connected: false, authError: true })
+          set({ connected: false, transport: "auth-required", authError: true })
         } else {
           scheduleReconnect(err)
         }
       } finally {
-        clearTimeout(stableTimer)
         if (currentController.signal.aborted) {
           console.log("[SSE] Disconnected (aborted)")
         }
       }
     })()
+  },
+
+  background: () => {
+    if (!useConnections.getState().client) return
+    appBackgrounded = true
+    // Keep the server work and existing reader alive if Android allows it, but
+    // don't advertise a verified live stream while app timers/network may be
+    // suspended. Foreground recovery will replace the reader and reconcile.
+    set({ connected: false, transport: "backgrounded" })
+  },
+
+  reconnectNow: () => {
+    const connState = useConnections.getState()
+    if (!connState.client) return
+    const state = get()
+    const forceBackgroundResume = appBackgrounded || state.transport === "backgrounded"
+    const attemptInFlight = !forceBackgroundResume &&
+      (reconnectTimer !== null || (controller !== null && !controller.signal.aborted))
+    if (state.authError || !shouldReconnectOnResume({ transport: state.transport, attemptInFlight })) return
+    appBackgrounded = false
+    console.log("[SSE] Foreground reconnect — re-establishing event stream")
+    if (reconnectTimer) {
+      clearTimeout(reconnectTimer)
+      reconnectTimer = null
+    }
+    controller?.abort()
+    controller = null
+    // Ensure connect() treats this as a reconnect even if the previous stream
+    // had been marked stable before Android suspended its timers/socket.
+    set({ connected: false, reconnectAttempts: Math.max(1, state.reconnectAttempts), lastDisconnectAt: state.lastDisconnectAt ?? Date.now() })
+    get().connect()
   },
 
   disconnect: () => {
@@ -488,10 +660,13 @@ export const useEvents = create<EventsState>((set, get) => ({
     }
     controller?.abort()
     controller = null
+    appBackgrounded = false
     erroredSessions.clear()
     abortedSessions.clear()
+    sessionStatusRevision.clear()
     set({
       connected: false,
+      transport: "idle",
       authError: false,
       reconnectAttempts: 0,
       lastDisconnectAt: null,
