@@ -55,7 +55,7 @@ export function VariantPicker({ variants, selected, isDark, onSelect, sheetRef }
       enableDynamicSizing={false}
       enablePanDownToClose
       backgroundStyle={isDark ? s.sheetDark : s.sheet}
-      handleIndicatorStyle={{ backgroundColor: isDark ? "#666666" : "#cccccc" }}
+      handleIndicatorStyle={{ backgroundColor: isDark ? "#9a9a9a" : "#cccccc" }}
       backdropComponent={(props) => (
         <BottomSheetBackdrop {...props} disappearsOnIndex={-1} appearsOnIndex={0} opacity={0.5} />
       )}
@@ -94,7 +94,7 @@ const s = StyleSheet.create({
   header: { paddingHorizontal: 16, paddingBottom: 12 },
   title: { fontSize: 18, fontWeight: "700", color: "#0a0a0a" },
   textWhite: { color: "#ffffff" },
-  metaDark: { color: "#666666" },
+  metaDark: { color: "#9a9a9a" },
   content: { paddingBottom: 40 },
   row: {
     flexDirection: "row",

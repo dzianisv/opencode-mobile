@@ -21,7 +21,7 @@ export function ReasoningBlock({ text, isDark }: Props) {
       <View style={s.header}>
         <Ionicons name="bulb-outline" size={14} color="#f59e0b" />
         <Text style={[s.label, isDark && s.labelDark]}>{t("chat.reasoningBlock.label")}</Text>
-        <Ionicons name={expanded ? "chevron-up" : "chevron-down"} size={14} color={isDark ? "#666666" : "#999999"} />
+        <Ionicons name={expanded ? "chevron-up" : "chevron-down"} size={14} color={isDark ? "#9a9a9a" : "#999999"} />
       </View>
       {expanded && (
         <Text style={[s.text, isDark && s.textDark]} selectable>

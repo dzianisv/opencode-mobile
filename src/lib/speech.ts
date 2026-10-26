@@ -1,5 +1,6 @@
 import { useState, useCallback, useRef, useEffect } from "react"
 import { ExpoSpeechRecognitionModule, useSpeechRecognitionEvent } from "expo-speech-recognition"
+import { isBenignSpeechError } from "./speech-errors"
 
 interface SpeechState {
   listening: boolean
@@ -43,8 +44,10 @@ export function useSpeech(onResult: (text: string) => void): SpeechState & Speec
   })
 
   useSpeechRecognitionEvent("error", (event) => {
-    // "no-speech" is not really an error — user just didn't say anything
-    if (event.error === "no-speech") {
+    // "no-speech" and "aborted" aren't failures — see src/lib/speech-errors.ts.
+    // These events are module-global: another screen's cleanup abort() lands
+    // here too, and alerting on it blamed voice input the user never used.
+    if (isBenignSpeechError(event.error)) {
       setListening(false)
       return
     }
@@ -77,10 +80,15 @@ export function useSpeech(onResult: (text: string) => void): SpeechState & Speec
   }, [])
 
   // Stop the native recognition session when the screen unmounts — otherwise
-  // the mic stays hot in the background. abort() is a no-op when not listening.
+  // the mic stays hot in the background. abort() is NOT a no-op when idle:
+  // Android unconditionally emits a global "aborted" error event, which other
+  // mounted session screens receive (the back-from-subagent alert). Only
+  // abort when this hook actually started listening.
+  const listeningRef = useRef(false)
+  listeningRef.current = listening
   useEffect(() => {
     return () => {
-      ExpoSpeechRecognitionModule.abort()
+      if (listeningRef.current) ExpoSpeechRecognitionModule.abort()
     }
   }, [])
 

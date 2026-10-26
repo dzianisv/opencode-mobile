@@ -184,7 +184,7 @@ export function DirectoryBrowserSheet({
       keyboardBlurBehavior="restore"
       android_keyboardInputMode="adjustResize"
       backgroundStyle={isDark ? s.sheetDark : s.sheet}
-      handleIndicatorStyle={{ backgroundColor: isDark ? "#666666" : "#cccccc" }}
+      handleIndicatorStyle={{ backgroundColor: isDark ? "#9a9a9a" : "#cccccc" }}
       backdropComponent={(props) => (
         <BottomSheetBackdrop {...props} disappearsOnIndex={-1} appearsOnIndex={0} opacity={0.5} />
       )}
@@ -239,7 +239,7 @@ export function DirectoryBrowserSheet({
         <BottomSheetTextInput
           style={[s.input, isDark && s.inputDark]}
           placeholder={t("chat.directoryBrowserSheet.jumpPlaceholder")}
-          placeholderTextColor={isDark ? "#666666" : "#999999"}
+          placeholderTextColor={isDark ? "#9a9a9a" : "#999999"}
           value={jumpPath}
           onChangeText={setJumpPath}
           onSubmitEditing={goJump}

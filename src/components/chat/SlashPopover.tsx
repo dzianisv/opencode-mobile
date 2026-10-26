@@ -78,7 +78,7 @@ const s = StyleSheet.create({
   trigger: { fontSize: 14, fontWeight: "600", color: "#0a0a0a" },
   textWhite: { color: "#ffffff" },
   desc: { fontSize: 12, color: "#999999", marginTop: 1 },
-  metaDark: { color: "#666666" },
+  metaDark: { color: "#9a9a9a" },
   badge: {
     backgroundColor: "#f3e8ff",
     paddingHorizontal: 6,

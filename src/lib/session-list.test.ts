@@ -28,10 +28,11 @@ function transport(opts: {
   const calls: string[] = []
   return {
     calls,
-    getExperimental: async () => {
-      calls.push("experimental")
+    getExperimental: async (query: string) => {
+      calls.push(`experimental${query}`)
       if (opts.experimentalThrows) throw opts.experimentalThrows
-      return opts.experimental === undefined ? [] : opts.experimental
+      if (opts.experimental === null) return null
+      return { sessions: opts.experimental === undefined ? [] : opts.experimental }
     },
     getLegacy: async (query: string) => {
       calls.push(`legacy${query}`)
@@ -43,7 +44,7 @@ function transport(opts: {
 test("loadSessionList: (a) calls /experimental/session first (global)", async () => {
   const t = transport({ experimental: [session({ id: "a" })] })
   await loadSessionList(t, { roots: true, limit: 50 })
-  assert.equal(t.calls[0], "experimental")
+  assert.ok(t.calls[0].startsWith("experimental"), "first call goes to the experimental endpoint")
   assert.ok(!t.calls.some((c) => c.startsWith("legacy")), "must not hit legacy /session when experimental works")
 })
 
@@ -74,7 +75,7 @@ test("loadSessionList: (c) falls back to /session on 404 (older server)", async 
   const legacy = [session({ id: "legacy-a" })]
   const t = transport({ experimental: null, legacy })
   const out = await loadSessionList(t, { roots: true, limit: 50 })
-  assert.equal(t.calls[0], "experimental")
+  assert.ok(t.calls[0].startsWith("experimental"))
   assert.equal(t.calls[1], "legacy?roots=true&limit=50", "must call legacy with preserved query params")
   assert.deepEqual(out, legacy, "returns the legacy payload unchanged")
 })
@@ -127,4 +128,39 @@ test("legacySessionQuery: builds the same query the old code sent", () => {
   assert.equal(legacySessionQuery({ roots: true, limit: 50 }), "?roots=true&limit=50")
   assert.equal(legacySessionQuery({}), "")
   assert.equal(legacySessionQuery({ search: "x" }), "?search=x")
+})
+
+// The missing-sessions bug, round two: the endpoint DEFAULTS to limit=100
+// and silently truncates to the newest sessions. The loop must follow
+// x-next-cursor until exhausted, so session #138 by recency exists on the
+// phone at all.
+test("loadSessionList: pages through x-next-cursor until exhausted", async () => {
+  const calls: string[] = []
+  const pageA = [session({ id: "a1", updated: 300 }), session({ id: "a2", updated: 200 })]
+  const pageB = [session({ id: "a2", updated: 200 }), session({ id: "b1", updated: 100 })] // boundary dupe
+  const t: SessionListTransport = {
+    getExperimental: async (query: string) => {
+      calls.push(query)
+      if (!query.includes("cursor")) return { sessions: pageA, nextCursor: 200 }
+      return { sessions: pageB } // final page: no cursor
+    },
+    getLegacy: async () => [],
+  }
+  const out = await loadSessionList(t, {})
+  assert.deepEqual(out.map((s) => s.id), ["a1", "a2", "b1"], "all pages merged, boundary duplicate dropped")
+  assert.equal(calls.length, 2)
+  assert.ok(calls[1].includes("cursor=200"))
+})
+
+test("loadSessionList: a stuck cursor cannot loop forever", async () => {
+  let count = 0
+  const t: SessionListTransport = {
+    getExperimental: async () => {
+      count++
+      return { sessions: [session({ id: `s${count}`, updated: 1 })], nextCursor: 42 } // never advances past 42
+    },
+    getLegacy: async () => [],
+  }
+  await loadSessionList(t, {})
+  assert.ok(count <= 3, `stuck cursor stopped after ${count} calls`)
 })

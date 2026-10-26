@@ -197,7 +197,7 @@ export default function SettingsScreen() {
             description={t("settings.security.lockNow.description")}
             isDark={isDark}
             onPress={lock}
-            right={<Ionicons name="chevron-forward" size={20} color={isDark ? "#666666" : "#999999"} />}
+            right={<Ionicons name="chevron-forward" size={20} color={isDark ? "#9a9a9a" : "#999999"} />}
           />
         )}
       </SettingSection>
@@ -252,7 +252,7 @@ export default function SettingsScreen() {
           description={t("settings.privacy.privacyPolicy.description")}
           isDark={isDark}
           onPress={() => Linking.openURL(PRIVACY_POLICY_URL)}
-          right={<Ionicons name="open-outline" size={20} color={isDark ? "#666666" : "#999999"} />}
+          right={<Ionicons name="open-outline" size={20} color={isDark ? "#9a9a9a" : "#999999"} />}
         />
       </SettingSection>
 
@@ -263,7 +263,7 @@ export default function SettingsScreen() {
           description={localeLabels[locale]}
           isDark={isDark}
           onPress={handleLanguagePress}
-          right={<Ionicons name="chevron-forward" size={20} color={isDark ? "#666666" : "#999999"} />}
+          right={<Ionicons name="chevron-forward" size={20} color={isDark ? "#9a9a9a" : "#999999"} />}
         />
         <SettingRow
           icon="information-circle"
@@ -290,7 +290,7 @@ export default function SettingsScreen() {
           description={t("settings.about.github.description")}
           isDark={isDark}
           onPress={() => Linking.openURL("https://github.com/anomalyco/opencode")}
-          right={<Ionicons name="open-outline" size={20} color={isDark ? "#666666" : "#999999"} />}
+          right={<Ionicons name="open-outline" size={20} color={isDark ? "#9a9a9a" : "#999999"} />}
         />
         <SettingRow
           icon="document-text"
@@ -298,7 +298,7 @@ export default function SettingsScreen() {
           description={t("settings.about.docs.description")}
           isDark={isDark}
           onPress={() => Linking.openURL("https://opencode.ai/docs")}
-          right={<Ionicons name="open-outline" size={20} color={isDark ? "#666666" : "#999999"} />}
+          right={<Ionicons name="open-outline" size={20} color={isDark ? "#9a9a9a" : "#999999"} />}
         />
       </SettingSection>
 

@@ -25,21 +25,29 @@ function readComponent(relativePath: string): string {
   return readFileSync(path.join(dir, relativePath), "utf8")
 }
 
-test("DiffView wraps diff lines in the shared horizontal-scroll ScrollView", () => {
+// The shared container is now WideScroll, which is horizontal by
+// construction (see src/components/WideScroll.tsx) and adds the forgiving
+// gesture claim on top. The invariant these tests guard is unchanged: wide
+// content must live in a horizontal scroller and must not be truncated.
+test("DiffView wraps diff lines in the shared horizontal scroller", () => {
   const src = readComponent("chat/DiffView.tsx")
-  assert.match(src, /<ScrollView\s+\{\.\.\.WIDE_CONTENT_SCROLL_CONFIG\}/)
+  assert.match(src, /<WideScroll/)
   assert.doesNotMatch(src, /numberOfLines/, "DiffView must not truncate diff line text with numberOfLines")
 })
 
-test("CodeBlock wraps code in the shared horizontal-scroll ScrollView", () => {
+test("CodeBlock wraps code in the shared horizontal scroller", () => {
   const src = readComponent("markdown/CodeBlock.tsx")
-  assert.match(src, /<ScrollView\s+\{\.\.\.WIDE_CONTENT_SCROLL_CONFIG\}/)
+  assert.match(src, /<WideScroll/)
   assert.doesNotMatch(src, /numberOfLines/, "CodeBlock must not truncate code text with numberOfLines")
 })
 
-test("DiffView and CodeBlock both source the config from the shared, unit-tested module", () => {
-  const diffView = readComponent("chat/DiffView.tsx")
-  const codeBlock = readComponent("markdown/CodeBlock.tsx")
-  assert.match(diffView, /from ["']\.\.\/\.\.\/lib\/scroll-config["']/)
-  assert.match(codeBlock, /from ["']\.\.\/\.\.\/lib\/scroll-config["']/)
+test("markdown tables use the shared horizontal scroller too", () => {
+  const src = readComponent("markdown/Markdown.tsx")
+  assert.match(src, /<WideScroll/)
+})
+
+test("all three source the scroller from the one shared component", () => {
+  for (const rel of ["chat/DiffView.tsx", "markdown/CodeBlock.tsx", "markdown/Markdown.tsx"]) {
+    assert.match(readComponent(rel), /from ["']\.\.\/WideScroll["']/, rel)
+  }
 })

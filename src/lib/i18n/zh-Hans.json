@@ -95,7 +95,9 @@
     },
     "actions": {
       "editMessage": "编辑消息",
-      "replace": "替换"
+      "replace": "替换",
+      "copyMessage": "复制消息",
+      "selectText": "选择文本"
     },
     "alerts": {
       "messageActionsTitle": "消息操作",
@@ -123,6 +125,12 @@
       "imageFailedMessage": "一张或多张图片无法处理。请尝试其他照片。",
       "speechErrorTitle": "语音输入失败",
       "speechErrorMessage": "无法使用语音输入。请检查麦克风权限后重试。"
+    },
+    "selectText": {
+      "title": "选择文本",
+      "copyAll": "全部复制",
+      "copied": "已复制！",
+      "hint": "长按文本可选择其中一部分。"
     }
   },
   "connection": {

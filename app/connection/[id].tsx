@@ -224,7 +224,7 @@ export default function EditConnectionScreen() {
       <TextInput
         style={[styles.input, isDark && styles.inputDark]}
         placeholder={t("connection.shared.namePlaceholder")}
-        placeholderTextColor={isDark ? "#666666" : "#999999"}
+        placeholderTextColor={isDark ? "#9a9a9a" : "#999999"}
         value={name}
         onChangeText={setName}
       />
@@ -234,7 +234,7 @@ export default function EditConnectionScreen() {
       <TextInput
         style={[styles.input, isDark && styles.inputDark]}
         placeholder="http://192.168.1.100:4096"
-        placeholderTextColor={isDark ? "#666666" : "#999999"}
+        placeholderTextColor={isDark ? "#9a9a9a" : "#999999"}
         value={url}
         onChangeText={setUrl}
         autoCapitalize="none"
@@ -247,7 +247,7 @@ export default function EditConnectionScreen() {
       <TextInput
         style={[styles.input, isDark && styles.inputDark]}
         placeholder="/path/to/project"
-        placeholderTextColor={isDark ? "#666666" : "#999999"}
+        placeholderTextColor={isDark ? "#9a9a9a" : "#999999"}
         value={directory}
         onChangeText={setDirectory}
         autoCapitalize="none"
@@ -262,7 +262,7 @@ export default function EditConnectionScreen() {
       <TextInput
         style={[styles.input, isDark && styles.inputDark]}
         placeholder="admin"
-        placeholderTextColor={isDark ? "#666666" : "#999999"}
+        placeholderTextColor={isDark ? "#9a9a9a" : "#999999"}
         value={username}
         onChangeText={setUsername}
         autoCapitalize="none"
@@ -273,7 +273,7 @@ export default function EditConnectionScreen() {
       <TextInput
         style={[styles.input, isDark && styles.inputDark]}
         placeholder="••••••••"
-        placeholderTextColor={isDark ? "#666666" : "#999999"}
+        placeholderTextColor={isDark ? "#9a9a9a" : "#999999"}
         value={password}
         onChangeText={setPassword}
         secureTextEntry

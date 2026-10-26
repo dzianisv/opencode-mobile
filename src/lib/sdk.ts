@@ -7,6 +7,7 @@ import { buildRequestHeaders } from "./headers"
 import { SSEParser } from "./sse"
 import { apiErrorFor } from "./api-error"
 import { loadSessionList } from "./session-list"
+import { LIVENESS_TIMEOUT_MS } from "./sse-liveness"
 import type { FileRoot } from "./file-roots"
 
 export { ApiAuthError, isAuthError } from "./api-error"
@@ -245,6 +246,26 @@ async function fetchWithTimeout(url: string, options: RequestInit = {}, timeoutM
   }
 }
 
+// Races a stream read against a deadline. Rejecting (rather than returning a
+// sentinel) keeps the failure on the same path as a genuine transport error, so
+// the caller's reconnect logic needs no special case.
+async function readWithTimeout<T>(
+  reader: { read: () => Promise<{ done: boolean; value?: T }> },
+  timeoutMs: number,
+): Promise<{ done: boolean; value?: T }> {
+  let timer: ReturnType<typeof setTimeout> | undefined
+  try {
+    return await Promise.race([
+      reader.read(),
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(() => reject(new Error(`SSE stream idle for ${timeoutMs}ms`)), timeoutMs)
+      }),
+    ])
+  } finally {
+    if (timer) clearTimeout(timer)
+  }
+}
+
 export function createClient(config: ClientConfig) {
   // Normalize once: a trailing slash on baseUrl (e.g. pasted into Advanced
   // mode or the Edit screen) would otherwise survive into every
@@ -280,7 +301,14 @@ export function createClient(config: ClientConfig) {
         let receivedFirstByte = false
         try {
           while (true) {
-            const { done, value } = await reader.read()
+            // Bound the read. A half-open socket -- routine when a phone moves
+            // between Wi-Fi and cellular, or wakes from doze -- yields no bytes,
+            // no `done` and no error, so an unbounded `reader.read()` parks
+            // forever and nothing ever triggers a reconnect. The server
+            // heartbeats every ~10s, so silence past LIVENESS_TIMEOUT_MS is
+            // evidence of a dead stream rather than an idle one. Throwing here
+            // hands control to the caller's existing reconnect path.
+            const { done, value } = await readWithTimeout(reader, LIVENESS_TIMEOUT_MS)
             if (done) {
               console.log("[SSE] stream ended")
               break
@@ -354,8 +382,12 @@ export function createClient(config: ClientConfig) {
       list: (params?: { roots?: boolean; limit?: number; search?: string }): Promise<Session[]> =>
         loadSessionList(
           {
-            getExperimental: async (): Promise<Session[] | null> => {
-              const response = await fetchWithTimeout(`${config.baseUrl}/experimental/session`, {
+            // One page per call; loadSessionList drives the cursor loop. The
+            // endpoint defaults to limit=100 and silently truncates, so the
+            // "no params = everything" assumption this code used to make
+            // dropped every session past #100 by recency.
+            getExperimental: async (query) => {
+              const response = await fetchWithTimeout(`${config.baseUrl}/experimental/session${query}`, {
                 headers: createHeaders(config),
               })
               // Older servers lack this route — signal fallback to legacy /session.
@@ -364,7 +396,12 @@ export function createClient(config: ClientConfig) {
                 const body = await response.text()
                 throw apiErrorFor(response.status, `API Error: ${response.status} - ${body}`)
               }
-              return response.json()
+              const cursorHeader = response.headers.get("x-next-cursor")
+              const nextCursor = cursorHeader != null ? Number(cursorHeader) : undefined
+              return {
+                sessions: await response.json(),
+                nextCursor: Number.isFinite(nextCursor as number) ? nextCursor : undefined,
+              }
             },
             getLegacy: (query) => request<Session[]>(config, `/session${query}`),
           },

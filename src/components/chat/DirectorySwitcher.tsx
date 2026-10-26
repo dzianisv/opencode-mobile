@@ -63,7 +63,7 @@ export function DirectorySwitcher({ sheetRef, current, recents, serverHome, isDa
       keyboardBlurBehavior="restore"
       android_keyboardInputMode="adjustResize"
       backgroundStyle={isDark ? s.sheetDark : s.sheet}
-      handleIndicatorStyle={{ backgroundColor: isDark ? "#666666" : "#cccccc" }}
+      handleIndicatorStyle={{ backgroundColor: isDark ? "#9a9a9a" : "#cccccc" }}
       backdropComponent={(props) => (
         <BottomSheetBackdrop {...props} disappearsOnIndex={-1} appearsOnIndex={0} opacity={0.5} />
       )}
@@ -88,7 +88,7 @@ export function DirectorySwitcher({ sheetRef, current, recents, serverHome, isDa
         <BottomSheetTextInput
           style={[s.input, isDark && s.inputDark]}
           placeholder={serverHome ? `${serverHome}/...` : "/path/to/project"}
-          placeholderTextColor={isDark ? "#666666" : "#999999"}
+          placeholderTextColor={isDark ? "#9a9a9a" : "#999999"}
           value={custom}
           onChangeText={(text) => {
             if (serverHome && text === "~") setCustom(serverHome)
@@ -259,7 +259,7 @@ const s = StyleSheet.create({
     paddingTop: 4,
     paddingBottom: 8,
   },
-  dimDark: { color: "#666666" },
+  dimDark: { color: "#9a9a9a" },
   row: {
     flexDirection: "row",
     alignItems: "center",
