@@ -607,6 +607,7 @@ export default function SessionsScreen() {
                 style={[styles.modalDirBox, isDark && styles.modalDirBoxDark]}
                 onPress={() => onCreateInDirectory()}
                 disabled={isCreating}
+                testID="current-project-session-button"
               >
                 <Ionicons name="folder" size={20} color={isDark ? "#8b5cf6" : "#6d28d9"} />
                 <Text style={[styles.modalDirText, isDark && styles.textDark]} numberOfLines={2}>
