@@ -1,7 +1,7 @@
 const { withAppBuildGradle } = require("@expo/config-plugins")
 
 const block = `
-        testRelease {
+        sidecarRelease {
             initWith release
             matchingFallbacks = ['release']
             applicationIdSuffix ".test"
@@ -11,11 +11,16 @@ const block = `
         }
     }
     applicationVariants.all { variant ->
-        if (variant.buildType.name == "testRelease") {
+        if (variant.buildType.name == "sidecarRelease") {
             variant.outputs.all { output ->
                 output.versionCodeOverride = (findProperty("testVersionCode") ?: defaultConfig.versionCode).toInteger()
             }
         }
+    }
+    tasks.register("assembleTestRelease") {
+        group = "build"
+        description = "Assembles the side-by-side test release APK."
+        dependsOn("assembleSidecarRelease")
     }
 `
 

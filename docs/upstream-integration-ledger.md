@@ -40,5 +40,5 @@ retention, and OpenCode API compatibility work.
 
 ## Verification status
 
-- Production identity remains `cc.agentlabs.opencode`; the isolated `testRelease` build type adds `.test` and the name `OpenCode Test` without production signing material.
+- Production identity remains `cc.agentlabs.opencode`; the isolated `sidecarRelease` build type adds `.test` and the name `OpenCode Test` without production signing material. The `assembleTestRelease` task aliases this variant because Android reserves build-type names beginning with `test`.
 - Verification results and the final APK manifest/hash are recorded in the PR description and build manifest after the final build.
