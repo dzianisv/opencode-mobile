@@ -1,4 +1,5 @@
 import { create } from "zustand"
+import * as SecureStore from "expo-secure-store"
 import { ApiError, type Session, type Message, type Part, type Event, type MessageWithParts, type Client } from "../lib/sdk"
 import { useConnections } from "./connections"
 import { useSettings } from "./settings"
@@ -7,6 +8,8 @@ import { AnalyticsEvent, track } from "../lib/analytics"
 import { extractPromptFromParts, type PromptFromParts } from "../lib/prompt-from-parts"
 import { mergeIncomingMessage } from "../lib/message-merge"
 import { isColdSessionLoad, isLiveEventForSession } from "../lib/session-load-reconcile"
+import { buildPromptParts } from "../lib/composer-prompt"
+import { readSessionDraft, writeSessionDraft } from "../lib/session-drafts"
 
 // Helper to convert API response to our internal format
 function parseMessages(response: MessageWithParts[]): { messages: Message[]; parts: Record<string, Part[]> } {
@@ -33,6 +36,8 @@ interface SessionsState {
   isLoading: boolean
   // Per-session optimistic sending flag — bridging gap between user tap and SSE busy
   sending: Record<string, boolean>
+  /** Encrypted, per-session user-entered drafts; never contains server output. */
+  drafts: Record<string, string>
   loadingMore: boolean
   hasMore: boolean
   error: string | null
@@ -40,6 +45,11 @@ interface SessionsState {
   // Actions
   loadSessions: () => Promise<void>
   selectSession: (sessionID: string, directory?: string) => Promise<void>
+  loadLastSession: () => Promise<LastSessionReference | null>
+  loadDraft: (sessionID: string) => Promise<string>
+  setDraft: (sessionID: string, text: string) => void
+  clearDraft: (sessionID: string) => void
+  flushDrafts: () => Promise<void>
   loadOlderMessages: () => Promise<void>
   createSession: (title?: string) => Promise<Session | null>
   deleteSession: (sessionID: string) => Promise<void>
@@ -71,11 +81,34 @@ export type RevertResult = ({ ok: true } & PromptFromParts) | { ok: false; reaso
 // this module) clears entries on busy and checks them on busy -> idle.
 export const abortedSessions = new Set<string>()
 
+const DRAFT_SAVE_DELAY_MS = 350
+export const LAST_SESSION_KEY = "opencode.session.last.v1"
+export type LastSessionReference = { sessionID: string; directory?: string; connectionID?: string }
+const loadedDrafts = new Set<string>()
+const queuedDraftWrites = new Map<string, string>()
+let draftSaveTimer: ReturnType<typeof setTimeout> | null = null
+let draftWriteQueue: Promise<void> = Promise.resolve()
+
+function queueDraftWrite(sessionID: string, text: string) {
+  queuedDraftWrites.set(sessionID, text)
+  if (draftSaveTimer) clearTimeout(draftSaveTimer)
+  draftSaveTimer = setTimeout(() => {
+    draftSaveTimer = null
+    void useSessions.getState().flushDrafts().catch((err) => console.warn("[Sessions] Failed to persist drafts:", err))
+  }, DRAFT_SAVE_DELAY_MS)
+}
+
 // Monotonic token guarding selectSession against out-of-order resolution: a
 // slow fetch for a session the user has already navigated away from must not
 // overwrite the messages/currentSession of a newer selection. Each call takes
 // the next value and only commits its result if still the latest.
 let selectSeq = 0
+const refreshSeq = new Map<string, number>()
+const liveRefreshes = new Map<string, { seq: number; updatedMessageIDs: Set<string> }>()
+
+function noteLiveMessage(sessionID: string, messageID: string) {
+  liveRefreshes.get(sessionID)?.updatedMessageIDs.add(messageID)
+}
 
 // Get the right client for a session's directory
 function clientFor(directory?: string): Client | null {
@@ -93,9 +126,89 @@ export const useSessions = create<SessionsState>((set, get) => ({
   parts: {},
   isLoading: false,
   sending: {},
+  drafts: {},
   loadingMore: false,
   hasMore: false,
   error: null,
+
+  loadLastSession: async () => {
+    try {
+      const saved = await SecureStore.getItemAsync(LAST_SESSION_KEY)
+      if (!saved) return null
+      const value = JSON.parse(saved) as Partial<LastSessionReference>
+      if (typeof value.sessionID !== "string" || !value.sessionID) return null
+      return {
+        sessionID: value.sessionID,
+        ...(typeof value.directory === "string" ? { directory: value.directory } : {}),
+        ...(typeof value.connectionID === "string" ? { connectionID: value.connectionID } : {}),
+      }
+    } catch (err) {
+      console.warn("[Sessions] Failed to restore selected session reference:", err)
+      return null
+    }
+  },
+
+  loadDraft: async (sessionID) => {
+    if (loadedDrafts.has(sessionID)) return get().drafts[sessionID] ?? ""
+    try {
+      const saved = await readSessionDraft(SecureStore, sessionID)
+      // A keystroke/clear may happen while the secure-store read is in flight;
+      // setDraft/clearDraft marks the key loaded so this stale read cannot win.
+      if (!loadedDrafts.has(sessionID)) {
+        loadedDrafts.add(sessionID)
+        if (saved !== null) {
+          set((state) => state.drafts[sessionID] === undefined
+            ? { drafts: { ...state.drafts, [sessionID]: saved } }
+            : state)
+        }
+      }
+    } catch (err) {
+      loadedDrafts.add(sessionID)
+      console.warn("[Sessions] Failed to load encrypted draft:", err)
+    }
+    return get().drafts[sessionID] ?? ""
+  },
+
+  setDraft: (sessionID, text) => {
+    if (text.length === 0) {
+      get().clearDraft(sessionID)
+      return
+    }
+    loadedDrafts.add(sessionID)
+    set((state) => ({ drafts: { ...state.drafts, [sessionID]: text } }))
+    queueDraftWrite(sessionID, text)
+  },
+
+  clearDraft: (sessionID) => {
+    loadedDrafts.add(sessionID)
+    set((state) => {
+      if (!(sessionID in state.drafts)) return state
+      const drafts = { ...state.drafts }
+      delete drafts[sessionID]
+      return { drafts }
+    })
+    queueDraftWrite(sessionID, "")
+    // Clear-after-ack must hit encrypted storage immediately; otherwise a
+    // process death inside the debounce window could restore an already-sent
+    // prompt and invite an accidental duplicate submission.
+    void get().flushDrafts().catch((err) => console.warn("[Sessions] Failed to clear encrypted draft:", err))
+  },
+
+  flushDrafts: async () => {
+    if (draftSaveTimer) {
+      clearTimeout(draftSaveTimer)
+      draftSaveTimer = null
+    }
+    if (queuedDraftWrites.size === 0) return draftWriteQueue
+    const batch = [...queuedDraftWrites]
+    queuedDraftWrites.clear()
+    draftWriteQueue = draftWriteQueue.catch(() => {}).then(async () => {
+      for (const [sessionID, text] of batch) {
+        await writeSessionDraft(SecureStore, sessionID, text)
+      }
+    })
+    return draftWriteQueue
+  },
 
   loadSessions: async () => {
     const connState = useConnections.getState()
@@ -170,6 +283,11 @@ export const useSessions = create<SessionsState>((set, get) => ({
         // If we got exactly PAGE_SIZE messages, there are probably more
         hasMore: messagesResponse.length >= pageSize(),
       })
+      void SecureStore.setItemAsync(LAST_SESSION_KEY, JSON.stringify({
+        sessionID: session.id,
+        directory: session.directory || directory,
+        connectionID: connState.activeConnection?.id,
+      })).catch((err) => console.warn("[Sessions] Failed to save selected session:", err))
     } catch (err) {
       if (seq !== selectSeq) return
       console.error("Failed to load session:", err)
@@ -226,6 +344,11 @@ export const useSessions = create<SessionsState>((set, get) => ({
         hasMore: false,
         loadingMore: false,
       })
+      void SecureStore.setItemAsync(LAST_SESSION_KEY, JSON.stringify({
+        sessionID: created.id,
+        directory: created.directory,
+        connectionID: connState.activeConnection?.id,
+      })).catch((err) => console.warn("[Sessions] Failed to save selected session:", err))
       return created
     } catch (error) {
       set({ error: "Failed to create session" })
@@ -243,6 +366,12 @@ export const useSessions = create<SessionsState>((set, get) => ({
 
     try {
       await client.session.delete(sessionID)
+      get().clearDraft(sessionID)
+      void SecureStore.getItemAsync(LAST_SESSION_KEY).then((saved) => {
+        if ((JSON.parse(saved || "null") as LastSessionReference | null)?.sessionID === sessionID) {
+          return SecureStore.deleteItemAsync(LAST_SESSION_KEY)
+        }
+      }).catch((err) => console.warn("[Sessions] Failed to clear deleted session reference:", err))
       set((state) => ({
         sessions: state.sessions.filter((s) => s.id !== sessionID),
         currentSession: state.currentSession?.id === sessionID ? null : state.currentSession,
@@ -304,19 +433,9 @@ export const useSessions = create<SessionsState>((set, get) => ({
         parts: { ...state.parts, [userMessage.id]: optimisticParts },
       }))
 
-      // Build prompt parts - images are already converted to JPEG with base64 by toJpeg()
-      const promptParts: Array<
-        { type: "text"; text: string } | { type: "file"; mime: string; url: string; filename?: string }
-      > = []
-      if (text) {
-        promptParts.push({ type: "text", text })
-      }
-      if (files) {
-        for (const f of files) {
-          const url = f.base64 ? `data:${f.mime};base64,${f.base64}` : f.uri
-          promptParts.push({ type: "file", mime: f.mime, url, filename: f.filename })
-        }
-      }
+      // Build prompt parts without altering text. Images are already converted
+      // to JPEG with base64 by toJpeg().
+      const promptParts = buildPromptParts(text, files)
 
       // Await submission (POST to /prompt_async resolves fast, well before the
       // streamed response) so a failure here can propagate to the caller — SSE
@@ -354,13 +473,35 @@ export const useSessions = create<SessionsState>((set, get) => ({
     const client = clientFor(get().currentSession?.directory)
     const session = get().currentSession
     if (!client || !session) return
+    const seq = (refreshSeq.get(session.id) ?? 0) + 1
+    refreshSeq.set(session.id, seq)
+    const liveRefresh = { seq, updatedMessageIDs: new Set<string>() }
+    liveRefreshes.set(session.id, liveRefresh)
 
     try {
       const response = await client.session.messages(session.id)
-      const { messages, parts } = parseMessages(response)
-      set({ messages, parts })
+      if (get().currentSession?.id !== session.id || refreshSeq.get(session.id) !== seq) return
+      const snapshot = parseMessages(response)
+      const current = get()
+      const serverMessages = new Map(snapshot.messages.map((message) => [message.id, message]))
+      const currentParts = { ...snapshot.parts }
+
+      // SSE can update a message while this GET is in flight. Preserve only
+      // those observed-live message rows/parts over the fetched snapshot, while
+      // still incorporating all server rows missed during the disconnect.
+      for (const message of current.messages) {
+        if (message.id.startsWith("temp-") || liveRefresh.updatedMessageIDs.has(message.id)) {
+          serverMessages.set(message.id, message)
+          if (current.parts[message.id]) currentParts[message.id] = current.parts[message.id]
+        }
+      }
+      const messages = [...serverMessages.values()].sort((a, b) => a.time.created - b.time.created)
+      set({ messages, parts: currentParts })
     } catch (error) {
+      if (get().currentSession?.id !== session.id || refreshSeq.get(session.id) !== seq) return
       set({ error: "Failed to refresh messages" })
+    } finally {
+      if (liveRefreshes.get(session.id) === liveRefresh) liveRefreshes.delete(session.id)
     }
   },
 
@@ -422,6 +563,7 @@ export const useSessions = create<SessionsState>((set, get) => ({
       case "message.updated": {
         const message = (props.info || props.message) as Message | undefined
         if (!message || !isLiveEventForSession(message.sessionID, currentSession.id)) return
+        noteLiveMessage(message.sessionID, message.id)
 
         set((state) => ({
           messages: mergeIncomingMessage(state.messages, message),
@@ -439,6 +581,7 @@ export const useSessions = create<SessionsState>((set, get) => ({
         if (!part) return
         // Only handle parts for current session
         if (part.sessionID && part.sessionID !== currentSession.id) return
+        noteLiveMessage(currentSession.id, part.messageID)
 
         set((state) => {
           const messageParts = state.parts[part.messageID] || []

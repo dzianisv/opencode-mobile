@@ -123,8 +123,6 @@ export const useConnections = create<ConnectionsState>((set, get) => ({
       // Create client for active connection
       let client: Client | null = null
       let base: ClientBase | null = null
-      let project: Project | null = null
-      let home: string | null = null
       if (active) {
         const password = await SecureStore.getItemAsync(`${PASSWORDS_PREFIX}${active.id}`)
         const auth = buildAuth(active.username, password)
@@ -135,17 +133,6 @@ export const useConnections = create<ConnectionsState>((set, get) => ({
         // Persist a probe that was only just discovered, so the next launch
         // picks the same transport without probing again.
         if (resolved) await SecureStore.setItemAsync(CONNECTIONS_KEY, JSON.stringify(connections))
-        // Fetch current project info and server paths
-        try {
-          const [proj, paths] = await Promise.all([
-            client.project.current().catch(() => null),
-            client.path.get().catch(() => null),
-          ])
-          project = proj
-          home = paths?.home || null
-        } catch {
-          // Server might be offline
-        }
       }
 
       set({
@@ -153,11 +140,25 @@ export const useConnections = create<ConnectionsState>((set, get) => ({
         activeConnection: active,
         client,
         clientBase: base,
-        currentProject: project,
-        serverHome: home,
+        currentProject: null,
+        serverHome: null,
         recentDirectories,
         isLoading: false,
       })
+
+      // Publish the client before optional project/path metadata. SSE startup
+      // must not wait on these unrelated calls: on a slow mobile route either
+      // request can spend its full timeout before realtime recovery begins.
+      if (client) {
+        const requestClient = client
+        void Promise.all([
+          requestClient.project.current().catch(() => null),
+          requestClient.path.get().catch(() => null),
+        ]).then(([project, paths]) => {
+          if (get().client !== requestClient) return
+          set({ currentProject: project, serverHome: paths?.home || null })
+        })
+      }
     } catch (error) {
       set({ error: "Failed to load connections", isLoading: false })
     }
@@ -185,32 +186,26 @@ export const useConnections = create<ConnectionsState>((set, get) => ({
     let base = get().clientBase
     let activeConnection = get().activeConnection
 
-    let project = get().currentProject
-    let serverHome = get().serverHome
-
     if (newConnection.active) {
       activeConnection = newConnection
       const auth = buildAuth(newConnection.username, password)
       const { api } = await resolveApi(newConnection, auth)
       const built = buildClient(newConnection.url, newConnection.directory, auth, api)
-      client = built.client
+      const requestClient = built.client
+      client = requestClient
       base = built.base
-
-      // Fetch server metadata so loadSessions can use clientForDirectory(serverHome)
-      // immediately after the connection is added (same as setActiveConnection does).
-      try {
-        const [proj, paths] = await Promise.all([
-          client.project.current().catch(() => null),
-          client.path.get().catch(() => null),
-        ])
-        project = proj
-        serverHome = paths?.home || null
-      } catch {
-        // Server might be unreachable; proceed without metadata
-      }
+      set({ connections, activeConnection, client, clientBase: base, currentProject: null, serverHome: null })
+      void Promise.all([
+        requestClient.project.current().catch(() => null),
+        requestClient.path.get().catch(() => null),
+      ]).then(([project, paths]) => {
+        if (get().client !== requestClient) return
+        set({ currentProject: project, serverHome: paths?.home || null })
+      })
+      return
     }
 
-    set({ connections, activeConnection, client, clientBase: base, currentProject: project, serverHome })
+    set({ connections, activeConnection, client, clientBase: base })
   },
 
   removeConnection: async (id) => {
@@ -253,38 +248,36 @@ export const useConnections = create<ConnectionsState>((set, get) => ({
     const active = connections.find((c) => c.id === id) || null
     let client: Client | null = null
     let base: ClientBase | null = null
-    let project: Project | null = null
-    let home: string | null = null
+    let requestClient: Client | null = null
 
     if (active) {
       const password = await SecureStore.getItemAsync(`${PASSWORDS_PREFIX}${active.id}`)
       const auth = buildAuth(active.username, password)
       const { api } = await resolveApi(active, auth)
       const built = buildClient(active.url, active.directory, auth, api)
-      client = built.client
+      requestClient = built.client
+      client = requestClient
       base = built.base
-
-      try {
-        const [proj, paths] = await Promise.all([
-          client.project.current().catch(() => null),
-          client.path.get().catch(() => null),
-        ])
-        project = proj
-        home = paths?.home || null
-      } catch {
-        // Server might be offline
-      }
 
       // Update last connected time
       active.lastConnected = Date.now()
       await SecureStore.setItemAsync(CONNECTIONS_KEY, JSON.stringify(connections))
     }
 
-    set({ connections, activeConnection: active, client, clientBase: base, currentProject: project, serverHome: home })
+    set({ connections, activeConnection: active, client, clientBase: base, currentProject: null, serverHome: null })
+    if (requestClient) {
+      void Promise.all([
+        requestClient.project.current().catch(() => null),
+        requestClient.path.get().catch(() => null),
+      ]).then(([project, paths]) => {
+        if (get().client !== requestClient) return
+        set({ currentProject: project, serverHome: paths?.home || null })
+      })
+    }
     addBreadcrumb({
       category: "connection",
       message: active ? `active connection set: ${active.type}` : "active connection cleared",
-      data: { id: active?.id, type: active?.type, hasProject: Boolean(project) },
+      data: { id: active?.id, type: active?.type, hasProject: false },
     })
   },
 
@@ -345,28 +338,21 @@ export const useConnections = create<ConnectionsState>((set, get) => ({
       const { api, resolved } = await resolveApi(active, auth)
       const built = buildClient(active.url, active.directory, auth, api)
       if (resolved) await SecureStore.setItemAsync(CONNECTIONS_KEY, JSON.stringify(connections))
-      try {
-        const [project, paths] = await Promise.all([
-          built.client.project.current().catch(() => null),
-          built.client.path.get().catch(() => null),
-        ])
-        set({
-          connections,
-          activeConnection: active,
-          client: built.client,
-          clientBase: built.base,
-          currentProject: project,
-          serverHome: paths?.home || null,
-        })
-      } catch {
-        set({
-          connections,
-          activeConnection: active,
-          client: built.client,
-          clientBase: built.base,
-          currentProject: null,
-        })
-      }
+      set({
+        connections,
+        activeConnection: active,
+        client: built.client,
+        clientBase: built.base,
+        currentProject: null,
+        serverHome: null,
+      })
+      void Promise.all([
+        built.client.project.current().catch(() => null),
+        built.client.path.get().catch(() => null),
+      ]).then(([project, paths]) => {
+        if (get().client !== built.client) return
+        set({ currentProject: project, serverHome: paths?.home || null })
+      })
     } else {
       set({ connections })
     }
