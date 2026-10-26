@@ -84,6 +84,10 @@ name: Activation - positive path (consent -> connect -> send message)
 
 - tapOn:
     id: "new-session-fab"
+- assertVisible:
+    text: "New Session"
+- tapOn:
+    id: "current-project-session-button"
 - extendedWaitUntil:
     visible:
       id: "chat-message-input"

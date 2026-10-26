@@ -55,6 +55,10 @@ name: Variant picker - reasoning-effort chip renders, selects, and still sends
 
 - tapOn:
     id: "new-session-fab"
+- assertVisible:
+    text: "New Session"
+- tapOn:
+    id: "current-project-session-button"
 - extendedWaitUntil:
     visible:
       id: "chat-message-input"

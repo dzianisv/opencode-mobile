@@ -2,7 +2,8 @@ import { create } from "zustand"
 import * as SecureStore from "expo-secure-store"
 import * as Crypto from "expo-crypto"
 import type { ServerConnection, ConnectionType } from "../lib/types"
-import { createClient, type Client, type Project } from "../lib/sdk"
+import { createClient, probeServer, type Client, type Project } from "../lib/sdk"
+import type { ServerApi } from "../lib/api-detect"
 import { addBreadcrumb } from "../lib/sentry"
 import { AnalyticsEvent, classifyConnectionError, track, type ConnectionTestSource } from "../lib/analytics"
 import { buildAuth } from "../lib/auth"
@@ -23,6 +24,7 @@ const CONNECTION_TEST_TIMEOUT_MS = 12_000
 interface ClientBase {
   baseUrl: string
   auth?: { username: string; password: string }
+  api?: ServerApi
 }
 
 interface ConnectionsState {
@@ -47,7 +49,7 @@ interface ConnectionsState {
     connection: ServerConnection,
     source: ConnectionTestSource,
     password?: string,
-  ) => Promise<{ ok: boolean; error?: string }>
+  ) => Promise<{ ok: boolean; api?: ServerApi; serverVersion?: string; error?: string }>
   updateConnection: (id: string, updates: Partial<ServerConnection>, password?: string) => Promise<void>
   refreshProject: () => Promise<void>
   // Create a one-off client pointing at a specific directory (for cross-project operations).
@@ -67,10 +69,31 @@ function buildClient(
   url: string,
   directory?: string,
   auth?: { username: string; password: string },
+  api?: ServerApi,
 ): { client: Client; base: ClientBase } {
-  const base: ClientBase = { baseUrl: url, auth }
-  const client = createClient({ baseUrl: url, directory, auth })
+  const base: ClientBase = { baseUrl: url, auth, api }
+  const client = createClient({ baseUrl: url, directory, auth, api })
   return { client, base }
+}
+
+// Decide which transport a connection needs. A recorded probe is reused; a
+// connection saved before this existed (or saved while the server was down) is
+// probed once here and the answer is written back onto the stored record. When
+  // the probe cannot classify the server we keep the previous behavior (v1)
+// instead of refusing to load a connection the user can still see and edit.
+async function resolveApi(
+  connection: ServerConnection,
+  auth?: { username: string; password: string },
+): Promise<{ api?: ServerApi; resolved: boolean }> {
+  if (connection.api) return { api: connection.api, resolved: false }
+  try {
+    const identity = await probeServer({ baseUrl: connection.url, directory: connection.directory, auth })
+    connection.api = identity.api
+    connection.serverVersion = identity.version
+    return { api: identity.api, resolved: true }
+  } catch {
+    return { api: undefined, resolved: false }
+  }
 }
 
 export const useConnections = create<ConnectionsState>((set, get) => ({
@@ -100,25 +123,16 @@ export const useConnections = create<ConnectionsState>((set, get) => ({
       // Create client for active connection
       let client: Client | null = null
       let base: ClientBase | null = null
-      let project: Project | null = null
-      let home: string | null = null
       if (active) {
         const password = await SecureStore.getItemAsync(`${PASSWORDS_PREFIX}${active.id}`)
         const auth = buildAuth(active.username, password)
-        const built = buildClient(active.url, active.directory, auth)
+        const { api, resolved } = await resolveApi(active, auth)
+        const built = buildClient(active.url, active.directory, auth, api)
         client = built.client
         base = built.base
-        // Fetch current project info and server paths
-        try {
-          const [proj, paths] = await Promise.all([
-            client.project.current().catch(() => null),
-            client.path.get().catch(() => null),
-          ])
-          project = proj
-          home = paths?.home || null
-        } catch {
-          // Server might be offline
-        }
+        // Persist a probe that was only just discovered, so the next launch
+        // picks the same transport without probing again.
+        if (resolved) await SecureStore.setItemAsync(CONNECTIONS_KEY, JSON.stringify(connections))
       }
 
       set({
@@ -126,11 +140,25 @@ export const useConnections = create<ConnectionsState>((set, get) => ({
         activeConnection: active,
         client,
         clientBase: base,
-        currentProject: project,
-        serverHome: home,
+        currentProject: null,
+        serverHome: null,
         recentDirectories,
         isLoading: false,
       })
+
+      // Publish the client before optional project/path metadata. SSE startup
+      // must not wait on these unrelated calls: on a slow mobile route either
+      // request can spend its full timeout before realtime recovery begins.
+      if (client) {
+        const requestClient = client
+        void Promise.all([
+          requestClient.project.current().catch(() => null),
+          requestClient.path.get().catch(() => null),
+        ]).then(([project, paths]) => {
+          if (get().client !== requestClient) return
+          set({ currentProject: project, serverHome: paths?.home || null })
+        })
+      }
     } catch (error) {
       set({ error: "Failed to load connections", isLoading: false })
     }
@@ -158,31 +186,26 @@ export const useConnections = create<ConnectionsState>((set, get) => ({
     let base = get().clientBase
     let activeConnection = get().activeConnection
 
-    let project = get().currentProject
-    let serverHome = get().serverHome
-
     if (newConnection.active) {
       activeConnection = newConnection
       const auth = buildAuth(newConnection.username, password)
-      const built = buildClient(newConnection.url, newConnection.directory, auth)
-      client = built.client
+      const { api } = await resolveApi(newConnection, auth)
+      const built = buildClient(newConnection.url, newConnection.directory, auth, api)
+      const requestClient = built.client
+      client = requestClient
       base = built.base
-
-      // Fetch server metadata so loadSessions can use clientForDirectory(serverHome)
-      // immediately after the connection is added (same as setActiveConnection does).
-      try {
-        const [proj, paths] = await Promise.all([
-          client.project.current().catch(() => null),
-          client.path.get().catch(() => null),
-        ])
-        project = proj
-        serverHome = paths?.home || null
-      } catch {
-        // Server might be unreachable; proceed without metadata
-      }
+      set({ connections, activeConnection, client, clientBase: base, currentProject: null, serverHome: null })
+      void Promise.all([
+        requestClient.project.current().catch(() => null),
+        requestClient.path.get().catch(() => null),
+      ]).then(([project, paths]) => {
+        if (get().client !== requestClient) return
+        set({ currentProject: project, serverHome: paths?.home || null })
+      })
+      return
     }
 
-    set({ connections, activeConnection, client, clientBase: base, currentProject: project, serverHome })
+    set({ connections, activeConnection, client, clientBase: base })
   },
 
   removeConnection: async (id) => {
@@ -202,7 +225,9 @@ export const useConnections = create<ConnectionsState>((set, get) => ({
         await SecureStore.setItemAsync(CONNECTIONS_KEY, JSON.stringify(connections))
         const password = await SecureStore.getItemAsync(`${PASSWORDS_PREFIX}${newActive.id}`)
         const auth = buildAuth(newActive.username, password)
-        const built = buildClient(newActive.url, newActive.directory, auth)
+        const { api, resolved } = await resolveApi(newActive, auth)
+        const built = buildClient(newActive.url, newActive.directory, auth, api)
+        if (resolved) await SecureStore.setItemAsync(CONNECTIONS_KEY, JSON.stringify(connections))
         set({ connections, activeConnection: newActive, client: built.client, clientBase: built.base })
       } else {
         set({ connections, activeConnection: null, client: null, clientBase: null })
@@ -223,52 +248,57 @@ export const useConnections = create<ConnectionsState>((set, get) => ({
     const active = connections.find((c) => c.id === id) || null
     let client: Client | null = null
     let base: ClientBase | null = null
-    let project: Project | null = null
-    let home: string | null = null
+    let requestClient: Client | null = null
 
     if (active) {
       const password = await SecureStore.getItemAsync(`${PASSWORDS_PREFIX}${active.id}`)
       const auth = buildAuth(active.username, password)
-      const built = buildClient(active.url, active.directory, auth)
-      client = built.client
+      const { api } = await resolveApi(active, auth)
+      const built = buildClient(active.url, active.directory, auth, api)
+      requestClient = built.client
+      client = requestClient
       base = built.base
-
-      try {
-        const [proj, paths] = await Promise.all([
-          client.project.current().catch(() => null),
-          client.path.get().catch(() => null),
-        ])
-        project = proj
-        home = paths?.home || null
-      } catch {
-        // Server might be offline
-      }
 
       // Update last connected time
       active.lastConnected = Date.now()
       await SecureStore.setItemAsync(CONNECTIONS_KEY, JSON.stringify(connections))
     }
 
-    set({ connections, activeConnection: active, client, clientBase: base, currentProject: project, serverHome: home })
+    set({ connections, activeConnection: active, client, clientBase: base, currentProject: null, serverHome: null })
+    if (requestClient) {
+      void Promise.all([
+        requestClient.project.current().catch(() => null),
+        requestClient.path.get().catch(() => null),
+      ]).then(([project, paths]) => {
+        if (get().client !== requestClient) return
+        set({ currentProject: project, serverHome: paths?.home || null })
+      })
+    }
     addBreadcrumb({
       category: "connection",
       message: active ? `active connection set: ${active.type}` : "active connection cleared",
-      data: { id: active?.id, type: active?.type, hasProject: Boolean(project) },
+      data: { id: active?.id, type: active?.type, hasProject: false },
     })
   },
 
   testConnection: async (connection, source, password) => {
     track(AnalyticsEvent.ConnectionAttempted, { source })
     try {
+      const auth = buildAuth(connection.username, password)
+      // Probe before anything else. Against a v1 server the v2 health route is not
+      // a route at all — it falls through to the web SPA and answers 200 with HTML,
+      // which used to read as "connected" and then failed on every real request.
+      const identity = await probeServer({ baseUrl: connection.url, directory: connection.directory, auth })
       const client = createClient({
         baseUrl: connection.url,
         directory: connection.directory,
-        auth: buildAuth(connection.username, password),
+        auth,
+        api: identity.api,
       })
 
       await client.global.health(CONNECTION_TEST_TIMEOUT_MS)
       track(AnalyticsEvent.ConnectionSucceeded, { source })
-      return { ok: true }
+      return { ok: true, api: identity.api, serverVersion: identity.version }
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
       track(AnalyticsEvent.ConnectionFailed, { source, error_class: classifyConnectionError(message) })
@@ -277,7 +307,18 @@ export const useConnections = create<ConnectionsState>((set, get) => ({
   },
 
   updateConnection: async (id, updates, password) => {
-    const connections = get().connections.map((c) => (c.id === id ? { ...c, ...updates } : c))
+    const connections = get().connections.map((c) => {
+      if (c.id !== id) return c
+      const merged = { ...c, ...updates }
+      // A different URL is a different server: drop the recorded probe so the
+      // next client build re-detects the transport instead of reusing the
+      // previous server's answer.
+      if (updates.url !== undefined && updates.url !== c.url) {
+        merged.api = undefined
+        merged.serverVersion = undefined
+      }
+      return merged
+    })
 
     await SecureStore.setItemAsync(CONNECTIONS_KEY, JSON.stringify(connections))
 
@@ -294,29 +335,24 @@ export const useConnections = create<ConnectionsState>((set, get) => ({
       const active = connections.find((c) => c.id === id)!
       const password = await SecureStore.getItemAsync(`${PASSWORDS_PREFIX}${id}`)
       const auth = buildAuth(active.username, password)
-      const built = buildClient(active.url, active.directory, auth)
-      try {
-        const [project, paths] = await Promise.all([
-          built.client.project.current().catch(() => null),
-          built.client.path.get().catch(() => null),
-        ])
-        set({
-          connections,
-          activeConnection: active,
-          client: built.client,
-          clientBase: built.base,
-          currentProject: project,
-          serverHome: paths?.home || null,
-        })
-      } catch {
-        set({
-          connections,
-          activeConnection: active,
-          client: built.client,
-          clientBase: built.base,
-          currentProject: null,
-        })
-      }
+      const { api, resolved } = await resolveApi(active, auth)
+      const built = buildClient(active.url, active.directory, auth, api)
+      if (resolved) await SecureStore.setItemAsync(CONNECTIONS_KEY, JSON.stringify(connections))
+      set({
+        connections,
+        activeConnection: active,
+        client: built.client,
+        clientBase: built.base,
+        currentProject: null,
+        serverHome: null,
+      })
+      void Promise.all([
+        built.client.project.current().catch(() => null),
+        built.client.path.get().catch(() => null),
+      ]).then(([project, paths]) => {
+        if (get().client !== built.client) return
+        set({ currentProject: project, serverHome: paths?.home || null })
+      })
     } else {
       set({ connections })
     }
@@ -340,7 +376,7 @@ export const useConnections = create<ConnectionsState>((set, get) => ({
     // Reuse current client if directory matches
     const active = get().activeConnection
     if (active?.directory === directory) return get().client
-    return createClient({ baseUrl: base.baseUrl, directory, auth: base.auth })
+    return createClient({ baseUrl: base.baseUrl, directory, auth: base.auth, api: base.api })
   },
 
   switchDirectory: async (directory) => {

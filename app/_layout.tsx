@@ -4,6 +4,7 @@ import { StatusBar } from "expo-status-bar"
 import { useColorScheme, View, ActivityIndicator, AppState } from "react-native"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { GestureHandlerRootView } from "react-native-gesture-handler"
+import { KeyboardProvider } from "react-native-keyboard-controller"
 import { BottomSheetModalProvider } from "@gorhom/bottom-sheet"
 import { I18nextProvider, useTranslation } from "react-i18next"
 import i18n from "../src/lib/i18n/config"
@@ -11,6 +12,7 @@ import { useAuth } from "../src/stores/auth"
 import { useConnections } from "../src/stores/connections"
 import { useEvents } from "../src/stores/events"
 import { useCatalog } from "../src/stores/catalog"
+import { useSessions } from "../src/stores/sessions"
 import { useSettings } from "../src/stores/settings"
 import { AuthGate } from "../src/components/AuthGate"
 import { ErrorBoundary } from "../src/components/ErrorBoundary"
@@ -31,6 +33,9 @@ function RootLayout() {
   const { initialize: initAuth, isLoading: authLoading } = useAuth()
   const { loadConnections, isLoading: connectionsLoading, client } = useConnections()
   const sseStarted = useRef(false)
+  const wasBackgrounded = useRef(false)
+  const sessionRestoreAttempted = useRef(false)
+  const notificationOpened = useRef(false)
   const notifPermissionRequested = useRef(false)
 
   // Telemetry consent state: null = loading, 'unknown' = show modal, else decided
@@ -48,6 +53,7 @@ function RootLayout() {
     // notifications carry no sessionId (they aren't about a session) — route
     // to the home tab instead of "/session/" (an empty, dead-end route).
     const unsubNotifications = notifications.onTap((data) => {
+      notificationOpened.current = true
       if (data.sessionId) router.push(`/session/${data.sessionId}`)
       else router.push("/")
     })
@@ -78,6 +84,25 @@ function RootLayout() {
     return unsubNotifications
   }, [])
 
+  // Restore only the last selected session reference after Android recreates
+  // the process. The transcript remains server-owned and is fetched by the
+  // session screen; no assistant/tool output is persisted locally.
+  useEffect(() => {
+    if (!client || connectionsLoading || authLoading || consentState === "loading" || sessionRestoreAttempted.current || notificationOpened.current) return
+    sessionRestoreAttempted.current = true
+    void useSessions.getState().loadLastSession().then((last) => {
+      if (!last) return
+      const connections = useConnections.getState()
+      if (last.connectionID && connections.activeConnection?.id !== last.connectionID) return
+      // Keep the sessions tab underneath the restored screen so Back remains
+      // available after process recreation.
+      router.push({
+        pathname: "/session/[id]",
+        params: { id: last.sessionID, ...(last.directory ? { directory: last.directory } : {}) },
+      } as never)
+    })
+  }, [authLoading, client, connectionsLoading, consentState])
+
   // Re-arm the biometric app-lock when the app leaves the foreground. Without
   // this, "Require Biometric to Open" is bypassable: authenticate() sets
   // isAuthenticated=true once at cold start and nothing ever resets it, so the
@@ -85,12 +110,24 @@ function RootLayout() {
   // physical access can reopen a backgrounded app straight into session
   // history and connection details. lock() flips isAuthenticated back to false
   // so AuthGate shows the lock screen (and re-prompts) on next foreground.
-  // Fire on "background" only (not the transient "inactive" that the biometric
-  // prompt / app switcher / control center produce) to avoid spurious re-locks.
+  // Preserve the in-progress composer draft and mark the SSE transport as no
+  // longer verified when the app really backgrounds. Don't tear the stream down
+  // here: OpenCode continues server-side regardless, and Android may keep the
+  // socket alive. On the next foreground, reconnectNow replaces a stale reader
+  // immediately rather than waiting on a JS timer that Doze may have frozen.
+  // Biometric locking remains restricted to the actual background transition.
   useEffect(() => {
     const sub = AppState.addEventListener("change", (next) => {
-      if (next === "background" && useAuth.getState().settings.requireBiometric) {
-        useAuth.getState().lock()
+      if (next === "background") {
+        wasBackgrounded.current = true
+        void useSessions.getState().flushDrafts().catch((err) => console.warn("[Sessions] Draft flush failed:", err))
+        useEvents.getState().background()
+        if (useAuth.getState().settings.requireBiometric) useAuth.getState().lock()
+        return
+      }
+      if (next === "active" && wasBackgrounded.current) {
+        wasBackgrounded.current = false
+        if (sseStarted.current) useEvents.getState().reconnectNow()
       }
     })
     return () => sub.remove()
@@ -169,6 +206,10 @@ function RootLayout() {
 
   return (
     <ErrorBoundary>
+      {/* react-native-keyboard-controller: drives keyboard avoidance from
+          native WindowInsets instead of the legacy RN Keyboard events, which
+          misreport under Android's mandatory edge-to-edge mode (Expo SDK 54). */}
+      <KeyboardProvider>
       <I18nextProvider i18n={i18n}>
       <GestureHandlerRootView style={{ flex: 1 }}>
         <BottomSheetModalProvider>
@@ -226,6 +267,7 @@ function RootLayout() {
         }}
       />
       </I18nextProvider>
+      </KeyboardProvider>
     </ErrorBoundary>
   )
 }

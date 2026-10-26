@@ -11,12 +11,12 @@ Version: 0.2.3
 |---|---|---|
 | opencode server URL | Medium — reveals network topology | `expo-secure-store` (`opencode_connections`) |
 | HTTP Basic auth password for opencode server | High — grants full server access | `expo-secure-store` (`opencode_password_<id>`) |
-| User prompts sent to the AI model | High — may contain proprietary code or PII | In-flight only (not persisted on device) |
+| User prompts sent to the AI model | High — may contain proprietary code or PII | Sent prompts remain server-side; the unsent composer draft is encrypted in `expo-secure-store` per session and deleted after accepted submission |
 | AI responses / generated code | High — proprietary output | In-flight only (not persisted on device) |
 | Sentry DSN | Low — public by design; quota-abuse risk | Bundle (EXPO_PUBLIC_) + SecureStore (consent state) |
 | Biometric/PIN auth settings | Low | `expo-secure-store` (`opencode_auth_settings`) |
 | Telemetry consent decision | Low | `expo-secure-store` (`opencode_telemetry_consent`) |
-| Session IDs | Low — server-assigned, ephemeral | In-memory only |
+| Session IDs | Low — server-assigned | Current last-selected session reference in `expo-secure-store`; no transcript is stored |
 | Notification preferences | Low | `expo-secure-store` (`opencode_settings`) |
 
 ---
@@ -70,7 +70,7 @@ Version: 0.2.3
 - All sensitive data in `expo-secure-store` (iOS Keychain with `kSecAttrAccessibleWhenUnlockedThisDeviceOnly`; Android Keystore-backed EncryptedSharedPreferences). Data is inaccessible when the device is locked.
 - Optional biometric app lock (`requireBiometric` setting). Default off for UX; users with sensitive servers should enable it.
 - Notification lock-screen preview: session titles may appear in "Task completed" notifications. No prompt content or AI response content is included in notification bodies.
-- **Known gap (M-03):** `permission.asked` notifications can show tool file-path glob patterns on lock screen. Fix pending.
+- Permission/question notifications use generic lock-screen text; tool resources and form content remain in the authenticated in-app prompt (M-03 addressed).
 
 **Residual risk:** Medium. Without biometric lock enabled, a device that auto-unlocks (e.g., trusted location) exposes app contents. Users should be prompted to enable biometric lock during onboarding when a server is added.
 

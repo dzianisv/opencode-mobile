@@ -7,7 +7,8 @@ import {
   TouchableOpacity,
   StyleSheet,
   useColorScheme,
-  KeyboardAvoidingView,
+  useWindowDimensions,
+  Keyboard,
   Platform,
   ActivityIndicator,
   Alert,
@@ -20,6 +21,12 @@ import * as ImagePicker from "expo-image-picker"
 import * as ImageManipulator from "expo-image-manipulator"
 import * as Clipboard from "expo-clipboard"
 import type BottomSheet from "@gorhom/bottom-sheet"
+// KeyboardAvoidingView from react-native-keyboard-controller (not react-native
+// core): core KAV relies on legacy Keyboard events whose metrics misreport
+// under Android's mandatory edge-to-edge mode (Expo SDK 54 / RN 0.81), leaving
+// the composer hidden behind the keyboard. This library drives avoidance from
+// native WindowInsets and is the standard fix for that setup.
+import { KeyboardAvoidingView } from "react-native-keyboard-controller"
 import {
   MessageBubble,
   PermissionPrompt,
@@ -30,6 +37,7 @@ import {
   VariantPicker,
   ImageAttachments,
   SessionInfo,
+  MessageTextSheet,
   type SlashCommand,
   type Attachment,
 } from "../../src/components/chat"
@@ -39,6 +47,8 @@ import { useConnections } from "../../src/stores/connections"
 import { useAuth } from "../../src/stores/auth"
 import { useCatalog } from "../../src/stores/catalog"
 import { useSpeech } from "../../src/lib/speech"
+import { messagePartsToSelectableText } from "../../src/lib/message-text"
+import { composerMaxHeight, keyboardVerticalOffset } from "../../src/lib/session-layout"
 
 // --- Builtin slash commands ---
 const BUILTIN_COMMANDS: SlashCommand[] = [
@@ -77,14 +87,32 @@ export default function SessionScreen() {
   const colorScheme = useColorScheme()
   const isDark = colorScheme === "dark"
   const insets = useSafeAreaInsets()
+  const { height: windowHeight, fontScale } = useWindowDimensions()
   const { t } = useTranslation()
 
   const flatListRef = useRef<FlatList>(null)
   const modelSheetRef = useRef<BottomSheet>(null)
   const variantSheetRef = useRef<BottomSheet>(null)
   const [input, setInput] = useState("")
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const submittingRef = useRef(false)
+  const [keyboardY, setKeyboardY] = useState<number | null>(null)
   const [attachments, setAttachments] = useState<Attachment[]>([])
   const [showInfo, setShowInfo] = useState(false)
+  // Raw text of the message opened in the full-screen selection sheet
+  const [textSheet, setTextSheet] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (Platform.OS !== "android") return
+    const show = Keyboard.addListener("keyboardDidShow", (event) => setKeyboardY(event.endCoordinates.screenY))
+    const hide = Keyboard.addListener("keyboardDidHide", () => setKeyboardY(null))
+    setKeyboardY(Keyboard.metrics()?.screenY ?? null)
+    return () => {
+      show.remove()
+      hide.remove()
+    }
+  }, [])
+  const inputMaxHeight = composerMaxHeight(Platform.OS, windowHeight, keyboardY, insets.top, fontScale)
 
   const {
     currentSession,
@@ -93,7 +121,11 @@ export default function SessionScreen() {
     isLoading,
     loadingMore,
     hasMore,
+    error,
     selectSession,
+    loadDraft,
+    setDraft,
+    clearDraft,
     sendMessage,
     abortSession,
     loadOlderMessages,
@@ -101,16 +133,36 @@ export default function SessionScreen() {
     unrevertSession,
   } = useSessions()
 
+  // The native stack keeps inactive session screens mounted while another
+  // route is selected. Until this route's focus load finishes, the single
+  // session store can still contain the previous route's data.
+  const currentSessionMatchesRoute = currentSession?.id === id
+  const selectedSession = currentSessionMatchesRoute ? currentSession : null
+
+  const inputRef = useRef(input)
+  inputRef.current = input
+  const inputRevision = useRef(0)
+  const setComposerInput = useCallback((update: string | ((previous: string) => string)) => {
+    const next = typeof update === "function" ? update(inputRef.current) : update
+    inputRevision.current += 1
+    inputRef.current = next
+    setInput(next)
+    if (id) {
+      if (next.length > 0) setDraft(id, next)
+      else clearDraft(id)
+    }
+  }, [clearDraft, id, setDraft])
+
   // Derive sending state for this specific session
-  const isSending = useSessions((s) => !!(currentSession && s.sending[currentSession.id]))
+  const isSending = useSessions((s) => !!(id && s.sending[id]))
 
   const { authenticateForMessage } = useAuth()
   const { client, clientForDirectory } = useConnections()
 
   // Use directory-aware client for sessions that belong to a project other than the active one
   const sessionClient = useMemo(
-    () => (currentSession?.directory ? (clientForDirectory(currentSession.directory) ?? client) : client),
-    [currentSession?.directory, clientForDirectory, client],
+    () => (selectedSession?.directory ? (clientForDirectory(selectedSession.directory) ?? client) : client),
+    [selectedSession?.directory, clientForDirectory, client],
   )
 
   // Catalog
@@ -126,11 +178,11 @@ export default function SessionScreen() {
   const cycleAgent = catalog.cycleAgent
 
   // Permission & question state
-  const sessionID = currentSession?.id
+  const sessionID = id
   const permissions = useEvents((s) => (sessionID ? s.permissions[sessionID] : undefined)) || []
   const questions = useEvents((s) => (sessionID ? s.questions[sessionID] : undefined)) || []
 
-  const shortDir = getShortDir(currentSession?.directory)
+  const shortDir = getShortDir(selectedSession?.directory)
   const [showScrollButton, setShowScrollButton] = useState(false)
 
   // SSE reconnect banner
@@ -141,8 +193,8 @@ export default function SessionScreen() {
   // Voice input — transcript appends to the text input on completion
   const speech = useSpeech(
     useCallback((text: string) => {
-      setInput((prev) => (prev ? prev + " " + text : text))
-    }, []),
+      setComposerInput((prev) => (prev ? prev + " " + text : text))
+    }, [setComposerInput]),
   )
 
   // Surface speech recognition failures (e.g. mic permission denied). Keyed
@@ -175,28 +227,26 @@ export default function SessionScreen() {
   // "temp-" IDs (assigned client-side before the server responds, see
   // sendMessage) aren't part of that sort order — always keep them so a
   // message sent concurrently with a revert isn't hidden.
-  const revertMessageID = currentSession?.revert?.messageID
+  const revertMessageID = selectedSession?.revert?.messageID
 
   // Inverted FlatList: data is reversed (newest first) so newest renders at bottom
   const messageData = useMemo(
     () =>
-      (messages || [])
+      currentSessionMatchesRoute
+        ? (messages || [])
         .filter((msg) => !revertMessageID || msg.id.startsWith("temp-") || msg.id < revertMessageID)
         .map((msg) => ({
           message: msg,
           parts: (parts && parts[msg.id]) || [],
         }))
-        .reverse(),
-    [messages, parts, revertMessageID],
+        .reverse()
+        : [],
+    [currentSessionMatchesRoute, messages, parts, revertMessageID],
   )
 
-  // Tracks the latest composer text without pulling `input` into
-  // handleMessageLongPress's deps — kept as a plain ref assignment (not
-  // state) so the callback below stays referentially stable across
-  // keystrokes for MessageBubble's custom memo comparator.
-  const inputRef = useRef(input)
-  inputRef.current = input
-
+  // Tracks the latest composer text without pulling `input` into startEditFlow's
+  // deps — kept as a plain ref assignment (not state) so the callback stays
+  // referentially stable across keystrokes for MessageBubble's memo comparator.
   const applyRevertResult = useCallback((result: Awaited<ReturnType<typeof revertToMessage>>) => {
     if (!result.ok) {
       if (result.reason === "unsupported") {
@@ -208,7 +258,7 @@ export default function SessionScreen() {
       }
       return
     }
-    setInput(result.text)
+    setComposerInput(result.text)
     // Restore attachments in the same shape the composer's own picker
     // functions (pickFromLibrary/pickFromCamera/pasteFromClipboard) use.
     setAttachments(
@@ -216,40 +266,64 @@ export default function SessionScreen() {
         .filter((f): f is typeof f & { url: string; mime: string } => !!f.url && !!f.mime)
         .map((f) => ({ uri: f.url, mime: f.mime, filename: f.filename })),
     )
-  }, [t])
+  }, [setComposerInput, t])
 
-  // Stable across renders (reads fresh state via getState() rather than
-  // closing over props) so MessageBubble's custom memo comparator can bail
-  // safely without risking a stale handler.
-  const handleMessageLongPress = useCallback((messageID: string) => {
-    Alert.alert(t("session.alerts.messageActionsTitle"), undefined, [
-      { text: t("common.cancel"), style: "cancel" },
-      {
-        text: t("session.actions.editMessage"),
-        onPress: () => {
-          const doRevert = async () => {
-            const result = await useSessions.getState().revertToMessage(messageID)
-            applyRevertResult(result)
-          }
-          // Editing overwrites the composer — don't silently clobber an
-          // in-progress unsent draft.
-          if (inputRef.current.trim()) {
-            Alert.alert(
-              t("session.alerts.replaceDraftTitle"),
-              t("session.alerts.replaceDraftMessage"),
-              [
-                { text: t("common.cancel"), style: "cancel" },
-                { text: t("session.actions.replace"), style: "destructive", onPress: doRevert },
-              ],
-              { cancelable: false },
-            )
-            return
-          }
-          doRevert()
-        },
-      },
-    ])
-  }, [applyRevertResult, t])
+  // Full-screen selectable view: native text selection can't be trusted inside
+  // FlatList rows on Android (react-native#46999), so selection happens in a
+  // plain ScrollView outside the list. Reached from the assistant bubble's
+  // "Select text" button (a tap — assistant bubbles have no long-press) and
+  // from the user bubble's long-press action sheet. Covers the whole message:
+  // assistant text, reasoning and tool calls (name/input/result/error), not
+  // just text parts. Stable so MessageBubble's memo comparator can bail early.
+  const openSelectTextSheet = useCallback(
+    (messageID: string) => {
+      const messageParts = useSessions.getState().parts[messageID] || []
+      setTextSheet(
+        messagePartsToSelectableText(messageParts, {
+          thinking: t("session.sheet.thinking"),
+          tool: t("session.sheet.tool"),
+          input: t("session.sheet.input"),
+          result: t("session.sheet.result"),
+          error: t("session.sheet.error"),
+          file: t("session.sheet.file"),
+        }),
+      )
+    },
+    [t],
+  )
+
+  // Editing a user message reverts the session to it and loads it into the
+  // composer. Reached from the user bubble's "Edit" button and from its
+  // long-press action sheet. Stable so MessageBubble's memo comparator bails.
+  const startEditFlow = useCallback(
+    (messageID: string) => {
+      const doRevert = async () => {
+        const result = await useSessions.getState().revertToMessage(messageID)
+        applyRevertResult(result)
+      }
+      // Editing overwrites the composer — don't silently clobber an
+      // in-progress unsent draft.
+      if (inputRef.current.trim()) {
+        Alert.alert(
+          t("session.alerts.replaceDraftTitle"),
+          t("session.alerts.replaceDraftMessage"),
+          [
+            { text: t("common.cancel"), style: "cancel" },
+            { text: t("session.actions.replace"), style: "destructive", onPress: doRevert },
+          ],
+          { cancelable: false },
+        )
+        return
+      }
+      doRevert()
+    },
+    [applyRevertResult, t],
+  )
+
+  // Message actions live in the bubble header as buttons (Select text / Edit),
+  // so there is no long-press action sheet here any more — holding a message
+  // must not pop a menu, because a long-press on the bubble competed with
+  // horizontal scrolling in code blocks and with text selection.
 
   const scrollToBottom = useCallback((animated = true) => {
     flatListRef.current?.scrollToOffset({ offset: 0, animated })
@@ -265,6 +339,20 @@ export default function SessionScreen() {
   useFocusEffect(
     useCallback(() => {
       if (!id) return
+      // Load the session-specific encrypted draft on focus. The revision guard
+      // prevents a slower SecureStore read from overwriting text typed while it
+      // was in flight, and `focused` prevents a previous route's read landing
+      // after the user switches sessions.
+      let focused = true
+      const revision = ++inputRevision.current
+      inputRef.current = ""
+      setInput("")
+      void loadDraft(id).then((draft) => {
+        if (!focused || inputRevision.current !== revision) return
+        inputRef.current = draft
+        setInput(draft)
+      }).catch((err) => console.warn("[Session] Failed to restore composer draft:", err))
+
       selectSession(id, directory).then(() => {
         // Re-fetch pending permissions/questions from the server to recover from
         // missed SSE events or failed optimistic removals
@@ -272,11 +360,13 @@ export default function SessionScreen() {
         const c = directory ? (connState.clientForDirectory(directory) ?? connState.client) : connState.client
         if (c) refreshPending(c, id)
       })
-    }, [id, directory]),
+      return () => { focused = false }
+    }, [id, directory, loadDraft, selectSession]),
   )
 
   // Sync model chip from latest assistant message
   useEffect(() => {
+    if (!currentSessionMatchesRoute) return
     if (!messages || messages.length === 0) return
     for (let i = messages.length - 1; i >= 0; i--) {
       const msg = messages[i]
@@ -289,7 +379,7 @@ export default function SessionScreen() {
         return
       }
     }
-  }, [currentSession?.id, messages?.length])
+  }, [currentSessionMatchesRoute, currentSession?.id, messages?.length])
 
   // Slash command handler
   const handleSlashSelect = useCallback(
@@ -300,18 +390,18 @@ export default function SessionScreen() {
             router.back()
             return
           case "model":
-            setInput("")
+            setComposerInput("")
             modelSheetRef.current?.expand()
             return
           case "agent":
-            setInput("")
+            setComposerInput("")
             cycleAgent()
             return
         }
       }
-      setInput(`/${cmd.trigger} `)
+      setComposerInput(`/${cmd.trigger} `)
     },
-    [router, cycleAgent],
+    [router, cycleAgent, setComposerInput],
   )
 
   // --- Image picking ---
@@ -394,12 +484,12 @@ export default function SessionScreen() {
     if (hasText) {
       const text = await Clipboard.getStringAsync()
       if (text) {
-        setInput((prev) => prev + text)
+        setComposerInput((prev) => prev + text)
         return
       }
     }
     Alert.alert(t("session.alerts.emptyClipboardTitle"), t("session.alerts.emptyClipboardMessage"))
-  }, [t])
+  }, [setComposerInput, t])
 
   const removeAttachment = useCallback((index: number) => {
     setAttachments((prev) => prev.filter((_, i) => i !== index))
@@ -407,46 +497,62 @@ export default function SessionScreen() {
 
   // --- Send ---
   const handleSend = async () => {
-    if (!input.trim() && attachments.length === 0) return
-    const authenticated = await authenticateForMessage()
-    if (!authenticated) {
-      Alert.alert(t("session.alerts.authRequiredTitle"), t("session.alerts.authRequiredMessage"))
-      return
+    if (submittingRef.current) return
+    const text = inputRef.current
+    const files = [...attachments]
+    if (!text.trim() && files.length === 0) return
+    submittingRef.current = true
+    setIsSubmitting(true)
+
+    const sessionID = selectedSession?.id
+    const clearSubmittedDraft = () => {
+      // Text entry is disabled while the request is pending. Still compare the
+      // value so a programmatic edit (e.g. a route/revert action) is never lost.
+      if (inputRef.current === text) {
+        inputRef.current = ""
+        setInput("")
+        if (sessionID) clearDraft(sessionID)
+      }
+      setAttachments((current) => current.filter((file) => !files.includes(file)))
     }
 
-    const text = input.trim()
-    const files = [...attachments]
-    setInput("")
-    setAttachments([])
+    try {
+      const authenticated = await authenticateForMessage()
+      if (!authenticated) {
+        Alert.alert(t("session.alerts.authRequiredTitle"), t("session.alerts.authRequiredMessage"))
+        return
+      }
+      if (!currentSessionMatchesRoute || !selectedSession) return
 
-    // Server slash commands (no attachments for commands)
-    if (text.startsWith("/") && files.length === 0) {
-      const [cmdName, ...args] = text.split(" ")
-      const name = cmdName.slice(1)
-      const match = serverCommands.find((c) => c.name === name)
-      if (match && sessionClient && currentSession) {
-        sessionClient.session
-          .command(currentSession.id, {
+      // Server slash commands are parsed as commands; regular prompts are sent
+      // byte-for-byte as composed, including leading/trailing whitespace.
+      if (text.startsWith("/") && files.length === 0) {
+        const [cmdName, ...args] = text.trim().split(" ")
+        const name = cmdName.slice(1)
+        const match = serverCommands.find((c) => c.name === name)
+        if (match && sessionClient) {
+          await sessionClient.session.command(selectedSession.id, {
             command: name,
             arguments: args.join(" "),
             agent,
             model: model ? `${model.providerID}/${model.modelID}` : undefined,
           })
-          .catch((err) => console.error("Command failed:", err))
-        return
+          clearSubmittedDraft()
+          return
+        }
       }
-    }
 
-    // Messages are queued server-side when the session is busy.
-    // No need to abort - just send and it will be processed after current response.
-    try {
+      // Messages are queued server-side when the session is busy. Keep the
+      // encrypted draft and attachments until the submission POST is accepted.
       await sendMessage(text, model || undefined, agent || undefined, files, variant || undefined)
+      clearSubmittedDraft()
     } catch (err) {
       console.error("Send failed:", err)
-      // Restore the user's text and attachments so their input isn't lost.
-      setInput((prev) => (prev ? prev : text))
-      setAttachments((prev) => (prev.length ? prev : files))
+      // Nothing was cleared, so the complete draft remains available to retry.
       Alert.alert(t("session.alerts.sendFailedTitle"), t("session.alerts.sendFailedMessage"))
+    } finally {
+      submittingRef.current = false
+      setIsSubmitting(false)
     }
   }
 
@@ -485,64 +591,59 @@ export default function SessionScreen() {
 
   const handlePermissionReply = async (requestID: string, reply: "once" | "always" | "reject") => {
     if (!sessionClient || !sessionID) return
-    // Snapshot for rollback
-    const snapshot = useEvents.getState().permissions[sessionID] || []
     // Optimistically remove from UI
     useEvents.setState((state) => ({
       permissions: {
         ...state.permissions,
-        [sessionID]: snapshot.filter((p) => p.id !== requestID),
+        [sessionID]: (state.permissions[sessionID] || []).filter((p) => p.id !== requestID),
       },
     }))
     try {
       await sessionClient.permission.reply(requestID, reply)
     } catch (err) {
       console.error("Permission reply failed:", err)
-      // Restore the prompt so the user can retry
-      useEvents.setState((state) => ({
-        permissions: { ...state.permissions, [sessionID]: snapshot },
-      }))
-      Alert.alert(t("session.alerts.replyFailedTitle"), t("session.alerts.replyFailedMessage"))
+      await refreshPending(sessionClient, sessionID)
+      if ((useEvents.getState().permissions[sessionID] || []).some((permission) => permission.id === requestID)) {
+        Alert.alert(t("session.alerts.replyFailedTitle"), t("session.alerts.replyFailedMessage"))
+      }
     }
   }
 
   const handleQuestionReply = async (requestID: string, answers: string[][]) => {
     if (!sessionClient || !sessionID) return
-    const snapshot = useEvents.getState().questions[sessionID] || []
     useEvents.setState((state) => ({
       questions: {
         ...state.questions,
-        [sessionID]: snapshot.filter((q) => q.id !== requestID),
+        [sessionID]: (state.questions[sessionID] || []).filter((q) => q.id !== requestID),
       },
     }))
     try {
       await sessionClient.question.reply(requestID, answers)
     } catch (err) {
       console.error("Question reply failed:", err)
-      useEvents.setState((state) => ({
-        questions: { ...state.questions, [sessionID]: snapshot },
-      }))
-      Alert.alert(t("session.alerts.replyFailedTitle"), t("session.alerts.replyFailedMessage"))
+      await refreshPending(sessionClient, sessionID)
+      if ((useEvents.getState().questions[sessionID] || []).some((question) => question.id === requestID)) {
+        Alert.alert(t("session.alerts.replyFailedTitle"), t("session.alerts.replyFailedMessage"))
+      }
     }
   }
 
   const handleQuestionReject = async (requestID: string) => {
     if (!sessionClient || !sessionID) return
-    const snapshot = useEvents.getState().questions[sessionID] || []
     useEvents.setState((state) => ({
       questions: {
         ...state.questions,
-        [sessionID]: snapshot.filter((q) => q.id !== requestID),
+        [sessionID]: (state.questions[sessionID] || []).filter((q) => q.id !== requestID),
       },
     }))
     try {
       await sessionClient.question.reject(requestID)
     } catch (err) {
       console.error("Question reject failed:", err)
-      useEvents.setState((state) => ({
-        questions: { ...state.questions, [sessionID]: snapshot },
-      }))
-      Alert.alert(t("session.alerts.rejectFailedTitle"), t("session.alerts.rejectFailedMessage"))
+      await refreshPending(sessionClient, sessionID)
+      if ((useEvents.getState().questions[sessionID] || []).some((question) => question.id === requestID)) {
+        Alert.alert(t("session.alerts.rejectFailedTitle"), t("session.alerts.rejectFailedMessage"))
+      }
     }
   }
 
@@ -570,7 +671,21 @@ export default function SessionScreen() {
     <>
       <Stack.Screen
         options={{
-          title: currentSession?.title || t("session.titleFallback"),
+          title: selectedSession?.title || t("session.titleFallback"),
+          headerLeft: () => (
+            <TouchableOpacity
+              accessibilityRole="button"
+              accessibilityLabel="Back to sessions"
+              onPress={() => {
+                if (router.canGoBack()) router.back()
+                else router.replace("/")
+              }}
+              hitSlop={12}
+              style={{ paddingRight: 16 }}
+            >
+              <Ionicons name="arrow-back" size={24} color={isDark ? "#ffffff" : "#0a0a0a"} />
+            </TouchableOpacity>
+          ),
           headerRight: () => (
             <View style={s.headerRight}>
               {shortDir && (
@@ -593,24 +708,26 @@ export default function SessionScreen() {
 
       <KeyboardAvoidingView
         style={[s.container, isDark && s.containerDark]}
-        // Both platforms use "padding" so the composer/toolbar is pushed up
-        // above the keyboard via JS-measured keyboard height.
-        //
-        // Android previously relied on the native android:windowSoftInputMode
-        // (adjustResize, see AndroidManifest.xml) with behavior={undefined}
-        // to let the OS resize the window (see #70/#53). Since adopting
-        // Expo's mandatory edge-to-edge display, Android no longer resizes
-        // the window when the keyboard opens — the system assumes insets are
-        // handled dynamically — so adjustResize became a no-op and the
-        // bottom toolbar + input were left completely hidden behind the
-        // keyboard (#147). "padding" restores avoidance without depending
-        // on native resize.
+        // "padding" pushes the composer/toolbar above the keyboard. On Android
+        // the padding is driven by react-native-keyboard-controller's native
+        // inset tracking (see import note above); on iOS by the keyboard frame
+        // events. History: this screen previously used the core RN KAV with
+        // behavior="padding" (#147), which regressed under edge-to-edge — the
+        // core component's JS-measured keyboard height no longer matched the
+        // real inset, so the input stayed hidden behind the keyboard.
         behavior="padding"
-        keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 0}
+        // automaticOffset: measure this view's true on-screen position via
+        // native viewPositionInWindow instead of the layout-relative frame.
+        // Under RN core edge-to-edge the content area is already inset by
+        // status/nav bars, so layout-relative math under-counts the keyboard
+        // padding by exactly those insets (composer ends up partly behind the
+        // keyboard — measured 609px of padding for an 820px IME inset).
+        automaticOffset
+        keyboardVerticalOffset={keyboardVerticalOffset(Platform.OS, insets.top)}
       >
         {/* Session info pulldown */}
         <SessionInfo
-          session={currentSession}
+          session={selectedSession}
           messages={messages || []}
           providers={providers}
           visible={showInfo}
@@ -625,6 +742,23 @@ export default function SessionScreen() {
           }}
           onClose={() => setShowInfo(false)}
         />
+
+        {/* Full-screen selectable text (message action sheet -> "Select text") */}
+        <MessageTextSheet visible={textSheet !== null} text={textSheet ?? ""} onClose={() => setTextSheet(null)} />
+
+        {/* Session error (agent run failed) — session.error SSE event sets
+            this while the user is viewing the session. Dismissible; also
+            cleared by the next send. */}
+        {error && (
+          <View style={[s.banner, s.bannerError]}>
+            <Text style={[s.bannerText, s.bannerErrorText]} numberOfLines={3}>
+              {error}
+            </Text>
+            <TouchableOpacity onPress={() => useSessions.setState({ error: null })} hitSlop={8}>
+              <Text style={s.bannerErrorAction}>{t("session.banners.dismiss")}</Text>
+            </TouchableOpacity>
+          </View>
+        )}
 
         {/* SSE reconnect/connected banner */}
         {reconnectAttempts > 0 && (
@@ -649,7 +783,7 @@ export default function SessionScreen() {
                 // The composer was prefilled with the reverted message's text/
                 // attachments (see applyRevertResult) — clear it so Undo doesn't
                 // leave a stale draft that could be sent as a duplicate.
-                setInput("")
+                setComposerInput("")
                 setAttachments([])
               }}
               hitSlop={8}
@@ -675,7 +809,8 @@ export default function SessionScreen() {
                   message={item.message}
                   parts={item.parts}
                   isDark={isDark}
-                  onLongPress={handleMessageLongPress}
+                  onSelectText={openSelectTextSheet}
+                  onEdit={startEditFlow}
                 />
               )}
               contentContainerStyle={s.messageList}
@@ -712,7 +847,7 @@ export default function SessionScreen() {
         )}
 
         {/* Status */}
-        {currentSession && <StatusIndicator sessionID={currentSession.id} isDark={isDark} />}
+        {selectedSession && <StatusIndicator sessionID={selectedSession.id} isDark={isDark} />}
 
         {/* Permissions */}
         {permissions.map((perm) => (
@@ -796,7 +931,7 @@ export default function SessionScreen() {
             </TouchableOpacity>
 
             <TextInput
-              style={[s.input, isDark && s.inputDark, speech.listening && s.inputListening]}
+              style={[s.input, isDark && s.inputDark, speech.listening && s.inputListening, { maxHeight: inputMaxHeight }]}
               placeholder={
                 speech.listening
                   ? t("session.input.placeholderListening")
@@ -806,10 +941,10 @@ export default function SessionScreen() {
               }
               placeholderTextColor={speech.listening ? "#ef4444" : isDark ? "#666666" : "#999999"}
               value={speech.listening ? speech.transcript : input}
-              onChangeText={speech.listening ? undefined : setInput}
-              editable={!speech.listening}
+              onChangeText={speech.listening ? undefined : setComposerInput}
+              editable={!speech.listening && !isSubmitting}
               multiline
-              maxLength={10000}
+              scrollEnabled
               testID="chat-message-input"
             />
             {/* Stop button: only when busy and no input */}
@@ -832,7 +967,7 @@ export default function SessionScreen() {
             )}
             {/* Send button: when there's input */}
             {!speech.listening && (input.trim() || attachments.length > 0) && (
-              <TouchableOpacity style={s.sendBtn} onPress={handleSend} testID="chat-send-button">
+              <TouchableOpacity style={s.sendBtn} onPress={handleSend} disabled={isSubmitting} testID="chat-send-button">
                 <Ionicons name="send" size={20} color="#ffffff" />
               </TouchableOpacity>
             )}
@@ -1056,6 +1191,17 @@ const s = StyleSheet.create({
   bannerReconnecting: { backgroundColor: "#92400e" },
   bannerConnected: { backgroundColor: "#065f46" },
   bannerText: { color: "#ffffff", fontSize: 13, fontWeight: "500" },
+
+  // Session error banner (agent run failed)
+  bannerError: {
+    backgroundColor: "#991b1b",
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    gap: 12,
+  },
+  bannerErrorAction: { color: "#fecaca", fontSize: 13, fontWeight: "700" },
+  bannerErrorText: { flex: 1 },
 
   // Pending revert (edit message) banner
   bannerRevert: {

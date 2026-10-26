@@ -43,8 +43,8 @@ name: Directory picker - browse server folders and create a session in one
     timeout: 40000
 - takeScreenshot: dirpicker-S1_connected
 
-# Open the New Session modal (long-press the FAB for the full options sheet)
-- longPressOn:
+# Open the New Session modal
+- tapOn:
     id: "new-session-fab"
 - assertVisible:
     text: "New Session"

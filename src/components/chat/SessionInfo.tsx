@@ -4,6 +4,7 @@ import { Ionicons } from "@expo/vector-icons"
 import { useTranslation } from "react-i18next"
 import type { Message, Session } from "../../lib/sdk"
 import type { Provider } from "../../stores/catalog"
+import { summarizeSessionUsage } from "../../lib/session-usage"
 
 interface Props {
   session: Session | null
@@ -55,35 +56,19 @@ export function SessionInfo({
   const { t } = useTranslation()
   // Match TUI: last assistant message tokens (context window), cumulative cost
   const stats = useMemo(() => {
-    let cost = 0
-    let last: Message | null = null
-
-    for (const msg of messages) {
-      if (msg.role !== "assistant") continue
-      if (msg.cost) cost += msg.cost
-      if (msg.tokens && msg.tokens.output > 0) last = msg
-    }
-
-    // Last assistant message token breakdown (what the TUI shows)
-    const tokens = last?.tokens
-    const input = tokens?.input || 0
-    const output = tokens?.output || 0
-    const reasoning = tokens?.reasoning || 0
-    const cacheRead = tokens?.cache?.read || 0
-    const cacheWrite = tokens?.cache?.write || 0
-    const total = input + output + reasoning + cacheRead + cacheWrite
+    const usage = summarizeSessionUsage(session, messages)
 
     // Find context limit from provider catalog
     let context = 0
-    if (last?.providerID && last?.modelID) {
-      const provider = providers.find((p) => p.id === last!.providerID)
-      const model = provider?.models.find((m) => m.id === last!.modelID)
+    if (usage.last?.providerID && usage.last?.modelID) {
+      const provider = providers.find((p) => p.id === usage.last!.providerID)
+      const model = provider?.models.find((m) => m.id === usage.last!.modelID)
       context = model?.limit?.context || 0
     }
-    const percent = context > 0 ? Math.round((total / context) * 100) : 0
+    const percent = context > 0 ? Math.round((usage.total / context) * 100) : 0
 
-    return { cost, input, output, reasoning, cacheRead, cacheWrite, total, percent, context }
-  }, [messages, providers])
+    return { ...usage, percent, context }
+  }, [session, messages, providers])
 
   if (!visible) return null
 

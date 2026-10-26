@@ -425,12 +425,6 @@ export default function SessionsScreen() {
   }, [])
 
   const onFabPress = () => {
-    // Quick create in current project
-    onCreateSession()
-  }
-
-  const onFabLongPress = () => {
-    // Show modal with more options
     setCustomDir("")
     setShowNewSession(true)
   }
@@ -587,8 +581,6 @@ export default function SessionsScreen() {
       <TouchableOpacity
         style={[styles.fab, isDark && styles.fabDark]}
         onPress={onFabPress}
-        onLongPress={onFabLongPress}
-        delayLongPress={500}
         testID="new-session-fab"
       >
         <Ionicons name="add" size={28} color={isDark ? "#0a0a0a" : "#ffffff"} />
@@ -615,6 +607,7 @@ export default function SessionsScreen() {
                 style={[styles.modalDirBox, isDark && styles.modalDirBoxDark]}
                 onPress={() => onCreateInDirectory()}
                 disabled={isCreating}
+                testID="current-project-session-button"
               >
                 <Ionicons name="folder" size={20} color={isDark ? "#8b5cf6" : "#6d28d9"} />
                 <Text style={[styles.modalDirText, isDark && styles.textDark]} numberOfLines={2}>
