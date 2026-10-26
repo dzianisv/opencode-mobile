@@ -20,5 +20,6 @@ test("adds an idempotent side-by-side test build without changing production ide
   assert.match(result, /testRelease \{/)
   assert.match(result, /applicationIdSuffix "\.test"/)
   assert.match(result, /resValue "string", "app_name", "OpenCode Test"/)
+  assert.equal(result.match(/\{/g)?.length, result.match(/\}/g)?.length)
   assert.equal(addTestBuildType(result), result)
 })

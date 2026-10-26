@@ -16,6 +16,7 @@ const block = `
                 output.versionCodeOverride = (findProperty("testVersionCode") ?: defaultConfig.versionCode).toInteger()
             }
         }
+    }
 `
 
 function addTestBuildType(contents) {
