@@ -49,6 +49,7 @@
     "plugins": [
       "expo-router",
       "./plugins/withKeyboardInsets",
+      "./plugins/withTestBuildType",
       "expo-secure-store",
       "expo-local-authentication",
       [

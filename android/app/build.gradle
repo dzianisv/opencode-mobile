@@ -138,6 +138,21 @@ android {
             def enablePngCrunchInRelease = findProperty('android.enablePngCrunchInReleaseBuilds') ?: 'true'
             crunchPngs enablePngCrunchInRelease.toBoolean()
         }
+        testRelease {
+            initWith release
+            matchingFallbacks = ['release']
+            applicationIdSuffix ".test"
+            versionNameSuffix "-test"
+            resValue "string", "app_name", "OpenCode Test"
+            signingConfig signingConfigs.debug
+        }
+    }
+    applicationVariants.all { variant ->
+        if (variant.buildType.name == "testRelease") {
+            variant.outputs.all { output ->
+                output.versionCodeOverride = (findProperty("testVersionCode") ?: defaultConfig.versionCode).toInteger()
+            }
+        }
     }
     packagingOptions {
         jniLibs {
