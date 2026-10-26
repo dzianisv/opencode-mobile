@@ -6,6 +6,7 @@
     "delete": "Delete",
     "retry": "Retry",
     "save": "Save",
+    "close": "Close",
     "shareReport": "Share report"
   },
   "settings": {
@@ -81,7 +82,16 @@
       "reconnecting": "Reconnecting… (attempt {{attempt}})",
       "connected": "Connected ✓",
       "reverted": "Message reverted — resend to confirm",
-      "undo": "Undo"
+      "undo": "Undo",
+      "dismiss": "Dismiss"
+    },
+    "sheet": {
+      "thinking": "Thinking",
+      "tool": "Tool",
+      "input": "Input",
+      "result": "Result",
+      "error": "Error",
+      "file": "File"
     },
     "empty": {
       "title": "Start a conversation",
@@ -95,7 +105,10 @@
     },
     "actions": {
       "editMessage": "Edit message",
-      "replace": "Replace"
+      "replace": "Replace",
+      "selectText": "Select text",
+      "copyAll": "Copy all",
+      "copied": "Copied"
     },
     "alerts": {
       "messageActionsTitle": "Message actions",

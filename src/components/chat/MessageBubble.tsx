@@ -1,10 +1,11 @@
 import { memo } from "react"
-import { View, Text, Image, StyleSheet, ScrollView, TouchableOpacity, Dimensions } from "react-native"
+import { View, Text, Image, StyleSheet, ScrollView, TouchableOpacity, Dimensions, Platform } from "react-native"
 import { Ionicons } from "@expo/vector-icons"
 import { Markdown } from "../markdown"
 import { ToolCallCard } from "./ToolCallCard"
 import { ReasoningBlock } from "./ReasoningBlock"
 import type { Message, Part } from "../../lib/sdk"
+import { hasSelectableContent } from "../../lib/message-text"
 
 const SCREEN_WIDTH = Dimensions.get("window").width
 
@@ -16,16 +17,20 @@ interface Props {
   message: Message
   parts: Part[]
   isDark: boolean
-  // Only wired up for user messages — long-press opens the "Edit message" /
-  // revert action sheet. Identified by messageID (not a closure over parts)
-  // so it stays correct even if the memo below bails on a stale render.
-  onLongPress?: (messageID: string) => void
+  // Message actions arrive as buttons in the bubble header (see the header
+  // comment in the render). There is deliberately no bubble-wide press or
+  // long-press: it competed with horizontal scrolling in code blocks and with
+  // text selection, and holding a message no longer pops anything. Handlers are
+  // identified by messageID (not a closure over parts) so they stay correct even
+  // if the memo below bails on a stale render.
+  onSelectText?: (messageID: string) => void
+  onEdit?: (messageID: string) => void
 }
 
 // TODO: Replace with streamdown-rn once React 19 types PR lands - it has
 // built-in block-level memoization that eliminates re-renders for stable blocks
 export const MessageBubble = memo(
-  function MessageBubble({ message, parts, isDark, onLongPress }: Props) {
+  function MessageBubble({ message, parts, isDark, onSelectText, onEdit }: Props) {
     const isUser = message.role === "user"
 
     const textParts = parts.filter((p) => p.type === "text")
@@ -36,10 +41,7 @@ export const MessageBubble = memo(
     const reasoning = reasoningParts.map((p) => p.text).join("\n") || ""
 
     return (
-      <TouchableOpacity
-        activeOpacity={isUser && onLongPress ? 0.7 : 1}
-        onLongPress={isUser && onLongPress ? () => onLongPress(message.id) : undefined}
-        disabled={!isUser || !onLongPress}
+      <View
         style={[
           s.bubble,
           isUser ? s.user : s.assistant,
@@ -58,6 +60,39 @@ export const MessageBubble = memo(
           <Text style={[s.role, isUser && s.roleUser, isDark && s.textWhite]}>{isUser ? "You" : "Assistant"}</Text>
           {message.model && <Text style={[s.modelTag, isDark && s.modelTagDark]}>{message.model.modelID}</Text>}
           {!isUser && message.modelID && <Text style={[s.modelTag, isDark && s.modelTagDark]}>{message.modelID}</Text>}
+          {/* Message actions are taps in a right-aligned group at the end of the
+              header row — "Select text" sits immediately left of "Edit". Nothing
+              here is a bubble-wide gesture: a long-press on the bubble competed
+              with horizontal scrolling in code blocks and with text selection.
+              Labels are explicitly non-selectable so a tap can't be swallowed. */}
+          {(onSelectText || onEdit) && (
+            <View style={s.actions}>
+              {onSelectText && hasSelectableContent(parts) && (
+                <TouchableOpacity
+                  style={[s.selectChip, isDark && s.selectChipDark]}
+                  hitSlop={8}
+                  onPress={() => onSelectText(message.id)}
+                  testID={`message-select-text-${message.id}`}
+                >
+                  <Text selectable={false} style={[s.selectChipText, isDark && s.selectChipTextDark]}>
+                    Select text
+                  </Text>
+                </TouchableOpacity>
+              )}
+              {isUser && onEdit && (
+                <TouchableOpacity
+                  style={[s.selectChip, isDark && s.selectChipDark]}
+                  hitSlop={8}
+                  onPress={() => onEdit(message.id)}
+                  testID={`message-edit-${message.id}`}
+                >
+                  <Text selectable={false} style={[s.selectChipText, isDark && s.selectChipTextDark]}>
+                    Edit
+                  </Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          )}
         </View>
 
         {/* Image attachments */}
@@ -87,7 +122,10 @@ export const MessageBubble = memo(
         {/* Message text */}
         {text.length > 0 &&
           (isUser ? (
-            <Text style={[s.messageText, isDark && s.textWhite]} selectable>
+            // Android: inline selection in a list row is unreliable (RN#46999)
+            // and competes with the bubble's long-press, so user text selects
+            // through the "Select text" sheet. iOS has no such conflict.
+            <Text style={[s.messageText, isDark && s.textWhite]} selectable={Platform.OS === "ios"}>
               {text}
             </Text>
           ) : (
@@ -101,6 +139,18 @@ export const MessageBubble = memo(
           <ToolCallCard key={tool.id} tool={tool} isDark={isDark} />
         ))}
 
+        {/* Run-level failure (assistant message carries `error` when the agent
+            errored out — provider failure, aborted stream, etc.). Without this
+            an errored run looked identical to a successful one when reading
+            history; the live case is covered by the session error banner. */}
+        {message.error?.message && (
+          <View style={[s.errorBlock, isDark && s.errorBlockDark]}>
+            <Text style={[s.errorBlockText, isDark && s.errorBlockTextDark]} selectable={Platform.OS === "ios"}>
+              {message.error.message}
+            </Text>
+          </View>
+        )}
+
         {/* Tokens/cost for assistant messages */}
         {!isUser && message.tokens && (
           <Text style={[s.tokens, isDark && s.tokensDark]}>
@@ -108,7 +158,7 @@ export const MessageBubble = memo(
             {message.cost ? ` · $${message.cost.toFixed(4)}` : ""}
           </Text>
         )}
-      </TouchableOpacity>
+      </View>
     )
   },
   (prev, next) => {
@@ -120,7 +170,8 @@ export const MessageBubble = memo(
     // unchanged (completed) messages during other messages' streaming.
     if (prev.message !== next.message) return false
     if (prev.isDark !== next.isDark) return false
-    if (prev.onLongPress !== next.onLongPress) return false
+    if (prev.onSelectText !== next.onSelectText) return false
+    if (prev.onEdit !== next.onEdit) return false
     if (prev.parts.length !== next.parts.length) return false
     for (let i = 0; i < prev.parts.length; i++) {
       if (prev.parts[i] !== next.parts[i]) return false
@@ -141,6 +192,27 @@ const s = StyleSheet.create({
   roleUser: { color: "#0a0a0a" },
   textWhite: { color: "#ffffff" },
 
+  actions: {
+    // Pushes the group to the right edge of the header row; the chips inside it
+    // stay adjacent in source order (Select text, then Edit).
+    marginLeft: "auto",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    flexShrink: 0,
+  },
+  selectChip: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#d4d4d4",
+    flexShrink: 0,
+  },
+  selectChipDark: { borderColor: "#404040" },
+  selectChipText: { fontSize: 11, color: "#525252" },
+  selectChipTextDark: { color: "#d4d4d4" },
+
   modelTag: {
     fontSize: 11,
     color: "#999999",
@@ -157,6 +229,19 @@ const s = StyleSheet.create({
 
   tokens: { fontSize: 11, color: "#999999", marginTop: 8 },
   tokensDark: { color: "#666666" },
+
+  // Run-level error block inside an assistant bubble
+  errorBlock: {
+    marginTop: 8,
+    padding: 10,
+    borderRadius: 8,
+    backgroundColor: "#fef2f2",
+    borderWidth: 1,
+    borderColor: "#fecaca",
+  },
+  errorBlockDark: { backgroundColor: "#3b1212", borderColor: "#7f1d1d" },
+  errorBlockText: { color: "#b91c1c", fontSize: 13 },
+  errorBlockTextDark: { color: "#fca5a5" },
 
   // Images
   imageScroll: { marginBottom: 8 },

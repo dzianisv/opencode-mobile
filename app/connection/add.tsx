@@ -133,6 +133,10 @@ export default function AddConnectionScreen() {
             name: name.trim() || t("connection.shared.namePlaceholder"),
             type: "local",
             url: serverUrl,
+            // Carry the transport the pre-flight probe already determined, so the
+            // save does not probe the same server a second time.
+            api: result.api,
+            serverVersion: result.serverVersion,
           },
           password || undefined,
         )
@@ -209,6 +213,8 @@ export default function AddConnectionScreen() {
             url: url.trim(),
             directory: directory.trim() || undefined,
             username: username.trim() || undefined,
+            api: result.api,
+            serverVersion: result.serverVersion,
           },
           password || undefined,
         )
