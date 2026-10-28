@@ -8,6 +8,7 @@ import {
   StyleSheet,
   useColorScheme,
   KeyboardAvoidingView,
+  Keyboard,
   Platform,
   ActivityIndicator,
   Alert,
@@ -39,6 +40,7 @@ import { useConnections } from "../../src/stores/connections"
 import { useAuth } from "../../src/stores/auth"
 import { useCatalog } from "../../src/stores/catalog"
 import { useSpeech } from "../../src/lib/speech"
+import { keyboardPadding, keyboardVerticalOffset } from "../../src/lib/keyboard-offset"
 
 // --- Builtin slash commands ---
 const BUILTIN_COMMANDS: SlashCommand[] = [
@@ -85,6 +87,20 @@ export default function SessionScreen() {
   const [input, setInput] = useState("")
   const [attachments, setAttachments] = useState<Attachment[]>([])
   const [showInfo, setShowInfo] = useState(false)
+  const [keyboardHeight, setKeyboardHeight] = useState(() => Keyboard.metrics()?.height ?? 0)
+
+  useEffect(() => {
+    if (Platform.OS !== "android") return
+    const show = Keyboard.addListener("keyboardDidShow", (event) => setKeyboardHeight(event.endCoordinates.height))
+    const hide = Keyboard.addListener("keyboardDidHide", () => setKeyboardHeight(0))
+    // Close the render-to-effect race: listeners are attached first, then the
+    // current native metrics become the source of truth.
+    setKeyboardHeight(Keyboard.metrics()?.height ?? 0)
+    return () => {
+      show.remove()
+      hide.remove()
+    }
+  }, [])
 
   const {
     currentSession,
@@ -592,21 +608,25 @@ export default function SessionScreen() {
       />
 
       <KeyboardAvoidingView
-        style={[s.container, isDark && s.containerDark]}
-        // Both platforms use "padding" so the composer/toolbar is pushed up
-        // above the keyboard via JS-measured keyboard height.
-        //
+        style={[
+          s.container,
+          isDark && s.containerDark,
+          Platform.OS === "android" && { paddingBottom: keyboardPadding(Platform.OS, keyboardHeight) },
+        ]}
         // Android previously relied on the native android:windowSoftInputMode
         // (adjustResize, see AndroidManifest.xml) with behavior={undefined}
         // to let the OS resize the window (see #70/#53). Since adopting
         // Expo's mandatory edge-to-edge display, Android no longer resizes
         // the window when the keyboard opens — the system assumes insets are
         // handled dynamically — so adjustResize became a no-op and the
-        // bottom toolbar + input were left completely hidden behind the
-        // keyboard (#147). "padding" restores avoidance without depending
-        // on native resize.
-        behavior="padding"
-        keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 0}
+        // bottom toolbar + input were left hidden behind the keyboard (#147).
+        //
+        // RN 0.81 handles Android keyboardDidHide as another frame-change
+        // event, so a non-zero vertical offset survives as stale padding.
+        // Android therefore uses the IME's reported height directly in style;
+        // the hide listener above explicitly resets it to zero.
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        keyboardVerticalOffset={keyboardVerticalOffset(Platform.OS, insets.top)}
       >
         {/* Session info pulldown */}
         <SessionInfo
