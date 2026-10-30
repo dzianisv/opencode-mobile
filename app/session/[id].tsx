@@ -593,18 +593,15 @@ export default function SessionScreen() {
 
       <KeyboardAvoidingView
         style={[s.container, isDark && s.containerDark]}
-        // Both platforms use "padding" so the composer/toolbar is pushed up
-        // above the keyboard via JS-measured keyboard height.
+        // iOS: "padding" pushes the composer above the keyboard via JS-measured
+        // keyboard height. The offset accounts for the navigation header.
         //
-        // Android previously relied on the native android:windowSoftInputMode
-        // (adjustResize, see AndroidManifest.xml) with behavior={undefined}
-        // to let the OS resize the window (see #70/#53). Since adopting
-        // Expo's mandatory edge-to-edge display, Android no longer resizes
-        // the window when the keyboard opens — the system assumes insets are
-        // handled dynamically — so adjustResize became a no-op and the
-        // bottom toolbar + input were left completely hidden behind the
-        // keyboard (#147). "padding" restores avoidance without depending
-        // on native resize.
+        // Android: the manifest now declares
+        //   android:activity.keyboardEdgeInsetsBehavior = "resizes-content"
+        // which tells the OS to shrink the content area when the keyboard opens,
+        // even with edge-to-edge enabled. This restores adjustResize behavior
+        // that edge-to-edge previously broke (#147, #194). "padding" acts as a
+        // safety net on older devices where the meta-data is ignored.
         behavior="padding"
         keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 0}
       >
@@ -810,6 +807,7 @@ export default function SessionScreen() {
               editable={!speech.listening}
               multiline
               maxLength={10000}
+              submitBehavior="newline"
               testID="chat-message-input"
             />
             {/* Stop button: only when busy and no input */}
