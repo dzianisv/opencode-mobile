@@ -2,7 +2,7 @@
   "expo": {
     "name": "OpenCode",
     "slug": "opencode-mobile",
-    "version": "0.4.15",
+    "version": "0.4.16",
     "orientation": "portrait",
     "scheme": "opencode",
     "userInterfaceStyle": "automatic",
@@ -35,7 +35,7 @@
     },
     "android": {
       "package": "cc.agentlabs.opencode",
-      "versionCode": 42,
+      "versionCode": 43,
       "usesCleartextTraffic": true,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",

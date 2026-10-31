@@ -6,8 +6,11 @@ import { buildRequestHeaders } from "./headers.ts"
 // directory to operate in. A bug here breaks connections or silently targets the
 // wrong directory, so the auth + encoding rules are pinned.
 
-test("always sets JSON content type", () => {
-  assert.equal(buildRequestHeaders({})["Content-Type"], "application/json")
+test("always sets JSON content type and tunnel bypass headers", () => {
+  const h = buildRequestHeaders({})
+  assert.equal(h["Content-Type"], "application/json")
+  assert.equal(h["Bypass-Tunnel-Reminder"], "true")
+  assert.equal(h["ngrok-skip-browser-warning"], "true")
 })
 
 test("omits directory and auth headers when not provided", () => {

@@ -120,6 +120,22 @@ function RootLayout() {
     return () => sub.remove()
   }, [])
 
+  // Android freezes JS timers and usually drops the SSE socket while the app
+  // sits in the background (Doze/app standby), and the server may close idle
+  // streams too. On return to foreground, re-establish the stream immediately
+  // instead of waiting out the reconnect backoff (whose timers were frozen),
+  // and resync messages/permissions missed while away. reconnectNow() is
+  // idempotent, so an "active" fired by a transient "inactive" (biometric
+  // prompt, app switcher) is harmless.
+  useEffect(() => {
+    const sub = AppState.addEventListener("change", (next) => {
+      if (next === "active" && sseStarted.current) {
+        useEvents.getState().reconnectNow()
+      }
+    })
+    return () => sub.remove()
+  }, [])
+
   // Connect/disconnect SSE and load catalog when client changes
   useEffect(() => {
     if (client && !sseStarted.current) {

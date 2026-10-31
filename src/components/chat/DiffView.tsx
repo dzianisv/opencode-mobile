@@ -1,5 +1,5 @@
-import { View, Text, StyleSheet, Platform, ScrollView } from "react-native"
-import { WIDE_CONTENT_SCROLL_CONFIG } from "../../lib/scroll-config"
+import { View, Text, StyleSheet, Platform } from "react-native"
+import { wideTextSelection } from "../../lib/scroll-config"
 import { computeDiff } from "./diff-compute"
 
 const mono = Platform.OS === "ios" ? "Menlo" : "monospace"
@@ -12,40 +12,41 @@ interface Props {
 
 export function DiffView({ before, after, isDark }: Props) {
   const lines = computeDiff(before, after)
+  const sel = wideTextSelection(Platform.OS)
 
   if (lines.length === 0) return null
 
   return (
-    <View style={[s.container, isDark && s.containerDark]}>
-      <ScrollView {...WIDE_CONTENT_SCROLL_CONFIG} testID="diff-view-scroll">
-        <View>
-          {lines.map((line, idx) => (
-            <View
-              key={idx}
-              style={[
-                s.line,
-                line.type === "add" && (isDark ? s.addDark : s.add),
-                line.type === "remove" && (isDark ? s.removeDark : s.remove),
-              ]}
-            >
-              <Text style={[s.prefix, isDark && s.prefixDark]}>
-                {line.type === "add" ? "+" : line.type === "remove" ? "-" : " "}
-              </Text>
-              <Text
-                style={[
-                  s.text,
-                  isDark && s.textDark,
-                  line.type === "add" && s.addText,
-                  line.type === "remove" && s.removeText,
-                ]}
-                selectable
-              >
-                {line.text}
-              </Text>
-            </View>
-          ))}
+    <View style={[s.container, isDark && s.containerDark]} testID="diff-view">
+      {lines.map((line, idx) => (
+        <View
+          key={idx}
+          style={[
+            s.line,
+            line.type === "add" && (isDark ? s.addDark : s.add),
+            line.type === "remove" && (isDark ? s.removeDark : s.remove),
+          ]}
+        >
+          <Text style={[s.prefix, isDark && s.prefixDark]}>
+            {line.type === "add" ? "+" : line.type === "remove" ? "-" : " "}
+          </Text>
+          {/* s.text is flex:1 with no numberOfLines, so a long diff line folds
+              inside its own row: the +/- gutter stays aligned with the line it
+              belongs to, and nothing is truncated (issue #21). Wrapping is
+              rendering only — the diff text itself is untouched. */}
+          <Text
+            style={[
+              s.text,
+              isDark && s.textDark,
+              line.type === "add" && s.addText,
+              line.type === "remove" && s.removeText,
+            ]}
+            selectable={sel.selectable}
+          >
+            {line.text.length > 0 ? line.text : " "}
+          </Text>
         </View>
-      </ScrollView>
+      ))}
     </View>
   )
 }
@@ -79,6 +80,9 @@ const s = StyleSheet.create({
   prefixDark: { color: "#666666" },
 
   text: {
+    // flex:1 is what makes the fold happen inside the row instead of pushing the
+    // row wider than the screen.
+    flex: 1,
     fontSize: 12,
     fontFamily: mono,
     color: "#0a0a0a",

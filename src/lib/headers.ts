@@ -23,6 +23,8 @@ function toBase64Utf8(str: string): string {
 export function buildRequestHeaders(config: HeaderConfig): Record<string, string> {
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
+    "Bypass-Tunnel-Reminder": "true",
+    "ngrok-skip-browser-warning": "true",
   }
 
   if (config.directory) {

@@ -1,7 +1,7 @@
 import { useState } from "react"
-import { View, Text, TouchableOpacity, StyleSheet, useColorScheme, Platform, ScrollView } from "react-native"
+import { View, Text, TouchableOpacity, StyleSheet, useColorScheme, Platform } from "react-native"
 import * as Clipboard from "expo-clipboard"
-import { WIDE_CONTENT_SCROLL_CONFIG } from "../../lib/scroll-config"
+import { wideTextSelection } from "../../lib/scroll-config"
 
 interface Props {
   code: string
@@ -11,6 +11,15 @@ interface Props {
 export function CodeBlock({ code, language }: Props) {
   const isDark = useColorScheme() === "dark"
   const [copied, setCopied] = useState(false)
+  const sel = wideTextSelection(Platform.OS)
+
+  // Cosmetic wrapping: one Text per logical line, so indentation survives and a
+  // long line folds inside the block instead of needing sideways scrolling.
+  // The clipboard gets `code` — the raw string from the server — so what you
+  // paste is byte-identical to what was sent, line breaks and all. Wrapping only
+  // exists in the rendering. See ../../lib/scroll-config for why these blocks no
+  // longer scroll horizontally.
+  const lines = code.split("\n")
 
   const copy = async () => {
     try {
@@ -28,11 +37,15 @@ export function CodeBlock({ code, language }: Props) {
           <Text style={[styles.copyBtn, isDark && styles.copyBtnDark]}>{copied ? "Copied!" : "Copy"}</Text>
         </TouchableOpacity>
       </View>
-      <ScrollView {...WIDE_CONTENT_SCROLL_CONFIG} testID="code-block-scroll" contentContainerStyle={styles.codeScroll}>
-        <Text style={[styles.code, isDark && styles.codeDark]} selectable>
-          {code}
-        </Text>
-      </ScrollView>
+      <View style={styles.codeBody} testID="code-block-body">
+        {lines.map((line, idx) => (
+          // An empty Text collapses to zero height, which would eat blank lines
+          // and make pasted-vs-displayed line counts disagree.
+          <Text key={idx} style={[styles.code, isDark && styles.codeDark]} selectable={sel.selectable}>
+            {line.length > 0 ? line : " "}
+          </Text>
+        ))}
+      </View>
     </View>
   )
 }
@@ -75,7 +88,7 @@ const styles = StyleSheet.create({
   copyBtnDark: {
     color: "#a78bfa",
   },
-  codeScroll: {
+  codeBody: {
     padding: 12,
   },
   code: {
