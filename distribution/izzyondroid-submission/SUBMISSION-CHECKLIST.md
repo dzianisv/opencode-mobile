@@ -99,7 +99,7 @@ Register or log in at https://codeberg.org/user/sign_up
 
 - Add the IzzyOnDroid badge to `README.md`
 - Update `distribution/strategy.md` status row for IzzyOnDroid to "live"
-- Update `docs/fdroid.md` with inclusion date
+- Update the F-Droid doc (https://app.notion.com/p/40bac25eb49f81ab9e9eeaf4dcc0481e) with inclusion date
 - When mainline F-Droid MR is later accepted, comment on this issue:
   "Mainline F-Droid has accepted cc.agentlabs.opencode — please auto-delist per policy."
 

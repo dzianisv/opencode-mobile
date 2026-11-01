@@ -11,12 +11,12 @@ F-Droid v0.4.3 is **live and verified**: `index-v1.json` → `{'cc.agentlabs.ope
 | **Bucket-C audit** | every referenced artifact exists; MR #39530 live (200); sharpened 4 vague owner steps | 5 |
 
 ## Integrated (verified how)
-- **HANDOFF.md owner steps tightened** (commit `fb5c97a`, local): exact push (3 commits), v0.4.4 bump targets `app.json:5` + `android/app/build.gradle:98` (I confirmed both read `0.4.3`), privacy deploy+verify, MR #39530 URL+edit target, growth placeholder gate. Reversible local commit — **not pushed**.
+- **Former HANDOFF file — owner steps tightened (now in Notion: https://app.notion.com/p/40bac25eb49f819f8983f6d5f98351c0)** (commit `fb5c97a`, local): exact push (3 commits), v0.4.4 bump targets `app.json:5` + `android/app/build.gradle:98` (I confirmed both read `0.4.3`), privacy deploy+verify, MR #39530 URL+edit target, growth placeholder gate. Reversible local commit — **not pushed**.
 - **state.md** ledger recorded. No doer-preamble rewrite needed (no low scores; doers correctly self-queued irreversible work).
 
 ## Ledger
 - **Bucket A: CLOSED** — F-Droid v0.4.3 live+verified, typecheck+test green, 4th scope fix committed, tree clean. No reversible work remains until a tag is pushed (which would spawn a new build to verify).
-- **Bucket C: QUEUED** in `.autopilot/state.md` + HANDOFF.md with exact owner steps — push+tag v0.4.4, deploy privacy policy (000→200), Play production, IzzyOnDroid, MR #39530, growth posting.
+- **Bucket C: QUEUED** in `.autopilot/state.md` + the former HANDOFF file (now in Notion: https://app.notion.com/p/40bac25eb49f819f8983f6d5f98351c0) with exact owner steps — push+tag v0.4.4, deploy privacy policy (000→200), Play production, IzzyOnDroid, MR #39530, growth posting.
 
 ## Most valuable next objective
 Owner unblock chain — **push (item 0) → deploy privacy policy (item 1) → Play production (item 2)**. These three irreversible/external steps are the gate to public reach and the 100-download goal; the agent-side is fully shipped+verified. Per the rules these stay queued for human approval, not run.

@@ -65,12 +65,12 @@ QA gate now: 65/65 unit tests green · 10 UI/UX bugs fixed (cycle 6) · widened 
 **ONE residual = on-device VISUAL render check (reply→markdown/code-block/diff) — genuinely BLOCKED autonomously:**
 - CI route BLOCKED: repo token lacks Actions-secrets perm (`gh secret set GEMINI_API_KEY` → 403) → can't give CI opencode a model.
 - Local emulator BLOCKED: no system image, external AVD disk disconnected, system disk 98% full, AGENTS.md forbids SDK on system disk.
-- → Committed 5-min owner runbook HANDOFF.md §RENDER-CHECK (11b4389).
+- → Committed 5-min owner runbook in the former HANDOFF file, §RENDER-CHECK (11b4389; content now in Notion: https://app.notion.com/p/40bac25eb49f819f8983f6d5f98351c0).
 
 **Decision:** do NOT autonomously cut v0.4.4 public release (owner's gate + irreversible public action). Release + launch queued on owner: (1) run RENDER-CHECK, (2) post the ready launch.
 
 **Owner unblock queue (kits ready):**
-1. HANDOFF.md §RENDER-CHECK (5 min on a device).
+1. HANDOFF doc (https://app.notion.com/p/40bac25eb49f819f8983f6d5f98351c0), §RENDER-CHECK (5 min on a device).
 2. After green → I cut `v0.4.4` tag (updates F-Droid + GitHub APK; Play stays internal).
 3. Owner posts launch (distribution/launch/: Show HN / r/selfhosted / r/LocalLLaMA / r/androiddev / Product Hunt).
 
@@ -180,12 +180,12 @@ Shipped this cycle (all committed local main, unpushed — push is harness-gated
 False positives caught (NOT fixed, correctly): privacy link agentlabs.cc/opencode/privacy is LIVE (200); inverted-FlatList auto-scroll is conventional (don't churn unverifiable device behavior).
 
 **Open / next:**
-- Owner push (19 commits) + tag v0.4.4 — HANDOFF §0. Everything above reaches 0 users until pushed.
+- Owner push (19 commits) + tag v0.4.4 — the former HANDOFF file, §0 (now in Notion: https://app.notion.com/p/40bac25eb49f819f8983f6d5f98351c0). Everything above reaches 0 users until pushed.
 - Test gate residual: on-device runtime verification (auto-scroll, keyboard, rendering) — expand CUA smoke beyond --only-connect-scenario (needs push to run in CI).
 - Public posting (HN/Reddit/PH drafts in docs/marketing) BLOCKED on test gate passing.
 
 ## TASK
-Use solo-founder CEO mode. Goal: reach 100 active downloads of OpenCode Mobile (cc.agentlabs.opencode). Continue HANDOFF.md tasks. Drive every bucket-A gap to verified done, queue bucket-C with exact owner steps, do not fake downloads. Done-bar in .autopilot/goal.md.
+Use solo-founder CEO mode. Goal: reach 100 active downloads of OpenCode Mobile (cc.agentlabs.opencode). Continue the HANDOFF doc tasks (https://app.notion.com/p/40bac25eb49f819f8983f6d5f98351c0). Drive every bucket-A gap to verified done, queue bucket-C with exact owner steps, do not fake downloads. Done-bar in .autopilot/goal.md.
 
 ## cycle 5 — STOPPED RE-VERIFYING, SHIPPED NEW REACH WORK (all agent-doable, reversible, verified live)
 
@@ -233,7 +233,7 @@ cycle-3's "closed" claim — re-verified the whole done-bar via 3 parallel doers
 |----|-------|------------------|-------|
 | WS1 Engineering | src/, package.json, git | `npm run typecheck` clean; `npm test` 4/4 pass; ee7082a sound (app/(tabs)/index.tsx:220 uses server `session.directory` not raw input, matches siblings :193/:238); not in v0.4.3 → release is push/tag-gated; tree clean | 5/5 |
 | WS2 Distribution | curl, gh | F-Droid index `{cc.agentlabs.opencode:[0.4.3]}`; publish-fdroid.yml latest=success; cua-smoke main=success (v0.4.3 tag run cancelled, non-blocking); privacy URL=000 (host unresolved); Play=404 (expected) | 5/5 |
-| WS3 Bucket-C audit | HANDOFF.md, distribution/ | All referenced artifacts exist w/ real content; MR #39530 live (HTTP 200); sharpened 4 vague owner steps (push count 3 not 2, version-bump files+lines, privacy deploy how+verify, MR URL+edit target, growth placeholder gate) | 5/5 |
+| WS3 Bucket-C audit | Former HANDOFF file (now in Notion: https://app.notion.com/p/40bac25eb49f819f8983f6d5f98351c0), distribution/ | All referenced artifacts exist w/ real content; MR #39530 live (HTTP 200); sharpened 4 vague owner steps (push count 3 not 2, version-bump files+lines, privacy deploy how+verify, MR URL+edit target, growth placeholder gate) | 5/5 |
 
 ### Judge
 All 5/5 — real commands, observable output, no stubs, no "looks done". No low scores →
@@ -242,7 +242,7 @@ self-classified irreversible work to queue). WS2 caught a HANDOFF inaccuracy (pu
 privacy blocker; hosting is); WS3 fixed it.
 
 ### Integrated
-- HANDOFF.md owner steps tightened (40 insertions): exact push step (3 commits +
+- Former HANDOFF file owner steps tightened (40 insertions; now in Notion: https://app.notion.com/p/40bac25eb49f819f8983f6d5f98351c0): exact push step (3 commits +
   `source ~/.env.d/github-dzianisv.env`), v0.4.4 bump targets `app.json:5` +
   `android/app/build.gradle:98` (both verified `0.4.3`), privacy deploy+verify steps,
   MR #39530 URL + edit target, growth `{{PLAY_URL}}`/`{{FDROID_URL}}` placeholder gate.
@@ -252,7 +252,7 @@ privacy blocker; hosting is); WS3 fixed it.
 - **Bucket A (agent-doable, reversible): CLOSED.** No open gap. F-Droid v0.4.3 live+verified,
   typecheck+test green, scope fix committed, tree clean.
 - **Bucket B (in-flight): none.**
-- **Bucket C (owner-gated, irreversible) — APPROVAL QUEUE, exact steps in HANDOFF.md §OWNER ACTIONS:**
+- **Bucket C (owner-gated, irreversible) — APPROVAL QUEUE, exact steps in the HANDOFF doc (https://app.notion.com/p/40bac25eb49f819f8983f6d5f98351c0), §OWNER ACTIONS:**
   0. `git push origin main` (3 commits) → then bump app.json:5 + build.gradle:98 to 0.4.4,
      `git tag v0.4.4 && git push origin main --tags` (auto-fires F-Droid + Play publish).
      Ships the 4th scope fix (ee7082a) which currently reaches no users.
@@ -345,7 +345,7 @@ does NOT satisfy the owner's hard gate.
 - Core reply→render path: NOT cleared for public release. Code looks correct but the
   owner's "REALLY tested end-to-end" gate is unmet without a real device screenshot.
 - Owner action required: mount the external Android disk (or free system disk + allow image
-  install), then run the 5-minute manual check in HANDOFF.md §RENDER-CHECK.
+  install), then run the 5-minute manual check in the HANDOFF doc (https://app.notion.com/p/40bac25eb49f819f8983f6d5f98351c0), §RENDER-CHECK.
 
 ---
 
