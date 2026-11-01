@@ -169,7 +169,7 @@ Submission packets (ready to file after the first Play release is live):
   - `INCLUSION-REQUEST.md` — ready-to-paste Codeberg issue body
   - `SUBMISSION-CHECKLIST.md` — step-by-step filing guide
 - `distribution/SIGNING-KEY-FINGERPRINTS.md` — signing key SHA-256 fingerprints
-- `docs/fdroid.md` — operational doc for F-Droid / IzzyOnDroid (mirrors this doc)
+- The F-Droid doc (https://app.notion.com/p/40bac25eb49f81ab9e9eeaf4dcc0481e) — operational doc for F-Droid / IzzyOnDroid (mirrors this doc)
 
 Timeline: IzzyOnDroid 1–3 days after first APK on GitHub releases.
 F-Droid mainline 4–12 weeks after MR filed.
