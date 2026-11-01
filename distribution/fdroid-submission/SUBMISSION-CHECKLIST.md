@@ -138,7 +138,7 @@ Build steps: npm install → expo prebuild → Gradle assembleRelease.
 ## Step 7 — After acceptance
 
 - F-Droid builds from source on their CI. First index update may take 1–2 weeks.
-- Add `ai.opencode.mobile` to F-Droid's inclusion notice in `docs/fdroid.md`.
+- Add `ai.opencode.mobile` to F-Droid's inclusion notice in the F-Droid doc (https://app.notion.com/p/40bac25eb49f81ab9e9eeaf4dcc0481e).
 - Update `distribution/strategy.md` status row for F-Droid.
 - Notify IzzyOnDroid via the inclusion issue that mainline accepted the app
   (IzzyOnDroid will then auto-delist within their next index rebuild).
