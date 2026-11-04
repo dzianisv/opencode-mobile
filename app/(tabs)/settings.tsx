@@ -22,7 +22,7 @@ import {
 } from "../../src/lib/notifications"
 import type { Category } from "../../src/lib/notifications"
 import { hasTelemetryConsent, setTelemetryConsent } from "../../src/lib/telemetry"
-import { PRIVACY_POLICY_URL } from "../../src/lib/links"
+import { PRIVACY_POLICY_URL, REPOSITORY_URL, COMPANY_URL } from "../../src/lib/links"
 import { CURRENT_VERSION, checkForUpdate, type AvailableUpdate } from "../../src/lib/update-check"
 import type { LocalePreference } from "../../src/lib/i18n/locale-resolve"
 
@@ -289,7 +289,15 @@ export default function SettingsScreen() {
           label={t("settings.about.github.label")}
           description={t("settings.about.github.description")}
           isDark={isDark}
-          onPress={() => Linking.openURL("https://github.com/anomalyco/opencode")}
+          onPress={() => Linking.openURL(REPOSITORY_URL)}
+          right={<Ionicons name="open-outline" size={20} color={isDark ? "#666666" : "#999999"} />}
+        />
+        <SettingRow
+          icon="business"
+          label={t("settings.about.company.label")}
+          description={t("settings.about.company.description")}
+          isDark={isDark}
+          onPress={() => Linking.openURL(COMPANY_URL)}
           right={<Ionicons name="open-outline" size={20} color={isDark ? "#666666" : "#999999"} />}
         />
         <SettingRow
