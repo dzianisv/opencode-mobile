@@ -1,0 +1,3 @@
+v0.4.17 — Stability fix
+
+• Fixed a crash that could occur when leaving a session while it was updating.

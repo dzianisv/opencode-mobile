@@ -12,7 +12,7 @@ import {
   ActivityIndicator,
   Alert,
 } from "react-native"
-import { useLocalSearchParams, Stack, useRouter, useFocusEffect } from "expo-router"
+import { useLocalSearchParams, Stack, useRouter, useFocusEffect, useNavigation } from "expo-router"
 import { Ionicons } from "@expo/vector-icons"
 import { useSafeAreaInsets } from "react-native-safe-area-context"
 import { useTranslation } from "react-i18next"
@@ -594,31 +594,37 @@ export default function SessionScreen() {
     return found?.variants
   }, [model, providers])
 
+  const navigation = useNavigation()
+
+  // Header options are set via effect, not inline <Stack.Screen>: this screen
+  // re-renders on every streamed message, and inline options pushed a native
+  // header-config update each render — the trigger for the react-native-screens
+  // "child already has a parent" crash (Sentry OPENCODE-MOBILE-6/-7).
+  useEffect(() => {
+    navigation.setOptions({
+      title: currentSession?.title || t("session.titleFallback"),
+      headerRight: () => (
+        <View style={s.headerRight}>
+          {shortDir && (
+            <View style={[s.dirBadge, isDark && s.dirBadgeDark]}>
+              <Ionicons name="folder-outline" size={14} color={isDark ? "#888888" : "#666666"} />
+              <Text style={[s.dirText, isDark && s.dirTextDark]}>{shortDir}</Text>
+            </View>
+          )}
+          <TouchableOpacity onPress={() => setShowInfo((v) => !v)} hitSlop={8}>
+            <Ionicons
+              name={showInfo ? "stats-chart" : "stats-chart-outline"}
+              size={20}
+              color={showInfo ? "#3b82f6" : isDark ? "#888888" : "#666666"}
+            />
+          </TouchableOpacity>
+        </View>
+      ),
+    })
+  }, [navigation, currentSession?.title, shortDir, showInfo, isDark, t])
+
   return (
     <>
-      <Stack.Screen
-        options={{
-          title: currentSession?.title || t("session.titleFallback"),
-          headerRight: () => (
-            <View style={s.headerRight}>
-              {shortDir && (
-                <View style={[s.dirBadge, isDark && s.dirBadgeDark]}>
-                  <Ionicons name="folder-outline" size={14} color={isDark ? "#888888" : "#666666"} />
-                  <Text style={[s.dirText, isDark && s.dirTextDark]}>{shortDir}</Text>
-                </View>
-              )}
-              <TouchableOpacity onPress={() => setShowInfo((v) => !v)} hitSlop={8}>
-                <Ionicons
-                  name={showInfo ? "stats-chart" : "stats-chart-outline"}
-                  size={20}
-                  color={showInfo ? "#3b82f6" : isDark ? "#888888" : "#666666"}
-                />
-              </TouchableOpacity>
-            </View>
-          ),
-        }}
-      />
-
       <KeyboardAvoidingView
         style={[s.container, isDark && s.containerDark]}
         // "padding" pushes the composer/toolbar above the keyboard. On Android
