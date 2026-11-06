@@ -46,7 +46,12 @@ jobs:
   # this workflow and the publish job `needs:` it — same run, same
   # github.sha by construction. A failed gate skips publication; a green
   # showcase run in cua-smoke.yml does NOT satisfy this gate.
+  # DISABLED as a publish gate (Den, 2026-11-06): no model tokens/credits
+  # for the real CUA run. Manual-dispatch only and non-blocking - publish
+  # does not `needs:` it. Re-enable (one line each): remove the `if:` below
+  # and restore `needs: [cua-mid-stream]` on the publish job.
   cua-mid-stream:
+    if: ${{ github.event_name == 'workflow_dispatch' }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
     env:
@@ -278,9 +283,8 @@ jobs:
           if-no-files-found: warn
 
   publish:
-    # Issue #227: publication is gated on the mid-stream-exit CUA passing
-    # on this exact commit — a failed gate job skips this job.
-    needs: [cua-mid-stream]
+    # CUA gate DISABLED (Den, 2026-11-06): no `needs:` on cua-mid-stream -
+    # publication is not blocked by it. See the cua-mid-stream job comment.
     runs-on: ubuntu-latest
     env:
       EXPO_PUBLIC_SENTRY_DSN: ${{ secrets.EXPO_PUBLIC_SENTRY_DSN }}
