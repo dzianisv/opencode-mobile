@@ -1517,6 +1517,17 @@ def _dump_logcat(path: Path) -> str:
     return text
 
 
+def _logcat_crash_clean(text: str) -> bool:
+    """Design §1 step 4 crash scan: neither named crash string present."""
+    return "FATAL EXCEPTION" not in text and "child already has a parent" not in text
+
+
+def _append_to_combined_logcat(artifacts: Path, text: str) -> None:
+    combined = artifacts / "logcat.txt"
+    combined.write_text(
+        ((combined.read_text(errors="replace") if combined.exists() else "") + text))
+
+
 def _composer_accepts_text(probe: str = "reentrycheck") -> bool:
     """Deterministic re-entry check: tap the composer (editable node) in the
     re-entered session, type a probe string, verify it appears in the UI
@@ -1625,8 +1636,14 @@ def run_scenario_mid_stream_exit(
     still-streaming boundary sample immediately before the back press
     (recorded with UTC timestamp), press back (recorded with UTC
     timestamp), then assert same PID, clean logcat, and usable re-entry.
-    A cycle whose reply completed before the back press is INVALID: it
-    does not count toward the target and is re-run.
+    The logcat crash scan runs twice per cycle: after the back press AND
+    again after re-entry (the re-entry render is where the Sentry
+    OPENCODE-MOBILE-6/-7 crash fires; the next attempt's `logcat -c`
+    would otherwise wipe that window unscanned). Stream state after
+    re-entry must not be frozen (see the frozen definition at the
+    re-entry check below). A cycle whose reply completed before the
+    back press is INVALID: it does not count toward the target and is
+    re-run.
     """
     artifacts = Path(artifacts_dir or os.environ.get("CUA_ARTIFACTS_DIR", "/tmp/cua-artifacts"))
     artifacts.mkdir(parents=True, exist_ok=True)
@@ -1635,7 +1652,9 @@ def run_scenario_mid_stream_exit(
 
     manifest: dict = {
         "scenario": "mid-stream-exit",
-        "github_sha": os.environ.get("GITHUB_SHA"),
+        # Design §1 names this field `github.sha` — stored as a nested
+        # object {"github": {"sha": ...}} (Stage 4 finding 2).
+        "github": {"sha": os.environ.get("GITHUB_SHA")},
         "tag": os.environ.get("GITHUB_REF_NAME") if os.environ.get("GITHUB_REF_TYPE") == "tag" else None,
         "cycles_target": cycles_target,
         "cycles": [],
@@ -1784,14 +1803,9 @@ def run_scenario_mid_stream_exit(
         pid_after = _app_pid()
         record["pid_after_back"] = pid_after
         logcat_text = _dump_logcat(artifacts / f"logcat-cycle-{cycle_no}.txt")
-        (artifacts / "logcat.txt").write_text(
-            ((artifacts / "logcat.txt").read_text(errors="replace")
-             if (artifacts / "logcat.txt").exists() else "") + logcat_text)
+        _append_to_combined_logcat(artifacts, logcat_text)
         record["same_pid"] = bool(pid_before) and pid_after == pid_before
-        record["logcat_clean"] = (
-            "FATAL EXCEPTION" not in logcat_text
-            and "child already has a parent" not in logcat_text
-        )
+        record["logcat_clean"] = _logcat_crash_clean(logcat_text)
         _save_screenshot(artifacts / f"cycle-{cycle_no}.png")
         if not record["same_pid"] or not record["logcat_clean"]:
             record["error"] = "post_back_assertion_failed"
@@ -1819,18 +1833,79 @@ def run_scenario_mid_stream_exit(
         state_a = _sample_reply_state(opencode_url, session_id)
         _sleep(2.0)
         state_b = _sample_reply_state(opencode_url, session_id)
+        reentry_samples = [state_a, state_b]
+        # Frozen definition (Stage 4 finding 3 — enforced from signals the
+        # harness already captures via _sample_reply_state): the stream is
+        # FROZEN iff it is not completed, its text length does not grow over
+        # the 2 s window, AND the streaming indicator is still on at state_b
+        # (the server/UI still claims streaming) — confirmed by a second
+        # sample 5 s later that is also not completed, shows no growth over
+        # state_b, and still shows the streaming indicator. A no-growth
+        # sample WITHOUT the indicator is `interrupted` (stream stopped,
+        # not frozen); growth or completion at the confirmation sample
+        # reclassifies to continuing/completed.
         if state_b["completed"]:
             stream_state = "completed"
         elif state_b["text_length"] > state_a["text_length"]:
             stream_state = "continuing"
+        elif state_b["streaming_indicator"]:
+            _sleep(5.0)
+            state_c = _sample_reply_state(opencode_url, session_id)
+            reentry_samples.append(state_c)
+            if state_c["completed"]:
+                stream_state = "completed"
+            elif state_c["text_length"] > state_b["text_length"]:
+                stream_state = "continuing"
+            elif state_c["streaming_indicator"]:
+                stream_state = "frozen"
+            else:
+                stream_state = "interrupted"
         else:
             stream_state = "interrupted"
         record["reentry"] = {
             "renders": renders,
             "composer_accepts_text": composer_ok,
             "stream_state": stream_state,
+            "not_frozen": stream_state != "frozen",
+            "samples": reentry_samples,
         }
+        # Post-re-entry logcat dump + the same crash scan (Stage 4
+        # finding 1, BLOCKING): re-entry re-renders the session header —
+        # the exact render the Sentry OPENCODE-MOBILE-6/-7 crash fires
+        # on — and the next attempt's `adb logcat -c` would wipe that
+        # window unscanned; the final cycle has no next attempt at all.
+        # The per-cycle file name matches the upload step's existing
+        # `logcat-cycle-*.txt` glob in publish-play-store.yml, and the
+        # text is also appended to the combined logcat.txt, so the
+        # post-re-entry window lands in the collected artifacts.
+        post_reentry_text = _dump_logcat(
+            artifacts / f"logcat-cycle-{cycle_no}-post-reentry.txt")
+        _append_to_combined_logcat(artifacts, post_reentry_text)
+        post_reentry_clean = _logcat_crash_clean(post_reentry_text)
+        record["logcat_post_reentry_clean"] = post_reentry_clean
+        record["logcat_post_reentry"] = {
+            "file": f"logcat-cycle-{cycle_no}-post-reentry.txt",
+            "clean": post_reentry_clean,
+            "fatal_exception": "FATAL EXCEPTION" in post_reentry_text,
+            "child_already_has_parent": "child already has a parent" in post_reentry_text,
+        }
+        record["reentry"]["logcat_post_reentry_clean"] = post_reentry_clean
         _write_manifest()
+        if not post_reentry_clean:
+            record["error"] = "post_reentry_logcat_crash"
+            _write_manifest()
+            print("  [mid-stream] post-re-entry logcat crash scan FAILED "
+                  "(FATAL EXCEPTION / 'child already has a parent' after re-entry)")
+            return {"status": "fail", "phase": "post_reentry_logcat", "cycle": cycle_no,
+                    "manifest": manifest}
+        if stream_state == "frozen":
+            record["error"] = "stream_frozen_after_reentry"
+            _write_manifest()
+            print("  [mid-stream] stream FROZEN after re-entry "
+                  "(not completed, no growth, streaming indicator still on "
+                  "across the 2 s window + 5 s confirmation sample)")
+            return {"status": "fail", "phase": "reentry_stream_frozen", "cycle": cycle_no,
+                    "manifest": manifest}
         if not (renders and composer_ok):
             record["error"] = "reentry_failed"
             _write_manifest()
