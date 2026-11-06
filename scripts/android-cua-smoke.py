@@ -41,6 +41,7 @@ Usage:
 
 import argparse
 import base64
+import hashlib
 import json
 import os
 import subprocess
@@ -50,6 +51,7 @@ import time
 import threading
 import re
 import xml.etree.ElementTree as ET
+from datetime import datetime, timezone
 from functools import lru_cache
 from pathlib import Path
 
@@ -1281,6 +1283,572 @@ def check_session_file_created(opencode_url: str, filename: str) -> dict:
 
 
 # ---------------------------------------------------------------------------
+# Mid-stream-exit scenario (issue #227, design §1 — release gate)
+# Deterministic: streaming proof, PID/logcat assertions and re-entry checks
+# are API/ADB-based; the LLM is used only to open/re-enter the session in
+# the UI, exactly like the other deterministic scenarios above.
+# ---------------------------------------------------------------------------
+
+MID_STREAM_CYCLES = 5
+MID_STREAM_MAX_INVALID_RERUNS = 10
+MID_STREAM_PROMPT = (
+    "Write a long, detailed essay of at least 2000 words about the history "
+    "of computing, in numbered sections, from mechanical calculators to "
+    "modern AI. Reply with text only, do not use any tools, and keep "
+    "writing until the essay is complete."
+)
+
+
+def _utc_now() -> str:
+    return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+
+
+def _app_pid() -> str | None:
+    """Current PID of the app via `adb shell pidof <package>` (design §1 step 4)."""
+    try:
+        out = adb("shell", "pidof", APP_PACKAGE)
+    except Exception:
+        return None
+    parts = out.split()
+    return parts[0] if parts else None
+
+
+def _save_screenshot(path: Path) -> bool:
+    """Save one screenshot to an explicit path (1 per cycle, design §1 artifacts)."""
+    try:
+        result = subprocess.run(
+            ["adb", "exec-out", "screencap", "-p"],
+            capture_output=True, timeout=30,
+        )
+        if result.returncode == 0 and len(result.stdout) > 100:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes(result.stdout)
+            return True
+    except Exception:
+        pass
+    return False
+
+
+def _ui_text_length_and_indicator() -> tuple[int, bool]:
+    """Fallback reply-length source: total text/content-desc length in the UI
+    hierarchy, plus whether a stop/streaming indicator is visible."""
+    xml = ui_dump()
+    total = 0
+    indicator = False
+    if not xml:
+        return 0, False
+    try:
+        root = ET.fromstring(xml)
+    except ET.ParseError:
+        return 0, False
+    for node in root.iter():
+        for attr in ("text", "content-desc"):
+            value = node.attrib.get(attr, "")
+            total += len(value)
+            low = value.strip().lower()
+            if low in ("stop", "stop generating", "stop response") or "generating" in low:
+                indicator = True
+    return total, indicator
+
+
+def _fetch_session_messages(opencode_url: str, session_id: str) -> list | None:
+    import urllib.request as _ur
+    api = _api_base(opencode_url)
+    candidates = [api]
+    if "127.0.0.1" not in api and "localhost" not in api:
+        candidates.append("http://127.0.0.1:4096")
+    for base in candidates:
+        try:
+            resp = _ur.urlopen(f"{base}/session/{session_id}/message?limit=100", timeout=10)
+            data = json.loads(resp.read())
+            if isinstance(data, list):
+                return data
+        except Exception:
+            continue
+    return None
+
+
+def _session_status_type(opencode_url: str, session_id: str) -> str | None:
+    """GET /session/status -> {session_id: {type: busy|idle|retry}} (best effort)."""
+    import urllib.request as _ur
+    api = _api_base(opencode_url)
+    candidates = [api]
+    if "127.0.0.1" not in api and "localhost" not in api:
+        candidates.append("http://127.0.0.1:4096")
+    for base in candidates:
+        try:
+            resp = _ur.urlopen(f"{base}/session/status", timeout=5)
+            data = json.loads(resp.read())
+            if isinstance(data, dict) and session_id in data:
+                return (data[session_id] or {}).get("type")
+        except Exception:
+            continue
+    return None
+
+
+def _sample_reply_state(opencode_url: str, session_id: str | None) -> dict:
+    """One streaming-proof sample: UTC timestamp + reply text length +
+    completed flag + streaming-indicator flag.
+
+    Primary source is the opencode API (latest assistant message's text
+    parts for `session_id`); the UI hierarchy is the fallback when the API
+    is unreachable from the host.
+    """
+    sample = {
+        "timestamp": _utc_now(),
+        "text_length": 0,
+        "completed": False,
+        "streaming_indicator": False,
+    }
+    messages = _fetch_session_messages(opencode_url, session_id) if session_id else None
+    if messages is not None:
+        latest_assistant = None
+        for msg in messages:
+            info = msg.get("info", {}) if isinstance(msg, dict) else {}
+            role = info.get("role") or msg.get("role")
+            if role == "assistant":
+                latest_assistant = msg
+        if latest_assistant is not None:
+            length = 0
+            for part in latest_assistant.get("parts", []):
+                if part.get("type") == "text":
+                    length += len(part.get("text", ""))
+            sample["text_length"] = length
+            info = latest_assistant.get("info", {})
+            finished = bool(
+                info.get("finish")
+                or (info.get("time") or {}).get("completed")
+            )
+            status = _session_status_type(opencode_url, session_id)
+            sample["completed"] = finished or status == "idle"
+            sample["streaming_indicator"] = status in ("busy", "retry")
+        return sample
+    length, indicator = _ui_text_length_and_indicator()
+    sample["text_length"] = length
+    sample["streaming_indicator"] = indicator
+    return sample
+
+
+def _create_mid_stream_session(opencode_url: str, title: str) -> tuple[str | None, str | None]:
+    """Create the scenario session via the API. Returns (session_id, title)."""
+    import urllib.request as _ur
+    api = _api_base(opencode_url)
+    candidates = [api]
+    if "127.0.0.1" not in api and "localhost" not in api:
+        candidates.append("http://127.0.0.1:4096")
+    for base in candidates:
+        try:
+            data = json.dumps({"title": title}).encode()
+            req = _ur.Request(
+                f"{base}/session", data=data, method="POST",
+                headers={"Content-Type": "application/json"},
+            )
+            with _ur.urlopen(req, timeout=5) as resp:
+                body = json.loads(resp.read())
+                sid = body.get("id")
+                if sid:
+                    print(f"  [mid-stream] session created via API ({base}): id={sid[:16]}...")
+                    return sid, title
+        except Exception as exc:
+            print(f"  [mid-stream] session create via {base} failed: {exc}")
+    return None, None
+
+
+def _send_prompt_async(opencode_url: str, session_id: str, text: str) -> bool:
+    """Send the long streaming prompt via prompt_async (the app's own code
+    path — the app renders the stream over SSE while the session is open)."""
+    import urllib.request as _ur
+    api = _api_base(opencode_url)
+    candidates = [api]
+    if "127.0.0.1" not in api and "localhost" not in api:
+        candidates.append("http://127.0.0.1:4096")
+    for base in candidates:
+        try:
+            data = json.dumps({"parts": [{"type": "text", "text": text}]}).encode()
+            req = _ur.Request(
+                f"{base}/session/{session_id}/prompt_async",
+                data=data, method="POST",
+                headers={"Content-Type": "application/json"},
+            )
+            _ur.urlopen(req, timeout=10)
+            return True
+        except Exception as exc:
+            print(f"  [mid-stream] prompt_async via {base} failed: {exc}")
+    return False
+
+
+def _press_header_back() -> str:
+    """Navigate back via the session header back control; fall back to the
+    system back key only when no header control is found in the UI dump."""
+    xml = ui_dump()
+    if xml:
+        try:
+            root = ET.fromstring(xml)
+            for node in root.iter():
+                label = " ".join(filter(None, [
+                    node.attrib.get("content-desc", ""),
+                    node.attrib.get("text", ""),
+                ])).strip().lower()
+                if "back" not in label:
+                    continue
+                if node.attrib.get("clickable") != "true":
+                    continue
+                center = _bounds_center(node.attrib.get("bounds", ""))
+                if center:
+                    adb("shell", "input", "tap", str(center[0]), str(center[1]))
+                    return "header-back"
+        except ET.ParseError:
+            pass
+    adb("shell", "input", "keyevent", "4")  # KEYCODE_BACK
+    return "system-back-fallback"
+
+
+def _dump_logcat(path: Path) -> str:
+    """`adb logcat -d` to a file; returns its text for the crash scan."""
+    try:
+        result = subprocess.run(
+            ["adb", "logcat", "-d"], capture_output=True, text=True, timeout=30,
+        )
+        text = result.stdout or ""
+    except Exception as exc:
+        text = f"logcat dump failed: {exc}"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(text, errors="replace")
+    return text
+
+
+def _composer_accepts_text(probe: str = "reentrycheck") -> bool:
+    """Deterministic re-entry check: tap the composer (editable node) in the
+    re-entered session, type a probe string, verify it appears in the UI
+    hierarchy, then delete it again."""
+    xml = ui_dump()
+    if not xml:
+        return False
+    try:
+        root = ET.fromstring(xml)
+    except ET.ParseError:
+        return False
+    center = None
+    for node in root.iter():
+        cls = node.attrib.get("class", "")
+        editable = node.attrib.get("focusable") == "true" and (
+            "EditText" in cls or node.attrib.get("clickable") == "true"
+        )
+        hint = (node.attrib.get("text", "") + node.attrib.get("content-desc", "")).lower()
+        if editable and ("message" in hint or "EditText" in cls):
+            center = _bounds_center(node.attrib.get("bounds", ""))
+            if center:
+                break
+    if not center:
+        return False
+    adb("shell", "input", "tap", str(center[0]), str(center[1]))
+    _sleep(0.5)
+    execute_action({"type": "type", "text": probe})
+    _sleep(0.5)
+    accepted = check_ui_text(probe)
+    # Clean up: delete the probe text again (KEYCODE_DEL per character).
+    for _ in range(len(probe) + 2):
+        adb("shell", "input", "keyevent", "67")
+    return accepted
+
+
+def _apk_identity(apk_path: str | None) -> dict:
+    """APK identity for the manifest: sha256 + package/versionName/versionCode
+    from `aapt dump badging` (design §1 artifacts)."""
+    identity = {
+        "apk_path": apk_path,
+        "apk_sha256": None,
+        "package": APP_PACKAGE,
+        "versionName": None,
+        "versionCode": None,
+    }
+    if not apk_path or not Path(apk_path).exists():
+        return identity
+    digest = hashlib.sha256()
+    with open(apk_path, "rb") as fh:
+        for chunk in iter(lambda: fh.read(1024 * 1024), b""):
+            digest.update(chunk)
+    identity["apk_sha256"] = digest.hexdigest()
+
+    aapt = None
+    for candidate in (os.environ.get("AAPT"), "aapt", "aapt2"):
+        if candidate and subprocess.run(
+            ["which", candidate], capture_output=True, text=True,
+        ).stdout.strip():
+            aapt = candidate
+            break
+    if not aapt:
+        for root_env in ("ANDROID_HOME", "ANDROID_SDK_ROOT"):
+            root = os.environ.get(root_env)
+            if root:
+                for bt in sorted(Path(root, "build-tools").glob("*"), reverse=True):
+                    for name in ("aapt", "aapt2"):
+                        if (bt / name).exists():
+                            aapt = str(bt / name)
+                            break
+                    if aapt:
+                        break
+            if aapt:
+                break
+    if aapt:
+        try:
+            out = subprocess.run(
+                [aapt, "dump", "badging", apk_path],
+                capture_output=True, text=True, timeout=30,
+            ).stdout
+            match = re.search(
+                r"package: name='([^']+)' versionCode='([^']+)' versionName='([^']+)'",
+                out,
+            )
+            if match:
+                identity["package"] = match.group(1)
+                identity["versionCode"] = match.group(2)
+                identity["versionName"] = match.group(3)
+        except Exception as exc:
+            print(f"  [mid-stream] aapt dump badging failed: {exc}")
+    return identity
+
+
+def run_scenario_mid_stream_exit(
+    opencode_url: str,
+    model: str,
+    include_ui_xml: bool,
+    cycles_target: int = MID_STREAM_CYCLES,
+    artifacts_dir: str | None = None,
+    apk_path: str | None = None,
+) -> dict:
+    """Issue #227 design §1 — mid-stream-exit release gate.
+
+    Per cycle: open a session, start a long streaming reply, prove streaming
+    (reply text length grows between 2 polls 1 s apart, each poll recorded
+    in the manifest with UTC timestamp + text length), take a final
+    still-streaming boundary sample immediately before the back press
+    (recorded with UTC timestamp), press back (recorded with UTC
+    timestamp), then assert same PID, clean logcat, and usable re-entry.
+    A cycle whose reply completed before the back press is INVALID: it
+    does not count toward the target and is re-run.
+    """
+    artifacts = Path(artifacts_dir or os.environ.get("CUA_ARTIFACTS_DIR", "/tmp/cua-artifacts"))
+    artifacts.mkdir(parents=True, exist_ok=True)
+    apk = apk_path or os.environ.get(
+        "CUA_APK_PATH", "android/app/build/outputs/apk/release/app-release.apk")
+
+    manifest: dict = {
+        "scenario": "mid-stream-exit",
+        "github_sha": os.environ.get("GITHUB_SHA"),
+        "tag": os.environ.get("GITHUB_REF_NAME") if os.environ.get("GITHUB_REF_TYPE") == "tag" else None,
+        "cycles_target": cycles_target,
+        "cycles": [],
+        **_apk_identity(apk),
+    }
+
+    def _write_manifest() -> None:
+        (artifacts / "manifest.json").write_text(json.dumps(manifest, indent=2))
+
+    # Failure-blocks-publication proof hook (design §2): the dispatch-only
+    # cua_force_fail input wires CUA_FORCE_FAIL=1 to this step's env. It does
+    # not exist on tag pushes, so a tag run can never set it.
+    if os.environ.get("CUA_FORCE_FAIL") == "1":
+        manifest["forced_fail"] = True
+        _write_manifest()
+        print("  [mid-stream] CUA_FORCE_FAIL=1 — failing the gate on purpose (proof run)")
+        return {"status": "fail", "reason": "CUA_FORCE_FAIL=1", "manifest": manifest}
+
+    # The MODEL_CAPABLE probe is FATAL for this scenario (design §1): a
+    # server that cannot stream cannot pass the release gate.
+    if os.environ.get("MODEL_CAPABLE", "").lower() == "false":
+        manifest["model_capable"] = False
+        _write_manifest()
+        print("  [mid-stream] MODEL_CAPABLE=false — fatal for mid-stream-exit")
+        return {"status": "fail", "reason": "MODEL_CAPABLE=false", "manifest": manifest}
+
+    session_id, session_title = _create_mid_stream_session(
+        opencode_url, title="cua-mid-stream-exit")
+    if session_title:
+        open_goal = (
+            f"Connect to '{opencode_url}' if not already connected. "
+            f"Navigate to the Sessions tab and open the session titled '{session_title}'. "
+            "Report done when the session chat view is open with a text input at the bottom."
+        )
+    else:
+        open_goal = (
+            f"Connect to '{opencode_url}' if not already connected. "
+            "Then open any session (create one if the list is empty). "
+            "Report done when the session chat view is open with a text input at the bottom."
+        )
+    opened = run_cua_step(
+        goal=open_goal, max_steps=25, model=model,
+        include_ui_xml=include_ui_xml, step_label="mid_stream_open",
+    )
+    if opened["status"] != "success":
+        manifest["open_session"] = opened
+        _write_manifest()
+        return {"status": "fail", "phase": "open_session", "manifest": manifest}
+
+    valid_cycles = 0
+    attempts = 0
+    max_attempts = cycles_target + MID_STREAM_MAX_INVALID_RERUNS
+    while valid_cycles < cycles_target and attempts < max_attempts:
+        attempts += 1
+        cycle_no = valid_cycles + 1
+        record: dict = {
+            "cycle": cycle_no,
+            "attempt": attempts,
+            "samples": [],
+            "invalid": False,
+            "pid": None,
+        }
+        manifest["cycles"].append(record)
+        print(f"\n  [mid-stream] cycle {cycle_no}/{cycles_target} (attempt {attempts})")
+
+        # Fresh logcat per cycle so the crash scan covers this cycle only.
+        try:
+            subprocess.run(["adb", "logcat", "-c"], capture_output=True, timeout=10)
+        except Exception:
+            pass
+
+        record["pid"] = _app_pid()
+        pid_before = record["pid"]
+
+        # Start the streaming reply.
+        sent = False
+        if session_id:
+            sent = _send_prompt_async(opencode_url, session_id, MID_STREAM_PROMPT)
+        if not sent:
+            ui_send = run_cua_step(
+                goal=(
+                    "You are in a session chat view. Tap the text input at the bottom, "
+                    f"type exactly this message: {MID_STREAM_PROMPT} "
+                    "Then tap the send/submit button (bottom-right of the composer; "
+                    "pressing enter only inserts a newline). "
+                    "Report done as soon as the message was sent and a reply starts appearing."
+                ),
+                max_steps=20, model=model, include_ui_xml=include_ui_xml,
+                step_label=f"mid_stream_send_{cycle_no}",
+            )
+            sent = ui_send["status"] == "success"
+        if not sent:
+            record["error"] = "prompt_send_failed"
+            _write_manifest()
+            return {"status": "fail", "phase": "send_prompt", "cycle": cycle_no,
+                    "manifest": manifest}
+
+        # Streaming proof: text length grows between 2 polls 1 s apart.
+        # First wait (bounded) for reply text to appear at all.
+        deadline = time.time() + 60
+        first = _sample_reply_state(opencode_url, session_id)
+        while first["text_length"] == 0 and time.time() < deadline:
+            _sleep(1.0)
+            first = _sample_reply_state(opencode_url, session_id)
+        _sleep(1.0)
+        second = _sample_reply_state(opencode_url, session_id)
+        record["samples"].extend([first, second])
+        if not second["text_length"] > first["text_length"]:
+            record["error"] = "streaming_not_proven"
+            _write_manifest()
+            print("  [mid-stream] streaming NOT proven (no text growth in 1 s) — cycle FAIL")
+            return {"status": "fail", "phase": "streaming_proof", "cycle": cycle_no,
+                    "manifest": manifest}
+        print(f"  [mid-stream] streaming proven: {first['text_length']} -> "
+              f"{second['text_length']} chars in 1 s")
+
+        # Boundary sample immediately before the back press.
+        boundary = _sample_reply_state(opencode_url, session_id)
+        record["samples"].append(boundary)
+        record["boundary_sample"] = boundary
+        if boundary["completed"]:
+            # Reply finished before navigation: this attempt never exercised
+            # the mid-stream race. INVALID — does not count, re-run the cycle.
+            record["invalid"] = True
+            record["invalid_reason"] = "reply_completed_before_back_press"
+            _write_manifest()
+            print("  [mid-stream] cycle INVALID (reply completed before back press) — re-running")
+            continue
+        still_streaming = (
+            boundary["text_length"] > second["text_length"]
+            or boundary["streaming_indicator"]
+        )
+        if not still_streaming:
+            record["invalid"] = True
+            record["invalid_reason"] = "still_streaming_not_shown_at_boundary"
+            _write_manifest()
+            print("  [mid-stream] cycle INVALID (no still-streaming evidence at boundary) — re-running")
+            continue
+
+        # Navigate back only when still streaming (verified above).
+        record["back_press_at"] = _utc_now()
+        record["back_via"] = _press_header_back()
+        _sleep(1.0)
+
+        # Assertions after back: same PID, clean logcat.
+        pid_after = _app_pid()
+        record["pid_after_back"] = pid_after
+        logcat_text = _dump_logcat(artifacts / f"logcat-cycle-{cycle_no}.txt")
+        (artifacts / "logcat.txt").write_text(
+            ((artifacts / "logcat.txt").read_text(errors="replace")
+             if (artifacts / "logcat.txt").exists() else "") + logcat_text)
+        record["same_pid"] = bool(pid_before) and pid_after == pid_before
+        record["logcat_clean"] = (
+            "FATAL EXCEPTION" not in logcat_text
+            and "child already has a parent" not in logcat_text
+        )
+        _save_screenshot(artifacts / f"cycle-{cycle_no}.png")
+        if not record["same_pid"] or not record["logcat_clean"]:
+            record["error"] = "post_back_assertion_failed"
+            _write_manifest()
+            print(f"  [mid-stream] post-back assertion failed: same_pid={record['same_pid']} "
+                  f"logcat_clean={record['logcat_clean']}")
+            return {"status": "fail", "phase": "post_back_assertions", "cycle": cycle_no,
+                    "manifest": manifest}
+
+        # Re-enter the session: screen renders, composer accepts text,
+        # stream state continuing/completed/interrupted — not frozen.
+        reentered = run_cua_step(
+            goal=(
+                "You are on the sessions list. "
+                + (f"Open the session titled '{session_title}'. " if session_title
+                   else "Open the most recent session. ")
+                + "Report done when the session chat view is open again with past "
+                  "messages visible and a text input at the bottom."
+            ),
+            max_steps=20, model=model, include_ui_xml=include_ui_xml,
+            step_label=f"mid_stream_reenter_{cycle_no}",
+        )
+        renders = reentered["status"] == "success" and len(ui_dump()) > 0
+        composer_ok = _composer_accepts_text() if renders else False
+        state_a = _sample_reply_state(opencode_url, session_id)
+        _sleep(2.0)
+        state_b = _sample_reply_state(opencode_url, session_id)
+        if state_b["completed"]:
+            stream_state = "completed"
+        elif state_b["text_length"] > state_a["text_length"]:
+            stream_state = "continuing"
+        else:
+            stream_state = "interrupted"
+        record["reentry"] = {
+            "renders": renders,
+            "composer_accepts_text": composer_ok,
+            "stream_state": stream_state,
+        }
+        _write_manifest()
+        if not (renders and composer_ok):
+            record["error"] = "reentry_failed"
+            _write_manifest()
+            print(f"  [mid-stream] re-entry failed: renders={renders} composer={composer_ok}")
+            return {"status": "fail", "phase": "reentry", "cycle": cycle_no,
+                    "manifest": manifest}
+
+        valid_cycles += 1
+        print(f"  [mid-stream] cycle {cycle_no} PASS (stream_state={stream_state})")
+
+    _write_manifest()
+    if valid_cycles < cycles_target:
+        return {"status": "fail", "phase": "invalid_reruns_exhausted",
+                "valid_cycles": valid_cycles, "manifest": manifest}
+    return {"status": "success", "valid_cycles": valid_cycles, "manifest": manifest}
+
+
+# ---------------------------------------------------------------------------
 # Full E2E coding task scenario
 # ---------------------------------------------------------------------------
 
@@ -1789,7 +2357,7 @@ Examples:
         "--scenarios",
         help="Comma-separated scenario names to run (disables showcase). "
              "LLM scenarios: connect_and_verify_sessions, coding_task, verify_session_list. "
-             "Deterministic (ADB-based): sse_disconnect_banner, backgrounded_permission_notification.",
+             "Deterministic (ADB-based): sse_disconnect_banner, backgrounded_permission_notification, mid-stream-exit.",
     )
     parser.add_argument(
         "--skip-connect-scenario", action="store_true",
@@ -1829,6 +2397,36 @@ Examples:
         "--e2e-filename",
         default="hello_world.py",
         help="Expected output filename to validate in API messages and UI (default: hello_world.py).",
+    )
+
+    # Mid-stream-exit scenario (issue #227, design §1 — release gate)
+    parser.add_argument(
+        "--mid-stream-exit",
+        action="store_true",
+        help=(
+            "Run ONLY the mid-stream-exit release-gate scenario: 5 cycles of "
+            "open session -> long streaming reply -> navigate back mid-stream, "
+            "with same-PID / clean-logcat / usable-re-entry assertions and a "
+            "manifest.json recorded in --artifacts-dir."
+        ),
+    )
+    parser.add_argument(
+        "--mid-stream-cycles",
+        type=int,
+        default=5,
+        help="Valid mid-stream-exit cycles required to pass (default: 5).",
+    )
+    parser.add_argument(
+        "--artifacts-dir",
+        default=None,
+        help="Directory for mid-stream-exit artifacts (manifest.json, logcat, "
+             "per-cycle screenshots). Default: $CUA_ARTIFACTS_DIR or /tmp/cua-artifacts.",
+    )
+    parser.add_argument(
+        "--apk-path",
+        default=None,
+        help="APK under test for the mid-stream-exit manifest identity "
+             "(default: $CUA_APK_PATH or android/app/build/outputs/apk/release/app-release.apk).",
     )
 
     # Natural-language query test mode
@@ -1979,6 +2577,35 @@ Examples:
 
         sys.exit(0 if result["status"] == "success" else 1)
 
+    # ----------------------------------------------------------------
+    # MODE: --mid-stream-exit  (issue #227 release gate, design §1)
+    # ----------------------------------------------------------------
+    if args.mid_stream_exit:
+        print("\n" + "=" * 64)
+        print("  OpenCode Mobile — Mid-Stream-Exit Release Gate")
+        print(f"  Server: {connect_url}")
+        print(f"  Model:  {args.model}")
+        print(f"  Cycles: {args.mid_stream_cycles}")
+        print("=" * 64)
+
+        if not ensure_app_foreground(verbose=not args.quiet):
+            print("[prep] warning: could not confirm app in foreground")
+        maybe_dismiss_telemetry_consent(verbose=not args.quiet)
+        ensure_app_foreground(verbose=not args.quiet)
+
+        result = run_scenario_mid_stream_exit(
+            opencode_url=connect_url,
+            model=args.model,
+            include_ui_xml=args.include_xml,
+            cycles_target=args.mid_stream_cycles,
+            artifacts_dir=args.artifacts_dir,
+            apk_path=args.apk_path,
+        )
+        print("\n" + "=" * 64)
+        print(f"  Mid-stream-exit result: {result['status'].upper()}")
+        print("=" * 64)
+        sys.exit(0 if result["status"] == "success" else 1)
+
     # -----------------------------------------------------------------------
     # Determine remaining run mode: showcase vs. legacy scenarios
     # -----------------------------------------------------------------------
@@ -2046,6 +2673,12 @@ Examples:
                 connect_url, args.model, args.include_xml),
             "backgrounded_permission_notification": lambda: run_scenario_backgrounded_permission_notification(
                 connect_url, args.model, args.include_xml),
+            "mid-stream-exit": lambda: run_scenario_mid_stream_exit(
+                connect_url, args.model, args.include_xml,
+                cycles_target=args.mid_stream_cycles,
+                artifacts_dir=args.artifacts_dir,
+                apk_path=args.apk_path,
+            ),
             "hello_world_e2e": lambda: run_scenario_hello_world_e2e(
                 connect_url, args.model, args.include_xml,
                 project_dir=args.e2e_project_dir,
