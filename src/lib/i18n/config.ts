@@ -7,11 +7,13 @@ import { initReactI18next } from "react-i18next"
 import * as Localization from "expo-localization"
 import en from "./en.json"
 import zhHans from "./zh-Hans.json"
+import ru from "./ru.json"
 import { resolveLocale, FALLBACK_LOCALE, type LocalePreference } from "./locale-resolve"
 
 const resources = {
   en: { translation: en },
   "zh-Hans": { translation: zhHans },
+  ru: { translation: ru },
 }
 
 /** Device locale tags in priority order, e.g. ["zh-Hans-CN", "en-US"]. */
