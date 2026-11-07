@@ -1,0 +1,151 @@
+name: Play Rollout (halt / resume / complete)
+
+# Issue #230 (design §2): moves ONE staged Play release between
+# inProgress / halted / completed after the Sentry watch window
+# (halt on a new FATAL or day-1 UNVERIFIED, resume when telemetry
+# verifies, complete on the day-3 PASS). Dispatch-only — publishing
+# itself still happens exclusively via publish-play-store.yml.
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: "Rollout action: halt (inProgress -> halted), resume (halted -> inProgress), complete (inProgress|halted -> completed, 100%)"
+        required: true
+        type: choice
+        options:
+          - halt
+          - resume
+          - complete
+      version_code:
+        description: "Play versionCode of the target release. REQUIRED when track=production; on other tracks empty = the single inProgress release."
+        required: false
+        default: ""
+        type: string
+      track:
+        description: "Play track holding the target release"
+        required: false
+        default: "production"
+        type: choice
+        options:
+          - production
+          - alpha
+          - beta
+          - internal
+      tag:
+        description: "GitHub release tag to record the action on (e.g. v0.4.18). REQUIRED when track=production."
+        required: false
+        default: ""
+        type: string
+
+# Issue #230 (design §3, N3): the Record-on-release step PATCHes the GitHub
+# release body with the rollout line. That is the only write this
+# workflow's GITHUB_TOKEN performs.
+permissions:
+  contents: write
+
+jobs:
+  rollout:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Validate production inputs
+        # Fail BEFORE the script makes any Play API call: on production the
+        # target versionCode and the release tag to record on are both
+        # mandatory (design §2/§3). The script enforces version_code too;
+        # tag is workflow-only, so it is enforced here.
+        run: |
+          set -euo pipefail
+          if [ "${{ inputs.track }}" = "production" ]; then
+            if [ -z "${{ inputs.version_code }}" ]; then
+              echo "::error::version_code is required when track=production"
+              exit 1
+            fi
+            if [ -z "${{ inputs.tag }}" ]; then
+              echo "::error::tag is required when track=production"
+              exit 1
+            fi
+          fi
+
+      - name: Run rollout action
+        id: rollout
+        env:
+          GOOGLE_PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.PLAY_STORE_SERVICE_ACCOUNT_JSON }}
+        run: |
+          set -o pipefail
+          ARGS=(--action "${{ inputs.action }}" --track "${{ inputs.track }}")
+          if [ -n "${{ inputs.version_code }}" ]; then
+            ARGS+=(--version-code "${{ inputs.version_code }}")
+          fi
+          node scripts/play-rollout.mjs "${ARGS[@]}" | tee "${RUNNER_TEMP}/play-rollout-output.txt"
+
+      - name: Record rollout
+        if: always()
+        run: |
+          set -euo pipefail
+          RESULT_STATUS="not applied (rollout step: ${{ steps.rollout.outcome }})"
+          RESULT_FRACTION="none"
+          if [ -f "${RUNNER_TEMP}/play-rollout-output.txt" ]; then
+            LINE="$(grep -E '^play-rollout: action=' "${RUNNER_TEMP}/play-rollout-output.txt" | tail -1 || true)"
+            if [ -n "$LINE" ]; then
+              RESULT_STATUS="$(printf '%s' "$LINE" | sed -nE 's/.* status=([^ ]+).*/\1/p')"
+              RESULT_FRACTION="$(printf '%s' "$LINE" | sed -nE 's/.* fraction=([^ ]+).*/\1/p')"
+            fi
+          fi
+          {
+            echo "### Play rollout"
+            echo ""
+            echo "- action: \`${{ inputs.action }}\`"
+            echo "- track: \`${{ inputs.track }}\`"
+            echo "- versionCode: \`${{ inputs.version_code || 'auto (single inProgress release)' }}\`"
+            echo "- resulting status: \`${RESULT_STATUS}\`"
+            echo "- fraction: \`${RESULT_FRACTION}\`"
+            echo "- run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Record rollout on the GitHub release
+        # Separate from the summary step on purpose (design §3): a failed
+        # release-body PATCH must FAIL THE RUN loudly, never be a silent
+        # skip. Skipped only when no tag was given (non-production
+        # rehearsals — there the step summary is the record) or when the
+        # rollout itself did not succeed (no implicit success() bypass).
+        if: ${{ inputs.tag != '' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          LINE="$(grep -E '^play-rollout: action=' "${RUNNER_TEMP}/play-rollout-output.txt" | tail -1 || true)"
+          if [ -z "$LINE" ]; then
+            echo "::error::rollout script produced no summary line — cannot record on release ${{ inputs.tag }}"
+            exit 1
+          fi
+          RESULT_FRACTION="$(printf '%s' "$LINE" | sed -nE 's/.* fraction=([^ ]+).*/\1/p')"
+          RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          DATE_UTC="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          case "${{ inputs.action }}" in
+            halt)     ROLLOUT_TEXT="Rollout: halted at fraction ${RESULT_FRACTION} — ${RUN_URL} — ${DATE_UTC}" ;;
+            resume)   ROLLOUT_TEXT="Rollout: resumed at fraction ${RESULT_FRACTION} — ${RUN_URL} — ${DATE_UTC}" ;;
+            complete) ROLLOUT_TEXT="Rollout: completed to 100% — ${RUN_URL} — ${DATE_UTC}" ;;
+            *) echo "::error::unknown action ${{ inputs.action }}"; exit 1 ;;
+          esac
+          RELEASE_ID="$(gh api "repos/${{ github.repository }}/releases/tags/${{ inputs.tag }}" --jq '.id // empty')"
+          if [ -z "$RELEASE_ID" ]; then
+            echo "::error::no GitHub release found for tag ${{ inputs.tag }}"
+            exit 1
+          fi
+          gh api "repos/${{ github.repository }}/releases/${RELEASE_ID}" --jq '.body // ""' > /tmp/release-body.txt
+          export ROLLOUT_TEXT
+          python3 - <<'PYEOF'
+          import json, os
+          old = open("/tmp/release-body.txt").read()
+          line = os.environ["ROLLOUT_TEXT"]
+          new = (old.rstrip("\n") + "\n" + line + "\n") if old.strip() else (line + "\n")
+          json.dump({"body": new}, open("/tmp/release-patch.json", "w"))
+          PYEOF
+          gh api --method PATCH "repos/${{ github.repository }}/releases/${RELEASE_ID}" --input /tmp/release-patch.json > /dev/null
+          echo "Recorded on GitHub release ${RELEASE_ID} (${{ inputs.tag }}): ${ROLLOUT_TEXT}"
