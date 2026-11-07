@@ -21,18 +21,31 @@ on:
           - beta
           - production
       status:
-        description: "Release status (draft = uploads without going live/review; completed = submit)"
+        description: "Release status (draft = uploads without going live/review; completed = submit; inProgress/halted = staged rollout at user_fraction)"
         required: false
         default: "completed"
         type: choice
         options:
           - completed
           - draft
+          - inProgress
+          - halted
+      user_fraction:
+        description: "Staged-rollout user fraction (0.0-1.0, exclusive). Used only when status is inProgress or halted; empty otherwise."
+        required: false
+        default: "0.20"
+        type: string
       cua_force_fail:
         description: "Proof runs only: force the mid-stream-exit CUA gate to fail (CUA_FORCE_FAIL=1) and verify publication is blocked. Dispatch-only — a tag push cannot set it."
         required: false
         default: false
         type: boolean
+
+# Issue #230 (design §3, N3): the tag-path Record step PATCHes the GitHub
+# release body with the rollout fraction/versionCode/status. That is the
+# only write this workflow's GITHUB_TOKEN performs.
+permissions:
+  contents: write
 
 # Concurrent runs for the same ref must not race two uploads into the same
 # track. Serialize per ref instead of cancelling, because cancelling
@@ -417,13 +430,28 @@ jobs:
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             TRACK="${{ github.event.inputs.track || 'internal' }}"
             STATUS="${{ github.event.inputs.status || 'completed' }}"
+            USER_FRACTION_INPUT="${{ github.event.inputs.user_fraction || '0.20' }}"
           else
+            # Issue #230 (design §1): a tag publish is a STAGED rollout —
+            # production at 20% (status inProgress), held over the 3-day
+            # Sentry watch, then completed/halted via play-rollout.yml.
             TRACK=production
-            STATUS=completed
+            STATUS=inProgress
+            USER_FRACTION_INPUT="0.20"
+          fi
+          # Effective fraction (design §1): the pinned upload action REQUIRES
+          # a userFraction for inProgress/halted and REJECTS one for
+          # completed/draft, so the output is set only for the staged
+          # statuses and empty otherwise (empty = unset for the action),
+          # regardless of the user_fraction input's default.
+          USER_FRACTION=""
+          if [ "$STATUS" = "inProgress" ] || [ "$STATUS" = "halted" ]; then
+            USER_FRACTION="$USER_FRACTION_INPUT"
           fi
           echo "track=$TRACK" >> "$GITHUB_OUTPUT"
           echo "status=$STATUS" >> "$GITHUB_OUTPUT"
-          echo "event=${{ github.event_name }} -> track=$TRACK status=$STATUS"
+          echo "user_fraction=$USER_FRACTION" >> "$GITHUB_OUTPUT"
+          echo "event=${{ github.event_name }} -> track=$TRACK status=$STATUS user_fraction=${USER_FRACTION:-none}"
 
       - name: Publish to Play Store
         uses: r0adkll/upload-google-play@e738b9dd8f2476ea806d921b64aacd24f34515a5 # v1.1.5
@@ -433,6 +461,7 @@ jobs:
           releaseFiles: android/app/build/outputs/bundle/release/app-release.aab
           track: ${{ steps.channel.outputs.track }}
           status: ${{ steps.channel.outputs.status }}
+          userFraction: ${{ steps.channel.outputs.user_fraction }}
           whatsNewDirectory: distribution/whatsnew
 
       - name: Record where it landed
@@ -444,6 +473,50 @@ jobs:
             echo "- event: \`${{ github.event_name }}\`"
             echo "- track: \`${{ steps.channel.outputs.track }}\`"
             echo "- status: \`${{ steps.channel.outputs.status }}\`"
+            echo "- userFraction: \`${{ steps.channel.outputs.user_fraction || 'none' }}\`"
             echo "- versionCode: \`$(node -p "require('./app.json').expo.android.versionCode" 2>/dev/null || echo unknown)\`"
             echo "- version: \`$(node -p "require('./app.json').expo.version" 2>/dev/null || echo unknown)\`"
           } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Record staged rollout on the GitHub release (tag path)
+        # Issue #230 (design §3): on a tag publish, record the rollout on the
+        # GitHub release itself — fraction + versionCode + status inProgress —
+        # so the Sentry loop dispatches halt/complete against the recorded
+        # versionCode. build.yml creates that release in a parallel workflow,
+        # so poll the releases API for up to ~10 min; if it never appears this
+        # step FAILS LOUDLY (the upload already happened — a red run is the
+        # alarm). Runs only on the tag (push) path and only after a green
+        # upload (no `if: always()`).
+        if: ${{ github.event_name == 'push' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          TAG="${{ github.ref_name }}"
+          VERSION_CODE="$(node -p "require('./app.json').expo.android.versionCode")"
+          FRACTION="${{ steps.channel.outputs.user_fraction }}"
+          STATUS_VALUE="${{ steps.channel.outputs.status }}"
+          RELEASE_ID=""
+          for i in $(seq 1 60); do
+            RELEASE_ID="$(gh api "repos/${{ github.repository }}/releases/tags/${TAG}" --jq '.id // empty' 2>/dev/null || true)"
+            if [ -n "$RELEASE_ID" ]; then
+              break
+            fi
+            echo "GitHub release for tag ${TAG} not found yet (attempt ${i}/60); waiting 10s"
+            sleep 10
+          done
+          if [ -z "$RELEASE_ID" ]; then
+            echo "::error::GitHub release for tag ${TAG} never appeared after ~10 min — the Play upload happened but the rollout is NOT recorded on the release."
+            exit 1
+          fi
+          gh api "repos/${{ github.repository }}/releases/${RELEASE_ID}" --jq '.body // ""' > /tmp/release-body.txt
+          export ROLLOUT_LINE="Rollout: fraction ${FRACTION} — versionCode ${VERSION_CODE} — status ${STATUS_VALUE}"
+          python3 - <<'PYEOF'
+          import json, os
+          old = open("/tmp/release-body.txt").read()
+          line = os.environ["ROLLOUT_LINE"]
+          new = (old.rstrip("\n") + "\n" + line + "\n") if old.strip() else (line + "\n")
+          json.dump({"body": new}, open("/tmp/release-patch.json", "w"))
+          PYEOF
+          gh api --method PATCH "repos/${{ github.repository }}/releases/${RELEASE_ID}" --input /tmp/release-patch.json > /dev/null
+          echo "Recorded on GitHub release ${RELEASE_ID} (${TAG}): ${ROLLOUT_LINE}"
