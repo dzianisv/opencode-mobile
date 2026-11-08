@@ -469,7 +469,7 @@ jobs:
           echo "Verifying Sentry artifacts for release $SENTRY_RELEASE"
           FILES="$("$SENTRY_CLI" releases files list --org "$SENTRY_ORG" --project "$SENTRY_PROJECT" --release "$SENTRY_RELEASE")"
           echo "$FILES"
-          if ! grep -Eq 'index\.android\.bundle[[:space:]]*$' <<< "$FILES"; then
+          if ! grep -Eq 'index\.android\.bundle([^.]|$)' <<< "$FILES"; then
             echo "::error::JS bundle not listed for release $SENTRY_RELEASE"
             exit 1
           fi
