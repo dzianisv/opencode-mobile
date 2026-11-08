@@ -41,6 +41,7 @@ jobs:
       SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
       SENTRY_ORG: ${{ secrets.SENTRY_ORG }}
       SENTRY_PROJECT: ${{ secrets.SENTRY_PROJECT }}
+      SENTRY_DISABLE_AUTO_UPLOAD: ${{ github.event_name == 'pull_request' && 'true' || '' }}
     steps:
       - uses: actions/checkout@v6
 
