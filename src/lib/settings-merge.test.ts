@@ -5,6 +5,7 @@ import { clampPageSize, mergeStoredSettings } from "./settings-merge.ts"
 const DEFAULTS = {
   pageSize: 25,
   notifications: { idle: true, error: true, permission: false },
+  showMessageTimestamps: false,
 }
 
 test("clampPageSize keeps in-range values unchanged", () => {
@@ -26,9 +27,15 @@ test("empty stored settings yield the defaults", () => {
 })
 
 test("stored values override defaults", () => {
-  const merged = mergeStoredSettings(DEFAULTS, { pageSize: 50 })
+  const merged = mergeStoredSettings(DEFAULTS, { pageSize: 50, showMessageTimestamps: true })
   assert.equal(merged.pageSize, 50)
+  assert.equal(merged.showMessageTimestamps, true)
   assert.deepEqual(merged.notifications, DEFAULTS.notifications)
+})
+
+test("settings from before message timestamps default the new preference to off", () => {
+  const merged = mergeStoredSettings(DEFAULTS, { pageSize: 50 })
+  assert.equal(merged.showMessageTimestamps, false)
 })
 
 test("upgrade path: a category missing from storage gets its default", () => {

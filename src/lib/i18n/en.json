@@ -13,6 +13,7 @@
     "sections": {
       "security": "Security",
       "notifications": "Notifications",
+      "display": "Display",
       "privacy": "Privacy",
       "about": "About"
     },
@@ -33,6 +34,12 @@
     },
     "notifications": {
       "disabledNotice": "Notifications are disabled at the system level. Enable them in Settings to receive alerts."
+    },
+    "display": {
+      "messageTimestamps": {
+        "label": "Message timestamps",
+        "description": "Show the date and time each message was sent"
+      }
     },
     "privacy": {
       "crashReporting": {
