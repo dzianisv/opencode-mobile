@@ -408,7 +408,87 @@ jobs:
         # until the monthly reset.
         # Grep the shipped Hermes bundle instead. Verified to discriminate:
         # v0.4.14 passes, pre-gate v0.4.13 fails.
-        run: node scripts/verify-release-bundle.mjs android/app/build/outputs/bundle/release/app-release.aab
+        # Issue #232: the second argument cross-checks the shipped bundle's
+        # `sentry-dbid-<uuid>` marker against the Debug ID of the built
+        # release source map (path per @react-native/gradle-plugin:
+        # generated/sourcemaps/react/<variant>/index.android.bundle.map).
+        run: node scripts/verify-release-bundle.mjs android/app/build/outputs/bundle/release/app-release.aab android/app/build/generated/sourcemaps/react/release/index.android.bundle.map
+
+      - name: Upload native debug symbols to Sentry
+        # Issue #232: nothing ever uploaded the native (.so) debug symbols -
+        # sentry.gradle creates only the JS bundle/source-map upload task, so
+        # Sentry held no debug files for the ELF build IDs in the AAB and
+        # true native frames could not be symbolicated. Upload the UNSTRIPPED
+        # libs from the release build's merged_native_libs intermediates
+        # (association is by ELF build ID, so this is dist-independent and
+        # unaffected by the versionName/versionCode dist split). The stripped
+        # and symbol-table intermediates are only fallbacks if a future AGP
+        # moves the merged output. Plain step on purpose: missing libs,
+        # missing CLI or an upload error all fail the job.
+        run: |
+          set -euo pipefail
+          SENTRY_CLI=node_modules/@sentry/cli/bin/sentry-cli
+          if [ ! -x "$SENTRY_CLI" ]; then
+            echo "::error::bundled sentry-cli not found at $SENTRY_CLI"
+            exit 1
+          fi
+          "$SENTRY_CLI" --version
+          LIBS=""
+          for candidate in \
+            android/app/build/intermediates/merged_native_libs/release \
+            android/app/build/intermediates/stripped_native_libs/release \
+            android/app/build/intermediates/native_symbol_tables/release; do
+            if [ -d "$candidate" ] && [ -n "$(find "$candidate" \( -name '*.so' -o -name '*.sym' \) -print -quit)" ]; then
+              LIBS="$candidate"
+              break
+            fi
+          done
+          if [ -z "$LIBS" ]; then
+            echo "::error::no native libs found in any release intermediates directory - nothing to upload"
+            exit 1
+          fi
+          echo "Uploading native debug symbols from $LIBS ($(find "$LIBS" -name '*.so' | wc -l) .so files)"
+          "$SENTRY_CLI" debug-files upload \
+            --org "$SENTRY_ORG" \
+            --project "$SENTRY_PROJECT" \
+            "$LIBS"
+
+      - name: Verify Sentry artifacts for release
+        # Issue #232: prove server-side that this release's artifacts exist,
+        # so a skipped or silently failed upload can no longer ship green.
+        # (i) JS bundle + source map listed for $SENTRY_RELEASE, via the
+        # bundled sentry-cli. (ii) Native debug files: sentry-cli 2.53.0 has
+        # NO server-side debug-files list (its debug-files subcommands are
+        # bundle-sources/check/find/print-sources/upload, and `find` is
+        # local-only), so query the Sentry API's project debug-files (dsyms)
+        # endpoint with the same SENTRY_AUTH_TOKEN; a non-200 response or an
+        # empty list fails the job. No continue-on-error on purpose.
+        run: |
+          set -euo pipefail
+          SENTRY_CLI=node_modules/@sentry/cli/bin/sentry-cli
+          echo "Verifying Sentry artifacts for release $SENTRY_RELEASE"
+          FILES="$("$SENTRY_CLI" releases files list --org "$SENTRY_ORG" --project "$SENTRY_PROJECT" --release "$SENTRY_RELEASE")"
+          echo "$FILES"
+          if ! grep -q "index.android.bundle" <<< "$FILES"; then
+            echo "::error::JS bundle not listed for release $SENTRY_RELEASE"
+            exit 1
+          fi
+          if ! grep -q "index.android.bundle.map" <<< "$FILES"; then
+            echo "::error::JS source map not listed for release $SENTRY_RELEASE"
+            exit 1
+          fi
+          HTTP_CODE="$(curl -sS -o /tmp/sentry-dsyms.json -w '%{http_code}' \
+            -H "Authorization: Bearer ${SENTRY_AUTH_TOKEN}" \
+            "https://sentry.io/api/0/projects/${SENTRY_ORG}/${SENTRY_PROJECT}/files/dsyms/")"
+          if [ "$HTTP_CODE" != "200" ]; then
+            echo "::error::Sentry debug-files API returned HTTP $HTTP_CODE"
+            exit 1
+          fi
+          python3 -c "import json,sys; d=json.load(open('/tmp/sentry-dsyms.json')); sys.exit(0 if isinstance(d,list) and len(d)>0 else 1)" || {
+            echo "::error::no native debug files stored for project $SENTRY_PROJECT"
+            exit 1
+          }
+          echo "Sentry artifacts verified for $SENTRY_RELEASE: bundle + source map listed, native debug files present."
 
       - name: Upload AAB artifact
         uses: actions/upload-artifact@v7

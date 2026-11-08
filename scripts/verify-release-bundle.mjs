@@ -21,6 +21,11 @@
 //
 // Usage:
 //   node scripts/verify-release-bundle.mjs android/app/build/outputs/bundle/release/app-release.aab
+//   node scripts/verify-release-bundle.mjs <aab> <release-source-map>
+//     With the optional second argument (issue #232) the AAB bundle's
+//     `sentry-dbid-<uuid>` marker is cross-checked against the Debug ID of
+//     the built release source map, and any mismatch or missing marker
+//     fails the check. Without it, behavior is exactly the noise gate above.
 //
 // Optional env:
 //   EXPO_PUBLIC_SENTRY_DSN  when set, the DSN baked into the bundle must point
@@ -29,7 +34,7 @@
 // Read-only, dependency-free (uses the `unzip` CLI, present on the runner).
 
 import { execFileSync } from "node:child_process"
-import { existsSync } from "node:fs"
+import { existsSync, readFileSync } from "node:fs"
 
 /** Literals that only exist because the noise gate is in the bundle graph.
  *  Each is unique to our code, not the Sentry SDK. */
@@ -72,6 +77,59 @@ export function checkBundle(bundle, opts = {}) {
   return problems
 }
 
+
+const UUID_PATTERN = "[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}"
+
+/** The Debug ID the shipped bundle carries. The Sentry Metro serializer
+ *  embeds it as a `sentry-dbid-<uuid>` string literal (that exact marker is
+ *  what Sentry's own tooling greps for); Hermes keeps the literal in the
+ *  bytecode, so it survives compilation into the AAB. Strict UUID shape:
+ *  the bytecode packs string literals back to back, so a loose hex run
+ *  would over-match into the neighbouring literal. */
+export function bundleDebugId(bundle) {
+  const text = Buffer.isBuffer(bundle) ? bundle.toString("latin1") : String(bundle)
+  const m = new RegExp(`sentry-dbid-(${UUID_PATTERN})`).exec(text)
+  return m ? m[1].toLowerCase() : null
+}
+
+/** The Debug ID of a built release source map. Depending on the serializer
+ *  version it is recorded as a `debugId`/`debug_id` JSON field, a
+ *  `sentry-dbid-` marker, or a `//# debugId=` comment; accept any of them. */
+export function sourceMapDebugId(sourceMap) {
+  const text = Buffer.isBuffer(sourceMap) ? sourceMap.toString("utf8") : String(sourceMap)
+  const patterns = [
+    new RegExp(`"debugId"\\s*:\\s*"(${UUID_PATTERN})"`),
+    new RegExp(`"debug_id"\\s*:\\s*"(${UUID_PATTERN})"`),
+    new RegExp(`sentry-dbid-(${UUID_PATTERN})`),
+    new RegExp(`//# debugId=(${UUID_PATTERN})`),
+  ]
+  for (const re of patterns) {
+    const m = re.exec(text)
+    if (m) return m[1].toLowerCase()
+  }
+  return null
+}
+
+/** Pure check: the AAB bundle's Debug ID must equal the release source
+ *  map's Debug ID (issue #232). Source-map symbolication is Debug-ID
+ *  based, so a mismatch means the uploaded map can never resolve the
+ *  shipped bundle's frames — v0.4.17 matched; this keeps it that way. */
+export function checkDebugId(bundle, sourceMap) {
+  const problems = []
+  const fromBundle = bundleDebugId(bundle)
+  const fromMap = sourceMapDebugId(sourceMap)
+  if (!fromBundle) {
+    problems.push("no sentry-dbid-<uuid> marker in the shipped bundle — no Debug ID to symbolicate against")
+  }
+  if (!fromMap) {
+    problems.push("no Debug ID found in the release source map")
+  }
+  if (fromBundle && fromMap && fromBundle !== fromMap) {
+    problems.push(`Debug ID mismatch — bundle ${fromBundle}, source map ${fromMap}`)
+  }
+  return problems
+}
+
 /** Extract the project id from a DSN without leaking the key. */
 export function dsnProjectId(dsn) {
   if (!dsn) return null
@@ -110,6 +168,17 @@ function main() {
   }
 
   const problems = checkBundle(bundle, { expectedProjectId: dsnProjectId(process.env.EXPO_PUBLIC_SENTRY_DSN) })
+
+  const sourceMapPath = process.argv[3]
+  if (sourceMapPath) {
+    if (!existsSync(sourceMapPath)) {
+      console.error(`FAIL: source map argument given but not found: ${sourceMapPath}`)
+      process.exit(1)
+    }
+    const sourceMap = readFileSync(sourceMapPath)
+    console.log(`debug id: bundle ${bundleDebugId(bundle) ?? "MISSING"}, source map ${sourceMapDebugId(sourceMap) ?? "MISSING"}`)
+    problems.push(...checkDebugId(bundle, sourceMap))
+  }
 
   let version = null
   try {
