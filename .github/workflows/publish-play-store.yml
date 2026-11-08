@@ -473,7 +473,19 @@ jobs:
             echo "::error::JS bundle not listed for release $SENTRY_RELEASE"
             exit 1
           fi
-          if ! grep -q "index.android.bundle.map" <<< "$FILES"; then
+          # The map check must NOT grep the whole table: its Source Map
+          # column prints the bundle artifact's `Sourcemap` header verbatim,
+          # so a bundle-only upload (header set, no map artifact) would
+          # false-pass. Compare artifact names exactly instead: take the
+          # table's first column only (second field when split on '|',
+          # trimmed; the header row yields no name, border lines do not
+          # start with '|').
+          NAMES="$(printf '%s\n' "$FILES" | awk -F'|' '/^[|]/ { name=$2; gsub(/^[ \t]+|[ \t]+$/, "", name); if (name != "" && name != "Name") print name }')"
+          if [ -z "$NAMES" ] && [ -n "$FILES" ]; then
+            echo "::error::could not parse artifact names from the sentry-cli releases files list output for release $SENTRY_RELEASE"
+            exit 1
+          fi
+          if ! grep -qxF '~/index.android.bundle.map' <<< "$NAMES"; then
             echo "::error::JS source map not listed for release $SENTRY_RELEASE"
             exit 1
           fi
