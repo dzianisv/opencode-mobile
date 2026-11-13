@@ -8,9 +8,11 @@ import {
   StyleSheet,
   useColorScheme,
   KeyboardAvoidingView,
+  Keyboard,
   Platform,
   ActivityIndicator,
   Alert,
+  useWindowDimensions,
 } from "react-native"
 import { useLocalSearchParams, Stack, useRouter, useFocusEffect, useNavigation } from "expo-router"
 import { Ionicons } from "@expo/vector-icons"
@@ -41,6 +43,12 @@ import { useAuth } from "../../src/stores/auth"
 import { useCatalog } from "../../src/stores/catalog"
 import { useSpeech } from "../../src/lib/speech"
 import { messagePartsToSelectableText } from "../../src/lib/message-text"
+import {
+  jsKeyboardPaddingApplies,
+  keyboardPadding,
+  keyboardVerticalOffset,
+} from "../../src/lib/keyboard-offset"
+import { composerMaxHeight } from "../../src/lib/session-layout"
 
 // --- Builtin slash commands ---
 const BUILTIN_COMMANDS: SlashCommand[] = [
@@ -87,6 +95,35 @@ export default function SessionScreen() {
   const [input, setInput] = useState("")
   const [attachments, setAttachments] = useState<Attachment[]>([])
   const [showInfo, setShowInfo] = useState(false)
+  const { height: windowHeight, fontScale } = useWindowDimensions()
+  const [keyboardHeight, setKeyboardHeight] = useState(() => Keyboard.metrics()?.height ?? 0)
+  const [keyboardY, setKeyboardY] = useState<number | null>(null)
+
+  useEffect(() => {
+    if (Platform.OS !== "android") return
+    const show = Keyboard.addListener("keyboardDidShow", (event) => {
+      setKeyboardHeight(event.endCoordinates.height)
+      setKeyboardY(event.endCoordinates.screenY)
+    })
+    const hide = Keyboard.addListener("keyboardDidHide", () => {
+      setKeyboardHeight(0)
+      setKeyboardY(null)
+    })
+    // Close the render-to-effect race: listeners are attached first, then the
+    // current native metrics become the source of truth.
+    setKeyboardHeight(Keyboard.metrics()?.height ?? 0)
+    return () => {
+      show.remove()
+      hide.remove()
+    }
+  }, [])
+
+  const inputMaxHeight = composerMaxHeight(Platform.OS, windowHeight, keyboardY, insets.top, fontScale)
+  // Exactly one layer applies the IME height: JS padding below API 35, the
+  // native IME-insets listener in MainActivity on API 35+.
+  const jsKeyboardPadding = jsKeyboardPaddingApplies(Platform.OS, Platform.Version)
+    ? keyboardPadding(Platform.OS, keyboardHeight)
+    : 0
   // Raw text of the message opened in the full-screen selection sheet
   const [textSheet, setTextSheet] = useState<string | null>(null)
 
@@ -626,12 +663,22 @@ export default function SessionScreen() {
   return (
     <>
       <KeyboardAvoidingView
-        style={[s.container, isDark && s.containerDark]}
-        // "padding" pushes the composer/toolbar above the keyboard. On Android
-        // the padding is driven by the native WindowInsets from MainActivity
-        // (see #216); on iOS by the keyboard frame events.
-        behavior="padding"
-        keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 0}
+        style={[
+          s.container,
+          isDark && s.containerDark,
+          Platform.OS === "android" && { paddingBottom: jsKeyboardPadding },
+        ]}
+        // iOS keeps behavior="padding" with its established offset (90).
+        // Android applies the IME-reported height directly as bottom
+        // padding (see keyboard-offset.ts): RN 0.81 retains a non-zero
+        // vertical offset as stale padding after keyboardDidHide, so
+        // Android uses behavior={undefined} and the hide listener above
+        // explicitly resets the padding to zero. On Android 15+ the
+        // native IME-insets listener in MainActivity owns the IME height
+        // instead, so the JS padding stays off there — exactly one layer
+        // applies it on every API level.
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        keyboardVerticalOffset={keyboardVerticalOffset(Platform.OS, insets.top)}
       >
         {/* Session info pulldown */}
         <SessionInfo
@@ -839,7 +886,7 @@ export default function SessionScreen() {
             </TouchableOpacity>
 
             <TextInput
-              style={[s.input, isDark && s.inputDark, speech.listening && s.inputListening]}
+              style={[s.input, isDark && s.inputDark, speech.listening && s.inputListening, { maxHeight: inputMaxHeight }]}
               placeholder={
                 speech.listening
                   ? t("session.input.placeholderListening")
@@ -852,6 +899,7 @@ export default function SessionScreen() {
               onChangeText={speech.listening ? undefined : setInput}
               editable={!speech.listening}
               multiline
+              scrollEnabled
               maxLength={10000}
               testID="chat-message-input"
             />
