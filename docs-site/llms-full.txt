@@ -1,0 +1,73 @@
+# OpenCode Mobile — full reference
+
+> OpenCode Mobile is the free, open-source Android client for the opencode AI coding agent. Connect your Android phone to your own opencode server and run AI coding sessions from anywhere: stream replies token by token, review file diffs, and approve tool calls before the agent executes them. Free, MIT licensed, no account, no ads, no telemetry unless you opt in. Available on Google Play, F-Droid, and as a direct APK. Current version 0.4.17, rated 4.65 out of 5 on Google Play. Android only, no iOS. Not affiliated with opencode.
+
+## What it is
+
+OpenCode Mobile is a remote control for opencode, the terminal-based AI coding agent. It is a thin client: it speaks the opencode HTTP and SSE API directly. No middleman, no cloud relay, no hosted service. All AI inference runs on the user's own opencode server with the user's own API keys (OpenAI, Anthropic, Gemini, or local models). The app has zero AI built in. The app never receives the user's API keys and never proxies code or conversations through the maintainer's servers.
+
+## Who it is for
+
+Developers who run opencode on a workstation, laptop, or VPS and want to check in on AI coding sessions from their phone: start, resume, and switch sessions, watch diffs land, approve or reject tool calls, and steer long-running jobs away from the desk. It is not a replacement for a desktop terminal or IDE, and it is not a general AI chatbot.
+
+## Install (Android only)
+
+Google Play (recommended): https://play.google.com/store/apps/details?id=cc.agentlabs.opencode — package cc.agentlabs.opencode, free, current version 0.4.17, Android 7.0 and up.
+
+F-Droid (self-hosted repo): add https://dzianisv.github.io/opencode-mobile/fdroid/repo in any F-Droid client (F-Droid, Droid-ify, Neo Store), then install OpenCode Mobile for automatic updates.
+
+Direct APK: download the latest signed APK from https://github.com/dzianisv/opencode-mobile/releases/latest — same package id cc.agentlabs.opencode.
+
+There is no iOS app and none is planned. OpenCode Mobile is Android-only by owner decision (October 2026). See https://dzianisv.github.io/opencode-mobile/ios/ for the full answer.
+
+## Setup in 5 minutes
+
+1. Install opencode on a machine: npm install -g opencode-ai.
+2. Run it as a server: OPENCODE_SERVER_PASSWORD=yourpassword opencode serve --hostname 0.0.0.0 --port 4096.
+3. Make it reachable from the phone: Tailscale is the recommended option (connect to the machine's Tailscale IP, for example http://100.x.x.x:4096). Cloudflare Tunnel, ngrok, or the same local network also work.
+4. In the app, tap Add Connection, enter the server URL and password, and connect.
+
+No server yet: tap "Try a Demo" in the app to watch a scripted bug-fix session (reasoning, grep, diff, permission prompt) in about 30 seconds, offline, with no setup.
+
+## Features
+
+- Streaming chat: token-by-token responses directly from the opencode server.
+- Diff viewer: inline side-by-side diffs of every file change the agent makes.
+- Tool-call approval: review and approve or reject file writes, shell commands, and other agent actions from the phone.
+- Multi-connection: manage multiple opencode servers (local network, Cloudflare Tunnel, ngrok, Tailscale).
+- Session management: browse, create, and resume coding sessions on the server.
+- Biometric unlock: fingerprint or face unlock protects the app and individual message sends.
+- Secure credential storage: server credentials stored in the Android Keystore via expo-secure-store.
+- Offline demo mode: a full scripted bug-fix walkthrough with zero setup.
+
+## Facts
+
+- Price: free, 0 USD. License: MIT. Source code: https://github.com/dzianisv/opencode-mobile
+- Platform: Android only (7.0 and up, arm64). No iOS.
+- OpenCode versions: OpenCode 2 is the primary target; OpenCode 1.x servers are supported for the core surface.
+- Publisher: VIBE TECHNOLOGIES, LLC. Not affiliated with opencode or the Anomaly team.
+- Privacy: no code, prompts, or AI responses are collected. All traffic goes from the app directly to the user's own opencode server. Optional Sentry crash reporting collects only device model, OS version, and stack traces.
+
+## Frequently asked questions
+
+Is OpenCode Mobile free? Yes. Completely free and open source under the MIT license. No feature gate, no ads, no analytics unless you opt in.
+
+Do I need my own server? Yes. It is a client, not a hosted service. You run an opencode server yourself and the app connects to it over the network.
+
+Is it on Google Play? Yes, live since June 2026: https://play.google.com/store/apps/details?id=cc.agentlabs.opencode
+
+Is there an iOS app? No, and none is planned. Android-only.
+
+Where do my API keys live? On your own opencode server. The app never touches them.
+
+Is it an official OpenCode product? No. It is an independent, community-built client, not made by, endorsed by, or affiliated with the opencode team.
+
+## Links
+
+- Website: https://dzianisv.github.io/opencode-mobile/
+- Google Play: https://play.google.com/store/apps/details?id=cc.agentlabs.opencode
+- GitHub: https://github.com/dzianisv/opencode-mobile
+- Download: https://dzianisv.github.io/opencode-mobile/download/
+- Setup guide: https://dzianisv.github.io/opencode-mobile/guide/
+- Features: https://dzianisv.github.io/opencode-mobile/features/
+- Troubleshooting: https://dzianisv.github.io/opencode-mobile/troubleshooting/
