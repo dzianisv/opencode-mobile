@@ -4,11 +4,13 @@
     <loc>https://dzianisv.github.io/opencode-mobile/</loc>
     <changefreq>weekly</changefreq>
     <priority>1.0</priority>
+    <lastmod>2026-11-14</lastmod>
   </url>
   <url>
     <loc>https://dzianisv.github.io/opencode-mobile/download/</loc>
     <changefreq>weekly</changefreq>
     <priority>0.9</priority>
+    <lastmod>2026-11-14</lastmod>
   </url>
   <url>
     <loc>https://dzianisv.github.io/opencode-mobile/guide/</loc>
@@ -47,7 +49,7 @@
     <loc>https://dzianisv.github.io/opencode-mobile/opencode-on-phone/</loc>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
-    <lastmod>2026-06-08</lastmod>
+    <lastmod>2026-11-14</lastmod>
   </url>
   <url>
     <loc>https://dzianisv.github.io/opencode-mobile/remote-access/</loc>
@@ -59,7 +61,7 @@
     <loc>https://dzianisv.github.io/opencode-mobile/ios/</loc>
     <changefreq>monthly</changefreq>
     <priority>0.6</priority>
-    <lastmod>2026-06-08</lastmod>
+    <lastmod>2026-11-14</lastmod>
   </url>
   <url>
     <loc>https://dzianisv.github.io/opencode-mobile/try-demo/</loc>

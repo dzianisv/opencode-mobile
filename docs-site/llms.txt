@@ -1,0 +1,29 @@
+# OpenCode Mobile
+
+> OpenCode Mobile is the free, open-source Android client for the opencode AI coding agent. Connect your Android phone to your own opencode server and run AI coding sessions from anywhere: stream replies token by token, review file diffs, and approve tool calls before the agent executes them. Free, MIT licensed, no account, no ads, no telemetry unless you opt in. Available on Google Play, F-Droid, and as a direct APK. Current version 0.4.17, rated 4.65 out of 5 on Google Play. Android only, no iOS. Not affiliated with opencode.
+
+## Install
+
+- [Google Play](https://play.google.com/store/apps/details?id=cc.agentlabs.opencode): Install OpenCode Mobile from Google Play (current version 0.4.17)
+- [Download](https://dzianisv.github.io/opencode-mobile/download/): All Android install options: Google Play, F-Droid repo, direct APK
+- [Setup guide](https://dzianisv.github.io/opencode-mobile/guide/): Start opencode serve and connect the app in 5 minutes
+
+## Features
+
+- [Features](https://dzianisv.github.io/opencode-mobile/features/): Streaming chat, diff viewer, tool-call approval, multi-connection, biometric unlock, session management
+- [OpenCode on your phone](https://dzianisv.github.io/opencode-mobile/opencode-on-phone/): How to use OpenCode from your phone
+- [Try the demo](https://dzianisv.github.io/opencode-mobile/try-demo/): Watch the agent fix a real bug in 30 seconds, no server needed
+
+## Compare
+
+- [OpenCode Mobile vs ChatGPT and Copilot](https://dzianisv.github.io/opencode-mobile/comparison/): How a self-hosted client differs from hosted AI assistants
+- [OpenCode Mobile vs Termux](https://dzianisv.github.io/opencode-mobile/vs-termux/): Native client vs terminal on Android
+- [Claude Code on Android](https://dzianisv.github.io/opencode-mobile/claude-code-android/): Run Claude Code from your phone via OpenCode Mobile
+- [GPT and Gemini on Android](https://dzianisv.github.io/opencode-mobile/gpt-gemini-android/): Use GPT and Gemini models through your own opencode server
+
+## Help
+
+- [Troubleshooting](https://dzianisv.github.io/opencode-mobile/troubleshooting/): Connection, server, and install problems
+- [Remote access](https://dzianisv.github.io/opencode-mobile/remote-access/): Reach your server from anywhere with Tailscale, Cloudflare Tunnel, or ngrok
+- [No iOS app](https://dzianisv.github.io/opencode-mobile/ios/): Why there is no iPhone or iPad version
+- [Source code](https://github.com/dzianisv/opencode-mobile): GitHub repository, MIT license
