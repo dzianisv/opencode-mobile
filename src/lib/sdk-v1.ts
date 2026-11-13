@@ -183,6 +183,32 @@ export interface HealthResponse {
 
 const REQUEST_TIMEOUT_MS = 30_000
 
+// Minimal shape of a stream reader we need for the idle watchdog (expo/fetch
+// returns its own ReadableStream reader type; structural typing avoids fighting
+// with it). Mirrors src/lib/sdk.ts — the v1/v2 clients are deliberately kept
+// as separate modules, so the wrapper is duplicated rather than shared.
+// The v1 server's heartbeat interval is unknown, but any stream silent for
+// 45s is dead either way: without this the read parks forever on a half-open
+// socket (#186), exactly the failure the v2 wrapper already guards.
+const SSE_IDLE_TIMEOUT_MS = 45_000
+
+type ReaderLike = {
+  read: () => Promise<{ done?: boolean; value?: Uint8Array }>
+  cancel?: () => Promise<void>
+}
+
+async function readWithIdleTimeout(reader: ReaderLike, ms: number): Promise<{ done?: boolean; value?: Uint8Array } | "idle"> {
+  let timer: ReturnType<typeof setTimeout> | undefined
+  // Swallow the read rejection: if the fetch is aborted while this race is
+  // settling, the losing read promise must not become an unhandled rejection.
+  const read = reader.read().catch(() => ({ done: true, value: undefined }))
+  try {
+    return await Promise.race([read, new Promise<"idle">((resolve) => { timer = setTimeout(() => resolve("idle"), ms) })])
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
 // Thrown by request() on a non-2xx response. Carries the HTTP status so
 // callers can distinguish e.g. 404 (older server, endpoint missing) from
 // other failures without parsing the message string.
@@ -288,7 +314,13 @@ export function createV1Client(config: ClientConfig) {
         let receivedFirstByte = false
         try {
           while (true) {
-            const { done, value } = await reader.read()
+            const chunk = await readWithIdleTimeout(reader as ReaderLike, SSE_IDLE_TIMEOUT_MS)
+            if (chunk === "idle") {
+              console.warn(`[SSE] no data for ${SSE_IDLE_TIMEOUT_MS / 1000}s — dropping dead stream`)
+              void reader.cancel?.().catch(() => {})
+              throw new Error("Event stream idle — no heartbeat received")
+            }
+            const { done, value } = chunk
             if (done) {
               console.log("[SSE] stream ended")
               break
