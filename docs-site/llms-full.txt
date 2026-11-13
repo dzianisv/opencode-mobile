@@ -43,7 +43,7 @@ No server yet: tap "Try a Demo" in the app to watch a scripted bug-fix session (
 ## Facts
 
 - Price: free, 0 USD. License: MIT. Source code: https://github.com/dzianisv/opencode-mobile
-- Platform: Android only (7.0 and up, arm64). No iOS.
+- Platform: Android only (7.0 and up). No iOS.
 - OpenCode versions: OpenCode 2 is the primary target; OpenCode 1.x servers are supported for the core surface.
 - Publisher: VIBE TECHNOLOGIES, LLC. Not affiliated with opencode or the Anomaly team.
 - Privacy: no code, prompts, or AI responses are collected. All traffic goes from the app directly to the user's own opencode server. Optional Sentry crash reporting collects only device model, OS version, and stack traces.
