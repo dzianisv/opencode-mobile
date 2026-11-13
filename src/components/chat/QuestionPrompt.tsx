@@ -1,7 +1,8 @@
 import { useRef, useState } from "react"
-import { View, Text, TextInput, TouchableOpacity, StyleSheet } from "react-native"
+import { View, Text, TextInput, TouchableOpacity, ScrollView, StyleSheet } from "react-native"
 import { Ionicons } from "@expo/vector-icons"
 import { useTranslation } from "react-i18next"
+import { QUESTION_BODY_SCROLL_PROPS } from "../../lib/session-layout"
 
 interface QuestionOption {
   label: string
@@ -86,9 +87,8 @@ export function QuestionPrompt({ request, isDark, onReply, onReject }: Props) {
         <Ionicons name="chatbubble-ellipses-outline" size={18} color="#8b5cf6" />
         <Text style={[s.title, isDark && s.textWhite]}>{q.header || t("chat.questionPrompt.headerFallback")}</Text>
       </View>
-      <Text style={[s.question, isDark && s.textWhite]}>{q.question}</Text>
-
-      <View style={s.options}>
+      <ScrollView {...QUESTION_BODY_SCROLL_PROPS} style={s.body} contentContainerStyle={s.options} testID="question-options-scroll">
+        <Text style={[s.question, isDark && s.textWhite]}>{q.question}</Text>
         {q.options.map((opt) => {
           const selected = (answers[current] || []).includes(opt.label)
           return (
@@ -129,7 +129,7 @@ export function QuestionPrompt({ request, isDark, onReply, onReject }: Props) {
               <Text style={[s.optionLabel, { color: "#8b5cf6" }]}>{t("chat.questionPrompt.customAnswerLabel")}</Text>
             </TouchableOpacity>
           ))}
-      </View>
+      </ScrollView>
 
       <View style={s.footer}>
         <TouchableOpacity onPress={reject}>
@@ -158,6 +158,7 @@ export function QuestionPrompt({ request, isDark, onReply, onReject }: Props) {
 
 const s = StyleSheet.create({
   card: {
+    flexShrink: 1,
     margin: 12,
     padding: 16,
     backgroundColor: "#f5f3ff",
@@ -169,10 +170,11 @@ const s = StyleSheet.create({
   header: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 8 },
   title: { fontSize: 15, fontWeight: "600", color: "#6d28d9" },
   textWhite: { color: "#ffffff" },
-  question: { fontSize: 14, lineHeight: 20, color: "#0a0a0a", marginBottom: 12 },
+  body: { flexShrink: 1 },
+  question: { fontSize: 14, lineHeight: 20, color: "#0a0a0a" },
   metaDark: { color: "#666666" },
 
-  options: { gap: 8 },
+  options: { gap: 8, paddingBottom: 1 },
   option: {
     padding: 12,
     borderRadius: 8,
