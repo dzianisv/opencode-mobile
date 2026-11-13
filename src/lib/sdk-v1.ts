@@ -12,7 +12,7 @@
 // expo/fetch provides WinterCG-compliant fetch with ReadableStream support for SSE
 import { fetch as expoFetch } from "expo/fetch"
 import { buildRequestHeaders } from "./headers"
-import { SSEParser } from "./sse"
+import { SSEParser, SSE_DIAL_TIMEOUT_MS, SSE_LIVENESS_EVENT_TYPE } from "./sse"
 import { apiErrorFor } from "./api-error"
 import { loadSessionList } from "./session-list"
 import type { FileRoot } from "./file-roots"
@@ -301,8 +301,27 @@ export function createV1Client(config: ClientConfig) {
         // Remove Content-Type for SSE (it's text/event-stream)
         delete (headers as Record<string, string>)["Content-Type"]
 
-        // Must use expo/fetch for ReadableStream support on native
-        const response = await expoFetch(url, { headers, signal })
+        // Bound the dial — same shape as the v2 client (see sdk.ts): the
+        // 45s idle watchdog only wraps reader.read() AFTER headers arrive,
+        // so a black-holed dial would park the reconnect loop forever
+        // (Finding 2).
+        const dialController = new AbortController()
+        const dialTimer = setTimeout(() => dialController.abort(), SSE_DIAL_TIMEOUT_MS)
+        const onParentAbort = () => dialController.abort()
+        signal?.addEventListener("abort", onParentAbort)
+        let response: Response
+        try {
+          // Must use expo/fetch for ReadableStream support on native
+          response = await expoFetch(url, { headers, signal: dialController.signal })
+        } catch (err) {
+          if (dialController.signal.aborted && !signal?.aborted) {
+            throw new Error(`SSE dial timed out after ${SSE_DIAL_TIMEOUT_MS / 1000}s — server not responding`)
+          }
+          throw err
+        } finally {
+          clearTimeout(dialTimer)
+          signal?.removeEventListener("abort", onParentAbort)
+        }
         if (!response.ok || !response.body) {
           throw apiErrorFor(response.status, `Failed to connect to event stream: ${response.status}`)
         }
@@ -331,15 +350,24 @@ export function createV1Client(config: ClientConfig) {
               console.log(`[SSE] first byte received (${value?.byteLength ?? 0} bytes)`)
             }
 
+            // Liveness-only yield for heartbeat-only chunks — same shape as
+            // v2 (see sdk.ts): the v1 subscribe frame is a `: connected`
+            // comment and heartbeats are comments, so a quiet v1 server
+            // would otherwise never yield anything either (Finding 1).
+            let yielded = 0
             for (const data of parser.push(decoder.decode(value, { stream: true }))) {
               try {
                 yield JSON.parse(data)
+                yielded++
               } catch (err) {
                 console.warn("[SSE] Failed to parse event", {
                   length: data.length,
                   error: err instanceof Error ? err.message : String(err),
                 })
               }
+            }
+            if (yielded === 0) {
+              yield { type: SSE_LIVENESS_EVENT_TYPE, properties: {} }
             }
           }
         } finally {

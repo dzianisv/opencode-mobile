@@ -291,21 +291,19 @@ export const useConnections = create<ConnectionsState>((set, get) => ({
     // Publish the client immediately so SSE can start; metadata fills in
     // behind it (#189), guarded against a server switch mid-fetch.
     set({ connections, activeConnection: active, client, clientBase: base, currentProject: null, serverHome: null })
+    // Breadcrumb at publish time, not after the metadata fetch: the old
+    // placement fired only if both metadata fetches resolved and the stale
+    // guard passed, so a slow/offline server lost the breadcrumb entirely
+    // (LOW 6). hasProject is unknown at publish — report false.
+    addBreadcrumb({
+      category: "connection",
+      message: active ? `active connection set: ${active.type}` : "active connection cleared",
+      data: { id: active?.id, type: active?.type, hasProject: false },
+    })
     if (active && client) {
       const requestClient = client
       void fetchMetadataBehind(requestClient, () => get().client === requestClient, (proj, home) => {
         set({ currentProject: proj, serverHome: home })
-        addBreadcrumb({
-          category: "connection",
-          message: `active connection set: ${active.type}`,
-          data: { id: active.id, type: active.type, hasProject: Boolean(proj) },
-        })
-      })
-    } else {
-      addBreadcrumb({
-        category: "connection",
-        message: "active connection cleared",
-        data: { id: active?.id, type: active?.type, hasProject: false },
       })
     }
   },
