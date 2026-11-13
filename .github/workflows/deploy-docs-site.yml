@@ -5,6 +5,11 @@ on:
     branches: [main]
     paths:
       - "docs-site/**"
+      # The workflow file itself: without this, merging this PR would not
+      # trigger a deploy (the merge changes only this file), and llms.txt /
+      # llms-full.txt added by #242 would stay unpublished until the next
+      # docs-site/ change. With this, the merge deploy runs the first sync.
+      - ".github/workflows/deploy-docs-site.yml"
   workflow_dispatch:
 
 jobs:
