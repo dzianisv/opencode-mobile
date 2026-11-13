@@ -167,28 +167,9 @@ The correct Azure AI Services endpoint (with actual deployments) is:
 - Use `AzureOpenAI` client from the `openai` Python SDK with `api_version="2024-08-01-preview"`.
 - Vision works: pass `image_url` with `data:image/png;base64,...` in user message content array.
 
-### CI
-
-GitHub Actions workflow: `.github/workflows/cua-smoke.yml`
-Secrets required: `AZURE_OPENAI_API_KEY`, `AZURE_OPENAI_ENDPOINT` (already set on `dzianisv/opencode-mobile`).
-
-**Triggers**: Runs on push to `main` (with path filters) AND on `v*` tags (releases).
-
-**Dispatch inputs** (workflow_dispatch):
-- `scenario`: `showcase` (default) | `e2e`
-- `query`: natural-language test description (enables `--query` mode, overrides scenario)
-- `opencode_url`: override server URL (use Tailscale URL for live server)
-- `e2e_project_dir`, `e2e_model_hint`, `e2e_task`, `e2e_filename`: e2e mode params
-
 ### When to run CUA test
 
-**MANDATORY**: Run the CUA smoke test before any merge to `main` or release:
-1. Before merging a PR that touches `src/**`, `app/**`, or `scripts/android-cua-smoke.py`
-2. After creating a release tag — CI runs it automatically
-3. When debugging UI issues — run locally with `--include-xml` for richer context
-4. When validating a specific AI coding task — use `--e2e` or `--query`
-
-If the CUA test fails, do NOT merge or release until fixed.
+**REMOVED 2026-11-13 (owner order, no credits to run it):** the CUA smoke-test workflow (`.github/workflows/cua-smoke.yml`) was deleted (commit e8444931). The CUA smoke test is no longer required before merge or release, and it no longer runs in CI. The script can still be run locally for UI debugging.
 
 ## Secrets Management
 
