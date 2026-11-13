@@ -15,11 +15,20 @@
 // typecheck + review — these tests prove the /api/event endpoint the store
 // reads from actually streams, heartbeats, and broadcasts over real HTTP.
 
-import { test, before, after } from "node:test"
+import { test, describe, before, after } from "node:test"
 import assert from "node:assert/strict"
 import { register } from "node:module"
-import { createMockOpencodeServer } from "../../tests/fixtures/mock-opencode-server.ts"
+import {
+  createMockOpencodeServer,
+  SEED_PARENT_SESSION_ID,
+  SEED_PARENT_TITLE,
+  SEED_CHILD_DONE_ID,
+  SEED_CHILD_DONE_TITLE,
+  SEED_CHILD_IDLE_ID,
+  SEED_CHILD_IDLE_TITLE,
+} from "../../tests/fixtures/mock-opencode-server.ts"
 import { loadSessionList, legacySessionQuery, type SessionListTransport } from "./session-list.ts"
+import { selectChildren } from "./session-children.ts"
 import { SSEParser, SSE_LIVENESS_EVENT_TYPE } from "./sse.ts"
 import type { Client } from "./sdk"
 
@@ -37,6 +46,7 @@ import type { Client } from "./sdk"
 register(
   "data:text/javascript,export async function resolve(specifier, context, nextResolve) { if (specifier === 'expo/fetch') { return { url: 'data:text/javascript,export const fetch = globalThis.fetch;', shortCircuit: true }; } try { return await nextResolve(specifier, context); } catch (e) { if ((specifier.startsWith('./') || specifier.startsWith('../')) && !/\\.[a-z]+$/i.test(specifier)) { return nextResolve(specifier + '.ts', context); } throw e; } }",
 )
+
 
 const PORT = 45071
 let mock: ReturnType<typeof createMockOpencodeServer>
@@ -125,6 +135,81 @@ test("older servers (404 on /experimental/session) fall back to /session and sti
   assert.equal(legacySessionQuery({ roots: true, limit: 50 }), "?roots=true&limit=50")
 })
 
+// Subagent children (#187) — the session.created routing itself lives in the
+// RN-only events store, which plain node --test cannot load, and the mock
+// emits no session.created broadcast (nor can any UI create a child), so the
+// live routing branch has no automated cover in this slice: it is verified by
+// inspection, and the rendered section is covered by
+// .maestro/flows/subagents.yaml. What this block DOES prove across the real
+// HTTP boundary is the data path the section and the leak-closure depend on:
+// the pool carries children with parentID (OQ1 at the app boundary),
+// selectChildren isolates one parent's children (AC1), and the roots list
+// excludes children (AC3, load path).
+describe("subagent children: pool carries children, roots list stays roots-only", () => {
+  const PORT = 45072
+  let subMock: ReturnType<typeof createMockOpencodeServer>
+  let subBase: string
+
+  before(async () => {
+    // --seed-subagents pre-populates one parent + two children, all in
+    // DEFAULT_DIRECTORY (/mock/project):
+    //   seed-parent     (updated now-60s)
+    //   seed-child-done (parentID seed-parent, agent explore,
+    //                    model opencode/deepseek-v4-flash-free,
+    //                    time.idle set, updated now-30s, newest)
+    //   seed-child-idle (parentID seed-parent, no agent/model/idle,
+    //                    updated now-45s)
+    subMock = createMockOpencodeServer({ port: PORT, seedSubagents: true })
+    await subMock.listen()
+    subBase = subMock.url
+  })
+
+  after(async () => {
+    await subMock.close()
+  })
+
+  test("pool: the global list carries children with parentID set (OQ1)", async () => {
+    const pool = await loadSessionList(realTransport(subBase))
+    const byId = new Map(pool.map((s) => [s.id, s]))
+    assert.equal(pool.length, 3)
+    assert.equal(byId.get(SEED_CHILD_DONE_ID)?.parentID, SEED_PARENT_SESSION_ID)
+    assert.equal(byId.get(SEED_CHILD_IDLE_ID)?.parentID, SEED_PARENT_SESSION_ID)
+    assert.equal(byId.get(SEED_PARENT_SESSION_ID)?.parentID, undefined)
+  })
+
+  test("selectChildren (AC1): isolates one parent's children, newest-first", async () => {
+    const pool = await loadSessionList(realTransport(subBase))
+    const children = selectChildren(pool, SEED_PARENT_SESSION_ID)
+    assert.deepEqual(
+      children.map((s) => s.id),
+      [SEED_CHILD_DONE_ID, SEED_CHILD_IDLE_ID],
+    )
+    assert.equal(children[0].title, SEED_CHILD_DONE_TITLE)
+    assert.equal(children[1].title, SEED_CHILD_IDLE_TITLE)
+  })
+
+  test("selectChildren (AC1): child rows carry agent/model where the server provides them", async () => {
+    const pool = await loadSessionList(realTransport(subBase))
+    const children = selectChildren(pool, SEED_PARENT_SESSION_ID)
+    const done = children.find((s) => s.id === SEED_CHILD_DONE_ID)
+    assert.equal(done?.agent, "explore")
+    assert.deepEqual(done?.model, { providerID: "opencode", modelID: "deepseek-v4-flash-free" })
+    assert.ok(done?.time?.idle != null, "done child carries time.idle")
+    const idle = children.find((s) => s.id === SEED_CHILD_IDLE_ID)
+    assert.equal(idle?.agent, undefined)
+    assert.equal(idle?.model, undefined)
+  })
+
+  test("roots list (AC3): roots:true excludes children at load time", async () => {
+    const sessions = await loadSessionList(realTransport(subBase), { roots: true, limit: 50 })
+    assert.deepEqual(
+      sessions.map((s) => s.id),
+      [SEED_PARENT_SESSION_ID],
+    )
+    assert.ok(sessions.every((s) => !s.parentID), "no parentID row reaches the root list")
+    assert.equal(sessions[0].title, SEED_PARENT_TITLE)
+  })
+})
 // --- v2 SSE stream (/api/event) — liveness transport coverage (#189/#186) ---
 //
 // Transport-level only: subscribes over real HTTP, parses frames with the

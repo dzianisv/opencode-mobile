@@ -44,6 +44,12 @@ interface EventsState {
   lastDisconnectAt: number | null
   sessionStatus: Record<string, SessionStatus>
   statusText: Record<string, string>
+  // Last error message per session id, set on session.error for ANY session
+  // (unlike the viewed-session-only banner) so the subagent surface (#187)
+  // can show a Failed row for a child the user never opened. Cleared when
+  // the session next goes busy. Kept separate from erroredSessions, which
+  // drives notification/review logic and stays untouched.
+  sessionErrors: Record<string, string>
   // Permissions & questions (pending per session)
   permissions: Record<string, PendingPermission[]>
   questions: Record<
@@ -209,6 +215,7 @@ export const useEvents = create<EventsState>((set, get) => ({
   lastDisconnectAt: null,
   sessionStatus: {},
   statusText: {},
+  sessionErrors: {},
   permissions: {},
   questions: {},
 
@@ -341,11 +348,18 @@ export const useEvents = create<EventsState>((set, get) => ({
                 abortedSessions.delete(sessionID)
               }
 
-              set((state) => ({
-                sessionStatus: { ...state.sessionStatus, [sessionID]: status },
-                // Clear status text when idle
-                statusText: status.type === "idle" ? { ...state.statusText, [sessionID]: "" } : state.statusText,
-              }))
+              set((state) => {
+                const sessionErrors =
+                  status.type === "busy" && state.sessionErrors[sessionID]
+                    ? Object.fromEntries(Object.entries(state.sessionErrors).filter(([id]) => id !== sessionID))
+                    : state.sessionErrors
+                return {
+                  sessionStatus: { ...state.sessionStatus, [sessionID]: status },
+                  // Clear status text when idle
+                  statusText: status.type === "idle" ? { ...state.statusText, [sessionID]: "" } : state.statusText,
+                  sessionErrors,
+                }
+              })
 
               // SSE is the source of truth — update sending state unconditionally
               if (status.type === "idle") {
@@ -421,7 +435,25 @@ export const useEvents = create<EventsState>((set, get) => ({
             case "session.created": {
               const info = props.info as Session | undefined
               if (!info) break
-              // Add to sessions list
+              // #187 (AC3): route on parentID — a child must never reach the
+              // root list. Roots prepend exactly as before; children upsert
+              // into childrenByParent ONLY if that parent's key already
+              // exists (its section already loaded); otherwise ignore — the
+              // next loadChildren fetch picks the child up.
+              if (info.parentID) {
+                useSessions.setState((state) => {
+                  const existing = state.childrenByParent[info.parentID as string]
+                  if (!existing) return {}
+                  if (existing.some((s) => s.id === info.id)) return {}
+                  return {
+                    childrenByParent: {
+                      ...state.childrenByParent,
+                      [info.parentID as string]: [info, ...existing],
+                    },
+                  }
+                })
+                break
+              }
               useSessions.setState((state) => {
                 const exists = state.sessions.some((s) => s.id === info.id)
                 if (exists) return {}
@@ -437,6 +469,12 @@ export const useEvents = create<EventsState>((set, get) => ({
               // Mark so the eventual busy -> idle transition is not counted
               // as a success for the store review prompt
               erroredSessions.add(sessionID)
+              // #187 (AC4): record the message for any session id so a child
+              // row can show Failed with the server message. Notification and
+              // viewed-session banner behaviour below are unchanged.
+              set((state) => ({
+                sessionErrors: { ...state.sessionErrors, [sessionID]: error?.message || "Session error occurred" },
+              }))
               // Clear sending state unconditionally — SSE is truth
               useSessions.setState((state) => ({
                 sending: { ...state.sending, [sessionID]: false },
@@ -641,6 +679,7 @@ export const useEvents = create<EventsState>((set, get) => ({
       lastDisconnectAt: null,
       sessionStatus: {},
       statusText: {},
+      sessionErrors: {},
       permissions: {},
       questions: {},
     })

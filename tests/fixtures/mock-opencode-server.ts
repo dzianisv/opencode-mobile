@@ -111,6 +111,17 @@ export interface MockServerOptions {
    * depend on it landing first.
    */
   seedDiff?: boolean
+  /**
+   * Pre-populate a parent session (id "seed-parent", in DEFAULT_DIRECTORY)
+   * with two children (parentID "seed-parent") — used by
+   * .maestro/flows/subagents.yaml and the subagents block of
+   * src/lib/session-list.integration.test.ts (#187) to prove the global pool
+   * carries children with parentID, selectChildren isolates one parent's
+   * children, and the root list stays roots-only. The done child carries
+   * agent/model + time.idle (renders Done with an agent · model line); the
+   * idle child carries neither (renders Idle with no agent line).
+   */
+  seedSubagents?: boolean
 }
 
 interface StoredSession {
@@ -118,9 +129,12 @@ interface StoredSession {
   slug: string
   projectID: string
   directory: string
+  parentID?: string
   title: string
   version: string
-  time: { created: number; updated: number }
+  agent?: string
+  model?: { providerID: string; modelID: string }
+  time: { created: number; updated: number; idle?: number }
 }
 
 interface StoredPart {
@@ -208,6 +222,16 @@ export const SEED_DIFF_TOOL_TITLE = "Edit wide_diff_target.ts"
 export const SEED_DIFF_LINE_MARKER = "ZZZ_DIFF_SCROLL_TARGET_ZZZ"
 export const SEED_CODE_LINE_MARKER = "ZZZ_CODE_SCROLL_TARGET_ZZZ"
 
+// Exported so .maestro/flows/subagents.yaml's assertions, the subagents block
+// of src/lib/session-list.integration.test.ts, and this file's own seeding
+// logic share one source of truth for the seeded parent/child pair (#187).
+export const SEED_PARENT_SESSION_ID = "seed-parent"
+export const SEED_PARENT_TITLE = "Parent Session"
+export const SEED_CHILD_DONE_ID = "seed-child-done"
+export const SEED_CHILD_DONE_TITLE = "Done Subagent"
+export const SEED_CHILD_IDLE_ID = "seed-child-idle"
+export const SEED_CHILD_IDLE_TITLE = "Idle Subagent"
+
 // Long, space-free filler so the RN <Text> can't word-wrap it — it just
 // overflows its parent, which is exactly what the horizontal ScrollView (the
 // fix under test) exists to make scrollable instead of clipped/truncated.
@@ -221,6 +245,7 @@ export function createMockOpencodeServer(opts: MockServerOptions) {
     replyDelayMs = 300,
     seedSessions = false,
     seedDiff = false,
+    seedSubagents = false,
   } = opts
 
   const sessions = new Map<string, StoredSession>()
@@ -315,6 +340,47 @@ export function createMockOpencodeServer(opts: MockServerOptions) {
     messagesBySession.set(seedDefault.id, [])
     sessions.set(seedOther.id, seedOther)
     messagesBySession.set(seedOther.id, [])
+  }
+
+  if (seedSubagents) {
+    const now = Date.now()
+    const seedParent: StoredSession = {
+      id: SEED_PARENT_SESSION_ID,
+      slug: "seed-parent",
+      projectID: "mock-project",
+      directory: DEFAULT_DIRECTORY,
+      title: SEED_PARENT_TITLE,
+      version: "0.0.0-mock",
+      time: { created: now - 120_000, updated: now - 60_000 },
+    }
+    const seedChildDone: StoredSession = {
+      id: SEED_CHILD_DONE_ID,
+      slug: "seed-child-done",
+      projectID: "mock-project",
+      directory: DEFAULT_DIRECTORY,
+      parentID: SEED_PARENT_SESSION_ID,
+      title: SEED_CHILD_DONE_TITLE,
+      version: "0.0.0-mock",
+      agent: "explore",
+      model: { providerID: "opencode", modelID: "deepseek-v4-flash-free" },
+      time: { created: now - 60_000, updated: now - 30_000, idle: now - 30_000 },
+    }
+    const seedChildIdle: StoredSession = {
+      id: SEED_CHILD_IDLE_ID,
+      slug: "seed-child-idle",
+      projectID: "mock-project",
+      directory: DEFAULT_DIRECTORY,
+      parentID: SEED_PARENT_SESSION_ID,
+      title: SEED_CHILD_IDLE_TITLE,
+      version: "0.0.0-mock",
+      time: { created: now - 60_000, updated: now - 45_000 },
+    }
+    sessions.set(seedParent.id, seedParent)
+    messagesBySession.set(seedParent.id, [])
+    sessions.set(seedChildDone.id, seedChildDone)
+    messagesBySession.set(seedChildDone.id, [])
+    sessions.set(seedChildIdle.id, seedChildIdle)
+    messagesBySession.set(seedChildIdle.id, [])
   }
 
   function broadcast(type: string, properties: Record<string, unknown>) {
@@ -706,13 +772,14 @@ export function createMockOpencodeServer(opts: MockServerOptions) {
   }
 }
 
-function parseArgs(argv: string[]): { port: number; failAuth: boolean; seedSessions: boolean; seedDiff: boolean } {
-  const opts = { port: 4096, failAuth: false, seedSessions: false, seedDiff: false }
+function parseArgs(argv: string[]): { port: number; failAuth: boolean; seedSessions: boolean; seedDiff: boolean; seedSubagents: boolean } {
+  const opts = { port: 4096, failAuth: false, seedSessions: false, seedDiff: false, seedSubagents: false }
   for (let i = 0; i < argv.length; i++) {
     if (argv[i] === "--port") opts.port = Number(argv[++i])
     else if (argv[i] === "--fail-auth") opts.failAuth = true
     else if (argv[i] === "--seed-sessions") opts.seedSessions = true
     else if (argv[i] === "--seed-diff") opts.seedDiff = true
+    else if (argv[i] === "--seed-subagents") opts.seedSubagents = true
   }
   return opts
 }
@@ -725,7 +792,7 @@ if (invokedDirectly) {
   const mock = createMockOpencodeServer(opts)
   mock.listen().then(() => {
     console.log(
-      `[mock-opencode-server] listening on ${mock.url} (failAuth=${opts.failAuth}, seedSessions=${opts.seedSessions}, seedDiff=${opts.seedDiff})`,
+      `[mock-opencode-server] listening on ${mock.url} (failAuth=${opts.failAuth}, seedSessions=${opts.seedSessions}, seedDiff=${opts.seedDiff}, seedSubagents=${opts.seedSubagents})`,
     )
   })
   const shutdown = () => {

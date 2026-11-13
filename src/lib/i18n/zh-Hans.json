@@ -448,6 +448,17 @@
         "hoursAgo": "{{count}} 小时前",
         "daysAgo": "{{count}} 天前"
       }
+    },
+    "subagents": {
+      "title": "子代理",
+      "running": "运行中",
+      "done": "已完成",
+      "idle": "空闲",
+      "failed": "失败",
+      "none": "暂无子代理",
+      "loadError": "无法加载子代理",
+      "retry": "重试",
+      "summary": "{{count}} 个子代理 · {{detail}}"
     }
   },
   "demo": {

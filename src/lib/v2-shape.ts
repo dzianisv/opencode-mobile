@@ -218,10 +218,17 @@ export function toSession(info: V2SessionInfo): Session {
     parentID: info.parentID,
     title: info.title ?? "",
     version: "",
+    // #187: carry agent/model/idle — V2SessionInfo has them, the old mapping
+    // dropped them, and the subagent rows need them without a per-child fetch.
+    // Omitted (not undefined-valued) when the server sends none, so the
+    // mapped shape is unchanged for sessions without them.
+    ...(info.agent !== undefined ? { agent: info.agent } : {}),
+    ...(info.model ? { model: { providerID: info.model.providerID, modelID: info.model.id } } : {}),
     time: {
       created: info.time?.created ?? 0,
       updated: info.time?.updated ?? 0,
       archived: info.time?.archived,
+      ...(info.time?.idle !== undefined ? { idle: info.time.idle } : {}),
     },
     revert: info.revert ? { messageID: info.revert.messageID, partID: info.revert.partID } : undefined,
   }

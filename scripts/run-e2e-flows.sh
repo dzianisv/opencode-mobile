@@ -29,15 +29,35 @@ APK="android/app/build/outputs/apk/release/app-release.apk"
 CORE_FLOWS=(activation-positive activation-negative-401)
 # demo.yaml (offline "Try a demo" mode) needs no mock server — it never
 # connects — so it's safe to run alongside the others here unmodified.
-NEWER_FLOWS=(directory-picker all-sessions variant-picker diff-scroll demo)
+NEWER_FLOWS=(directory-picker all-sessions variant-picker diff-scroll demo subagents)
 mkdir -p "$ROOT/artifacts/screenshots" "$ROOT/artifacts/diag"
 
 echo "== installing APK =="
 adb install "$APK"
 
 echo "== forwarding mock ports into the emulator (adb reverse) =="
-for p in 4096 4097 4098 4099 4100; do adb reverse "tcp:$p" "tcp:$p"; done
+for p in 4096 4097 4098 4099 4100 4101; do adb reverse "tcp:$p" "tcp:$p"; done
 adb reverse --list
+
+# The subagents flow needs its own mock instance (port 4101, --seed-subagents:
+# one parent + two children, for subagents.yaml / issue #187). It starts here,
+# not in activation-e2e.yml, so this flow needs no workflow-file change: the
+# workflow only starts ports 4096-4100. Same node invocation the workflow uses
+# for the other mocks; wait until its health endpoint answers.
+echo "== starting subagents mock on 4101 =="
+nohup node tests/fixtures/mock-opencode-server.ts --port 4101 --seed-subagents > /tmp/mock-4101.log 2>&1 &
+for i in $(seq 1 30); do
+  if curl -sf --connect-timeout 1 -m 3 "http://127.0.0.1:4101/global/health" > /dev/null 2>&1; then
+    echo "subagents mock on 4101 is up"
+    break
+  fi
+  if [ "$i" = "30" ]; then
+    echo "::error::subagents mock server on port 4101 did not come up in 30s"
+    cat /tmp/mock-4101.log || true
+    exit 1
+  fi
+  sleep 1
+done
 
 # Decisive probe: can the EMULATOR actually reach the host mock via 127.0.0.1?
 # If any in-emulator method prints the health JSON, the network path is good
@@ -96,6 +116,7 @@ adb logcat -c || true            # clear, so the captured log is just this run
 dump_diag() {
   echo "== capturing diagnostics =="
   adb logcat -d > "$ROOT/artifacts/diag/logcat.txt" 2>&1 || true
+  cp /tmp/mock-4101.log "$ROOT/artifacts/diag/mock-4101.log" 2>/dev/null || true
   # Maestro writes per-run debug (UI hierarchy + commands) under ~/.maestro/tests
   cp -r "$HOME/.maestro/tests" "$ROOT/artifacts/diag/maestro-tests" 2>/dev/null || true
 }
