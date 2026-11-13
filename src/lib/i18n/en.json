@@ -448,6 +448,17 @@
         "hoursAgo": "{{count}}h ago",
         "daysAgo": "{{count}}d ago"
       }
+    },
+    "subagents": {
+      "title": "Subagents",
+      "running": "Running",
+      "done": "Done",
+      "idle": "Idle",
+      "failed": "Failed",
+      "none": "No subagents yet",
+      "loadError": "Couldn't load subagents",
+      "retry": "Retry",
+      "summary": "{{count}} subagents · {{detail}}"
     }
   },
   "demo": {

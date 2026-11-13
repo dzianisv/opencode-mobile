@@ -33,6 +33,7 @@ import {
   ImageAttachments,
   SessionInfo,
   MessageTextSheet,
+  SubagentSection,
   type SlashCommand,
   type Attachment,
 } from "../../src/components/chat"
@@ -747,6 +748,11 @@ export default function SessionScreen() {
             </TouchableOpacity>
           </View>
         )}
+
+        {/* Subagent children (#187) — above the message list, outside the
+            FlatList. Read-only; a load failure shows its own error + retry
+            and never blocks the transcript. */}
+        {id ? <SubagentSection parentId={id} isDark={isDark} /> : null}
 
         {isLoading ? (
           <View style={s.loading}>

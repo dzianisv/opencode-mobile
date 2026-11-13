@@ -71,11 +71,19 @@ export interface Session {
   title: string
   version: string
   share?: { url: string }
+  // Carried from V2SessionInfo so the subagent surface (#187) can show the
+  // child agent/model without a per-child fetch. Absent on v1/legacy servers.
+  agent?: string
+  model?: { providerID: string; modelID: string }
   time: {
     created: number
     updated: number
     compacting?: number
     archived?: number
+    // Present when the server marks the session finished. The server does not
+    // populate it on every response (OQ3) — a cold-loaded child without it
+    // reads Idle until a live busy -> idle transition is observed.
+    idle?: number
   }
   summary?: {
     additions: number
