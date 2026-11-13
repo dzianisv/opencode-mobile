@@ -16,6 +16,14 @@
 //     returns immediately; the actual reply is delivered as
 //     `message.updated` + `message.part.updated` + `session.status` (idle)
 //     events on the SSE stream (src/stores/events.ts).
+//   - GET /api/event is the v2 SSE stream: same framing as /global/event
+//     (heartbeat comment frames every 2s, `data:` frames) but v2-shaped raw
+//     events (`{type, data}` — see src/lib/v2-shape.ts V2EventTranslator):
+//     a `server.connected` frame on subscribe, plus
+//     `session.execution.started`/`succeeded` lifecycle frames when a prompt
+//     runs. Transport-level coverage for the SSE liveness work (#189/#186),
+//     not a full v2 content stream — message content still flows over the
+//     v1 endpoint only.
 //   - The real server ALSO persists and broadcasts the USER's message. The
 //     app relies on this: any `message.updated` event strips optimistic
 //     `temp-` messages (src/stores/sessions.ts handleEvent), so if the mock
@@ -243,6 +251,7 @@ export function createMockOpencodeServer(opts: MockServerOptions) {
   const sessions = new Map<string, StoredSession>()
   const messagesBySession = new Map<string, StoredMessage[]>()
   const sseClients = new Set<http.ServerResponse>()
+  const sseV2Clients = new Set<http.ServerResponse>()
 
   if (seedDiff) {
     const now = Date.now()
@@ -386,6 +395,56 @@ export function createMockOpencodeServer(opts: MockServerOptions) {
     }
   }
 
+  // v2-shaped broadcast ({type, data}) for /api/event subscribers.
+  function broadcastV2(type: string, data: Record<string, unknown>) {
+    const line = `data: ${JSON.stringify({ type, data })}\n\n`
+    console.log(`[mock-opencode-server] broadcast v2 type=${type} clients=${sseV2Clients.size}`)
+    for (const res of sseV2Clients) {
+      try {
+        res.write(line)
+      } catch {
+        sseV2Clients.delete(res)
+      }
+    }
+  }
+
+  // Shared SSE subscribe plumbing for the v1 (/global/event) and v2
+  // (/api/event) streams: same headers, same 2s heartbeat comment frames,
+  // different first frame and client set.
+  function openSse(
+    req: http.IncomingMessage,
+    res: http.ServerResponse,
+    clients: Set<http.ServerResponse>,
+    firstFrame: string,
+    label: string,
+  ) {
+    res.writeHead(200, {
+      "Content-Type": "text/event-stream",
+      "Cache-Control": "no-cache",
+      Connection: "keep-alive",
+    })
+    res.write(firstFrame)
+    clients.add(res)
+    console.log(`[mock-opencode-server] SSE connect (${label}), clients=${clients.size}`)
+
+    // Periodic heartbeat comment. If the client never sees even this, the
+    // silence is a transport problem (expo/fetch not streaming), not a
+    // broadcast bug — attributes issue #90 mode B.
+    const heartbeat = setInterval(() => {
+      try {
+        res.write(": ping\n\n")
+      } catch {
+        clearInterval(heartbeat)
+      }
+    }, 2000)
+
+    req.on("close", () => {
+      clearInterval(heartbeat)
+      clients.delete(res)
+      console.log(`[mock-opencode-server] SSE disconnect (${label}), clients=${clients.size}`)
+    })
+  }
+
   function json(res: http.ServerResponse, status: number, body: unknown) {
     const data = JSON.stringify(body)
     res.writeHead(status, {
@@ -441,6 +500,7 @@ export function createMockOpencodeServer(opts: MockServerOptions) {
 
     setTimeout(() => {
       broadcast("session.status", { sessionID, status: { type: "busy" } })
+      broadcastV2("session.execution.started", { sessionID })
 
       const now = Date.now()
       const messageID = randomUUID()
@@ -466,6 +526,7 @@ export function createMockOpencodeServer(opts: MockServerOptions) {
       list.push({ info: { ...info, time: { created: now, completed: Date.now() } }, parts: [part] })
 
       broadcast("session.status", { sessionID, status: { type: "idle" } })
+      broadcastV2("session.execution.succeeded", { sessionID })
     }, replyDelayMs)
   }
 
@@ -562,31 +623,15 @@ export function createMockOpencodeServer(opts: MockServerOptions) {
 
     // SSE event stream — kept open for the lifetime of the connection.
     if (method === "GET" && path === "/global/event") {
-      res.writeHead(200, {
-        "Content-Type": "text/event-stream",
-        "Cache-Control": "no-cache",
-        Connection: "keep-alive",
-      })
-      res.write(": connected\n\n")
-      sseClients.add(res)
-      console.log(`[mock-opencode-server] SSE connect, clients=${sseClients.size}`)
+      openSse(req, res, sseClients, ": connected\n\n", "v1")
+      return
+    }
 
-      // Periodic heartbeat comment. If the client never sees even this, the
-      // silence is a transport problem (expo/fetch not streaming), not a
-      // broadcast bug — attributes issue #90 mode B.
-      const heartbeat = setInterval(() => {
-        try {
-          res.write(": ping\n\n")
-        } catch {
-          clearInterval(heartbeat)
-        }
-      }, 2000)
-
-      req.on("close", () => {
-        clearInterval(heartbeat)
-        sseClients.delete(res)
-        console.log(`[mock-opencode-server] SSE disconnect, clients=${sseClients.size}`)
-      })
+    // v2 SSE event stream (src/lib/sdk.ts createV2Client global.events).
+    // Same transport, v2-shaped frames: server.connected on subscribe, then
+    // session.execution.* lifecycle frames (see broadcastV2).
+    if (method === "GET" && path === "/api/event") {
+      openSse(req, res, sseV2Clients, `data: ${JSON.stringify({ type: "server.connected", data: {} })}\n\n`, "v2")
       return
     }
 
@@ -711,7 +756,7 @@ export function createMockOpencodeServer(opts: MockServerOptions) {
       return new Promise((resolve) => server.listen(port, "0.0.0.0", () => resolve()))
     },
     close(): Promise<void> {
-      for (const res of sseClients) {
+      for (const res of [...sseClients, ...sseV2Clients]) {
         try {
           res.end()
         } catch {
@@ -719,6 +764,7 @@ export function createMockOpencodeServer(opts: MockServerOptions) {
         }
       }
       sseClients.clear()
+      sseV2Clients.clear()
       return new Promise((resolve, reject) => {
         server.close((err) => (err ? reject(err) : resolve()))
       })
