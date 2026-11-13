@@ -1,0 +1,26 @@
+name: Deploy Docs Site to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "docs-site/**"
+  workflow_dispatch:
+
+jobs:
+  deploy-docs-site:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./docs-site
+          # keep_files is REQUIRED: the gh-pages branch also hosts the live
+          # F-Droid repo under fdroid/repo/ and .nojekyll. A sync without it
+          # would wipe them.
+          keep_files: true
