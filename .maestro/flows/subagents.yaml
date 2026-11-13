@@ -1,0 +1,104 @@
+appId: cc.agentlabs.opencode
+name: Subagents section - parent detail lists children with live status (#187)
+---
+# Read-only subagent surface (issue #187): a parent detail screen shows a
+# collapsible Subagents section listing its child sessions with a live status
+# badge. AC1 (child list) + AC3-at-render (root list stays roots-only) at the
+# UI layer; the data path is covered by
+# src/lib/session-list.integration.test.ts (subagents block).
+#
+# The subagents flow's mock is started by scripts/run-e2e-flows.sh itself
+# (port 4101, --seed-subagents) before the flows run, so no workflow-file
+# change is needed for it. --seed-subagents pre-populates one parent + two
+# children, all in /mock/project:
+#   seed-parent     "Parent Session" (updated now-60s)
+#   seed-child-done "Done Subagent", parentID seed-parent, agent explore,
+#                   model opencode/deepseek-v4-flash-free, time.idle set
+#   seed-child-idle "Idle Subagent", parentID seed-parent, no agent/model/idle
+#
+# Why this can actually FAIL if #187 regresses: the section loads children via
+# loadChildren() (GET /session pool, filtered client-side on parentID). If the
+# filter, the mount, or the store wiring breaks, "Subagents (2)" never appears
+# or the child rows never render. If the roots filter regresses, the child
+# titles leak onto the list screen — this flow opens the parent from a list
+# that must show "Parent Session" only.
+#
+# Known limit: the LIVE session.created routing (a child created while viewing
+# its parent appears in the section, never in the root list) is NOT covered
+# here — the mock emits no session.created broadcast and no UI creates a
+# child, so there is no way to trigger it from a flow. That branch is verified
+# by inspection; a live check needs a real server with a task-tool subagent.
+# The flow also does not assert the Running badge: the mock never emits a
+# session.status busy for a child, so no child is live-running in this harness.
+# NEWER flow (non-blocking): see scripts/run-e2e-flows.sh.
+
+- launchApp:
+    clearState: true
+- assertVisible:
+    id: "telemetry-consent-card"
+- tapOn:
+    id: "telemetry-decline-button"
+
+- assertVisible:
+    text: "No Connection"
+- tapOn:
+    id: "add-connection-button"
+- tapOn:
+    id: "connect-ip-input"
+- inputText: "127.0.0.1:4101"
+- hideKeyboard
+- tapOn:
+    id: "connect-submit-button"
+
+# 40s margin: see activation-positive.yaml — the connect handshake's own
+# fetches are individually capped at 30s (src/lib/sdk.ts REQUEST_TIMEOUT_MS).
+- extendedWaitUntil:
+    visible:
+      id: "connection-status-dot"
+    timeout: 40000
+- takeScreenshot: subagents-S1_connected
+
+# The parent must appear on the root list; the children must not leak onto it.
+- extendedWaitUntil:
+    visible:
+      text: "Parent Session"
+    timeout: 15000
+- takeScreenshot: subagents-S2_parent_listed
+
+# Open the parent.
+- tapOn:
+    id: "session-item-seed-parent"
+- extendedWaitUntil:
+    visible:
+      id: "chat-message-input"
+    timeout: 15000
+- assertVisible:
+    text: "Parent Session"
+# Confirms GET /session/seed-parent/message actually resolved (empty state,
+# not stuck loading / errored).
+- assertVisible:
+    text: "Start a conversation"
+
+# The section header renders collapsed with the child count once loadChildren
+# resolves (the count starts at 0, so wait for the loaded value).
+- extendedWaitUntil:
+    visible:
+      text: "Subagents (2)"
+    timeout: 15000
+- takeScreenshot: subagents-S3_section_header
+
+# Expand and check both rows: titles, the agent · model line only where the
+# server provides it, and the Done pill for the finished child.
+- tapOn:
+    text: "Subagents (2)"
+- extendedWaitUntil:
+    visible:
+      text: "Done Subagent"
+    timeout: 15000
+- assertVisible:
+    text: "Idle Subagent"
+- assertVisible:
+    text: "explore · opencode/deepseek-v4-flash-free"
+- assertVisible:
+    text: "Done"
+- takeScreenshot: subagents-S4_children_expanded

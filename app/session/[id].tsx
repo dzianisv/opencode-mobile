@@ -8,9 +8,11 @@ import {
   StyleSheet,
   useColorScheme,
   KeyboardAvoidingView,
+  Keyboard,
   Platform,
   ActivityIndicator,
   Alert,
+  useWindowDimensions,
 } from "react-native"
 import { useLocalSearchParams, Stack, useRouter, useFocusEffect, useNavigation } from "expo-router"
 import { Ionicons } from "@expo/vector-icons"
@@ -31,6 +33,7 @@ import {
   ImageAttachments,
   SessionInfo,
   MessageTextSheet,
+  SubagentSection,
   type SlashCommand,
   type Attachment,
 } from "../../src/components/chat"
@@ -42,6 +45,13 @@ import { useSettings } from "../../src/stores/settings"
 import { useCatalog } from "../../src/stores/catalog"
 import { useSpeech } from "../../src/lib/speech"
 import { messagePartsToSelectableText } from "../../src/lib/message-text"
+import { shouldAutoScroll, shouldShowScrollButton, transcriptSignature } from "../../src/lib/auto-scroll"
+import {
+  jsKeyboardPaddingApplies,
+  keyboardPadding,
+  keyboardVerticalOffset,
+} from "../../src/lib/keyboard-offset"
+import { composerMaxHeight } from "../../src/lib/session-layout"
 
 // --- Builtin slash commands ---
 const BUILTIN_COMMANDS: SlashCommand[] = [
@@ -90,6 +100,35 @@ export default function SessionScreen() {
   const [input, setInput] = useState("")
   const [attachments, setAttachments] = useState<Attachment[]>([])
   const [showInfo, setShowInfo] = useState(false)
+  const { height: windowHeight, fontScale } = useWindowDimensions()
+  const [keyboardHeight, setKeyboardHeight] = useState(() => Keyboard.metrics()?.height ?? 0)
+  const [keyboardY, setKeyboardY] = useState<number | null>(null)
+
+  useEffect(() => {
+    if (Platform.OS !== "android") return
+    const show = Keyboard.addListener("keyboardDidShow", (event) => {
+      setKeyboardHeight(event.endCoordinates.height)
+      setKeyboardY(event.endCoordinates.screenY)
+    })
+    const hide = Keyboard.addListener("keyboardDidHide", () => {
+      setKeyboardHeight(0)
+      setKeyboardY(null)
+    })
+    // Close the render-to-effect race: listeners are attached first, then the
+    // current native metrics become the source of truth.
+    setKeyboardHeight(Keyboard.metrics()?.height ?? 0)
+    return () => {
+      show.remove()
+      hide.remove()
+    }
+  }, [])
+
+  const inputMaxHeight = composerMaxHeight(Platform.OS, windowHeight, keyboardY, insets.top, fontScale)
+  // Exactly one layer applies the IME height: JS padding below API 35, the
+  // native IME-insets listener in MainActivity on API 35+.
+  const jsKeyboardPadding = jsKeyboardPaddingApplies(Platform.OS, Platform.Version)
+    ? keyboardPadding(Platform.OS, keyboardHeight)
+    : 0
   // Raw text of the message opened in the full-screen selection sheet
   const [textSheet, setTextSheet] = useState<string | null>(null)
 
@@ -286,6 +325,35 @@ export default function SessionScreen() {
     flatListRef.current?.scrollToOffset({ offset: 0, animated })
   }, [])
 
+  // Follow new content (issue #155: "Message cannot be scrolled automatically").
+  //
+  // scrollToBottom() was previously only wired to the manual scroll button, so
+  // nothing followed an arriving or streaming message. Compounding that,
+  // maintainVisibleContentPosition (below) deliberately holds visible items
+  // still when the data changes — and since new messages are inserted at index
+  // 0 of this inverted list, that setting parks new content just outside the
+  // viewport. That prop is worth keeping (it stops the jump when older pages
+  // load), so instead scroll explicitly.
+  //
+  // Only when the user is already at the bottom: someone who scrolled up to
+  // read history must not be yanked back down mid-sentence. See
+  // src/lib/auto-scroll.ts.
+  const newest = messageData[0]
+  const contentSignature = transcriptSignature(
+    messageData.length,
+    newest ? (newest.parts || []).reduce((n, part) => n + (part.text?.length ?? 0), 0) : 0,
+  )
+  const prevSignatureRef = useRef<string | null>(null)
+  useEffect(() => {
+    const auto = shouldAutoScroll({
+      offsetY: scrollOffsetRef.current,
+      previousSignature: prevSignatureRef.current,
+      currentSignature: contentSignature,
+    })
+    prevSignatureRef.current = contentSignature
+    if (auto) scrollToBottom(true)
+  }, [contentSignature, scrollToBottom])
+
   // Re-select on every focus, not just mount. currentSession/messages/
   // permissions are a single global store, and the native stack keeps screens
   // underneath a pushed one mounted. Without re-selecting on focus, navigating
@@ -481,10 +549,15 @@ export default function SessionScreen() {
     }
   }
 
-  // In inverted mode, offset 0 = bottom. Show scroll button when scrolled away from bottom.
+  // In inverted mode, offset 0 = bottom (newest message). Track the live
+  // offset in a ref as well as state: the auto-scroll effect above needs the
+  // current position without taking `offsetY` as a dependency, which would
+  // re-run it on every scroll frame.
+  const scrollOffsetRef = useRef(0)
   const handleScroll = useCallback((event: any) => {
     const { contentOffset } = event.nativeEvent
-    setShowScrollButton(contentOffset.y > 200)
+    scrollOffsetRef.current = contentOffset.y
+    setShowScrollButton(shouldShowScrollButton(contentOffset.y))
   }, [])
 
   // Debounce: onEndReached can fire multiple times during a single scroll gesture
@@ -629,12 +702,22 @@ export default function SessionScreen() {
   return (
     <>
       <KeyboardAvoidingView
-        style={[s.container, isDark && s.containerDark]}
-        // "padding" pushes the composer/toolbar above the keyboard. On Android
-        // the padding is driven by the native WindowInsets from MainActivity
-        // (see #216); on iOS by the keyboard frame events.
-        behavior="padding"
-        keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 0}
+        style={[
+          s.container,
+          isDark && s.containerDark,
+          Platform.OS === "android" && { paddingBottom: jsKeyboardPadding },
+        ]}
+        // iOS keeps behavior="padding" with its established offset (90).
+        // Android applies the IME-reported height directly as bottom
+        // padding (see keyboard-offset.ts): RN 0.81 retains a non-zero
+        // vertical offset as stale padding after keyboardDidHide, so
+        // Android uses behavior={undefined} and the hide listener above
+        // explicitly resets the padding to zero. On Android 15+ the
+        // native IME-insets listener in MainActivity owns the IME height
+        // instead, so the JS padding stays off there — exactly one layer
+        // applies it on every API level.
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        keyboardVerticalOffset={keyboardVerticalOffset(Platform.OS, insets.top)}
       >
         {/* Session info pulldown */}
         <SessionInfo
@@ -703,6 +786,11 @@ export default function SessionScreen() {
             </TouchableOpacity>
           </View>
         )}
+
+        {/* Subagent children (#187) — above the message list, outside the
+            FlatList. Read-only; a load failure shows its own error + retry
+            and never blocks the transcript. */}
+        {id ? <SubagentSection parentId={id} isDark={isDark} /> : null}
 
         {isLoading ? (
           <View style={s.loading}>
@@ -844,7 +932,7 @@ export default function SessionScreen() {
             </TouchableOpacity>
 
             <TextInput
-              style={[s.input, isDark && s.inputDark, speech.listening && s.inputListening]}
+              style={[s.input, isDark && s.inputDark, speech.listening && s.inputListening, { maxHeight: inputMaxHeight }]}
               placeholder={
                 speech.listening
                   ? t("session.input.placeholderListening")
@@ -857,6 +945,7 @@ export default function SessionScreen() {
               onChangeText={speech.listening ? undefined : setInput}
               editable={!speech.listening}
               multiline
+              scrollEnabled
               testID="chat-message-input"
             />
             {/* Stop button: only when busy and no input */}

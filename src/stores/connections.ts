@@ -96,6 +96,28 @@ async function resolveApi(
   }
 }
 
+// Fetch /project/current + /path AFTER the client is published to the store,
+// so the SSE stream (which keys off `client` appearing) is not serialized
+// behind two metadata requests it doesn't need (#189). `isCurrent` guards
+// against a stale response clobbering state after a server switch mid-fetch:
+// the metadata only lands if this client is still the active one.
+async function fetchMetadataBehind(
+  client: Client,
+  isCurrent: () => boolean,
+  apply: (project: Project | null, home: string | null) => void,
+): Promise<void> {
+  try {
+    const [proj, paths] = await Promise.all([
+      client.project.current().catch(() => null),
+      client.path.get().catch(() => null),
+    ])
+    if (!isCurrent()) return
+    apply(proj, paths?.home ?? null)
+  } catch {
+    // Server might be offline — metadata stays null, the client still works.
+  }
+}
+
 export const useConnections = create<ConnectionsState>((set, get) => ({
   connections: [],
   activeConnection: null,
@@ -123,11 +145,11 @@ export const useConnections = create<ConnectionsState>((set, get) => ({
       // Create client for active connection
       let client: Client | null = null
       let base: ClientBase | null = null
-      let project: Project | null = null
-      let home: string | null = null
       if (active) {
         const password = await SecureStore.getItemAsync(`${PASSWORDS_PREFIX}${active.id}`)
         const auth = buildAuth(active.username, password)
+        // The resolveApi() probe stays BEFORE the publish: it chooses which
+        // client to build, so #189's split starts after the client exists.
         const { api, resolved } = await resolveApi(active, auth)
         const built = buildClient(active.url, active.directory, auth, api)
         client = built.client
@@ -135,29 +157,29 @@ export const useConnections = create<ConnectionsState>((set, get) => ({
         // Persist a probe that was only just discovered, so the next launch
         // picks the same transport without probing again.
         if (resolved) await SecureStore.setItemAsync(CONNECTIONS_KEY, JSON.stringify(connections))
-        // Fetch current project info and server paths
-        try {
-          const [proj, paths] = await Promise.all([
-            client.project.current().catch(() => null),
-            client.path.get().catch(() => null),
-          ])
-          project = proj
-          home = paths?.home || null
-        } catch {
-          // Server might be offline
-        }
       }
 
+      // Publish the client immediately — the SSE stream starts off this, and
+      // must not wait on the metadata fetches below (#189).
       set({
         connections,
         activeConnection: active,
         client,
         clientBase: base,
-        currentProject: project,
-        serverHome: home,
+        currentProject: null,
+        serverHome: null,
         recentDirectories,
         isLoading: false,
       })
+
+      // Metadata fills in behind the publish, guarded so a stale response
+      // can't clobber state after a server switch mid-fetch.
+      if (active && client) {
+        const requestClient = client
+        void fetchMetadataBehind(requestClient, () => get().client === requestClient, (proj, home) =>
+          set({ currentProject: proj, serverHome: home }),
+        )
+      }
     } catch (error) {
       set({ error: "Failed to load connections", isLoading: false })
     }
@@ -185,9 +207,6 @@ export const useConnections = create<ConnectionsState>((set, get) => ({
     let base = get().clientBase
     let activeConnection = get().activeConnection
 
-    let project = get().currentProject
-    let serverHome = get().serverHome
-
     if (newConnection.active) {
       activeConnection = newConnection
       const auth = buildAuth(newConnection.username, password)
@@ -196,21 +215,23 @@ export const useConnections = create<ConnectionsState>((set, get) => ({
       client = built.client
       base = built.base
 
-      // Fetch server metadata so loadSessions can use clientForDirectory(serverHome)
-      // immediately after the connection is added (same as setActiveConnection does).
-      try {
-        const [proj, paths] = await Promise.all([
-          client.project.current().catch(() => null),
-          client.path.get().catch(() => null),
-        ])
-        project = proj
-        serverHome = paths?.home || null
-      } catch {
-        // Server might be unreachable; proceed without metadata
-      }
+      // Publish the client first so SSE can start; metadata fills in behind
+      // it (#189), guarded against a server switch mid-fetch.
+      set({ connections, activeConnection, client, clientBase: base, currentProject: null, serverHome: null })
+      void fetchMetadataBehind(built.client, () => get().client === built.client, (proj, home) =>
+        set({ currentProject: proj, serverHome: home }),
+      )
+      return
     }
 
-    set({ connections, activeConnection, client, clientBase: base, currentProject: project, serverHome })
+    set({
+      connections,
+      activeConnection,
+      client,
+      clientBase: base,
+      currentProject: get().currentProject,
+      serverHome: get().serverHome,
+    })
   },
 
   removeConnection: async (id) => {
@@ -253,8 +274,6 @@ export const useConnections = create<ConnectionsState>((set, get) => ({
     const active = connections.find((c) => c.id === id) || null
     let client: Client | null = null
     let base: ClientBase | null = null
-    let project: Project | null = null
-    let home: string | null = null
 
     if (active) {
       const password = await SecureStore.getItemAsync(`${PASSWORDS_PREFIX}${active.id}`)
@@ -264,28 +283,29 @@ export const useConnections = create<ConnectionsState>((set, get) => ({
       client = built.client
       base = built.base
 
-      try {
-        const [proj, paths] = await Promise.all([
-          client.project.current().catch(() => null),
-          client.path.get().catch(() => null),
-        ])
-        project = proj
-        home = paths?.home || null
-      } catch {
-        // Server might be offline
-      }
-
       // Update last connected time
       active.lastConnected = Date.now()
       await SecureStore.setItemAsync(CONNECTIONS_KEY, JSON.stringify(connections))
     }
 
-    set({ connections, activeConnection: active, client, clientBase: base, currentProject: project, serverHome: home })
+    // Publish the client immediately so SSE can start; metadata fills in
+    // behind it (#189), guarded against a server switch mid-fetch.
+    set({ connections, activeConnection: active, client, clientBase: base, currentProject: null, serverHome: null })
+    // Breadcrumb at publish time, not after the metadata fetch: the old
+    // placement fired only if both metadata fetches resolved and the stale
+    // guard passed, so a slow/offline server lost the breadcrumb entirely
+    // (LOW 6). hasProject is unknown at publish — report false.
     addBreadcrumb({
       category: "connection",
       message: active ? `active connection set: ${active.type}` : "active connection cleared",
-      data: { id: active?.id, type: active?.type, hasProject: Boolean(project) },
+      data: { id: active?.id, type: active?.type, hasProject: false },
     })
+    if (active && client) {
+      const requestClient = client
+      void fetchMetadataBehind(requestClient, () => get().client === requestClient, (proj, home) => {
+        set({ currentProject: proj, serverHome: home })
+      })
+    }
   },
 
   testConnection: async (connection, source, password) => {
@@ -345,28 +365,19 @@ export const useConnections = create<ConnectionsState>((set, get) => ({
       const { api, resolved } = await resolveApi(active, auth)
       const built = buildClient(active.url, active.directory, auth, api)
       if (resolved) await SecureStore.setItemAsync(CONNECTIONS_KEY, JSON.stringify(connections))
-      try {
-        const [project, paths] = await Promise.all([
-          built.client.project.current().catch(() => null),
-          built.client.path.get().catch(() => null),
-        ])
-        set({
-          connections,
-          activeConnection: active,
-          client: built.client,
-          clientBase: built.base,
-          currentProject: project,
-          serverHome: paths?.home || null,
-        })
-      } catch {
-        set({
-          connections,
-          activeConnection: active,
-          client: built.client,
-          clientBase: built.base,
-          currentProject: null,
-        })
-      }
+      // Publish the rebuilt client immediately; metadata fills in behind it
+      // (#189), guarded against a server switch mid-fetch.
+      set({
+        connections,
+        activeConnection: active,
+        client: built.client,
+        clientBase: built.base,
+        currentProject: null,
+        serverHome: null,
+      })
+      void fetchMetadataBehind(built.client, () => get().client === built.client, (proj, home) =>
+        set({ currentProject: proj, serverHome: home }),
+      )
     } else {
       set({ connections })
     }

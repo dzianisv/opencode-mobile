@@ -4,7 +4,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>OpenCode Mobile — OpenCode AI Coding Agent on Android</title>
-<meta name="description" content="Run opencode serve on your laptop or VPS. OpenCode Mobile connects from your Android phone — stream AI sessions, review diffs, approve tool calls. Best with Tailscale." />
+<meta name="description" content="Run opencode serve on your laptop or VPS. OpenCode Mobile connects from your Android phone — stream AI sessions, review diffs, approve tool calls." />
 <meta name="keywords" content="OpenCode Mobile, OpenCode Android client, AI coding agent on Android, self-hosted AI coding, mobile coding agent, OpenCode app, open source Android coding" />
 <meta name="theme-color" content="#3b82f6" />
 <link rel="canonical" href="https://dzianisv.github.io/opencode-mobile/" />
@@ -79,7 +79,7 @@
       "name": "Is it on Google Play?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "Not publicly yet — Google Play is in internal testing only. You can install it today on Android via our F-Droid self-hosted repo (https://dzianisv.github.io/opencode-mobile/fdroid/repo) or the direct signed APK."
+        "text": "Yes. OpenCode Mobile is live on Google Play since June 2026 (current version 0.4.17, rated 4.65 out of 5). Install it from https://play.google.com/store/apps/details?id=cc.agentlabs.opencode — or use the F-Droid self-hosted repo or the direct signed APK."
       }
     },
     {
@@ -87,7 +87,7 @@
       "name": "Is there an iOS app?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "Not for download yet. The iPhone and iPad build is in active development, including native build CI and TestFlight automation."
+        "text": "No. There is no iOS app and none is planned. OpenCode Mobile is Android-only by owner decision (October 2026). The iPhone and iPad build was closed, not paused."
       }
     },
     {
@@ -253,7 +253,8 @@ footer a{margin:0 8px}
     <h1>OpenCode Mobile</h1>
     <p class="tagline">Run <code>opencode serve</code> on your laptop or VPS. OpenCode Mobile connects to it from your phone — stream AI sessions, review diffs, and approve tool calls from anywhere. Best with Tailscale.</p>
     <div class="cta">
-      <a class="btn btn-primary" href="download/">Download for Android</a>
+      <a class="btn btn-primary" href="https://play.google.com/store/apps/details?id=cc.agentlabs.opencode">Get it on Google Play</a>
+      <a class="btn" href="download/">Download for Android</a>
       <a class="btn" href="https://dzianisv.github.io/opencode-mobile/fdroid/repo">Get it on F-Droid</a>
       <a class="btn" href="guide/">Setup guide</a>
       <a class="btn" href="https://github.com/dzianisv/opencode-mobile">View on GitHub</a>
@@ -336,7 +337,11 @@ footer a{margin:0 8px}
 <section id="install">
   <div class="wrap">
     <h2>How to install</h2>
-    <h3>Option A — F-Droid (recommended)</h3>
+    <h3>Option A — Google Play (recommended)</h3>
+    <p>Install OpenCode Mobile from Google Play with automatic updates:</p>
+    <p><a class="btn btn-primary" href="https://play.google.com/store/apps/details?id=cc.agentlabs.opencode">Get it on Google Play</a></p>
+
+    <h3>Option B — F-Droid</h3>
     <p>Add this repository in any F-Droid client (F-Droid, Droid-ify, Neo Store), then install OpenCode Mobile and get automatic updates:</p>
     <pre><code>https://dzianisv.github.io/opencode-mobile/fdroid/repo</code></pre>
     <p class="muted">In F-Droid: Settings &rarr; Repositories &rarr; add the URL above (or scan the QR code in the client's "Add repository" screen), then search for "OpenCode Mobile". Your client will ask you to confirm the repo on first connect.</p>
@@ -345,7 +350,7 @@ footer a{margin:0 8px}
       <br><span class="muted">Scan to add the F-Droid repo</span>
     </p>
 
-    <h3>Option B — Direct APK</h3>
+    <h3>Option C — Direct APK</h3>
     <p>Download the latest signed APK and install it (you may need to allow installation from unknown sources):</p>
     <p><a class="btn btn-primary" href="https://github.com/dzianisv/opencode-mobile/releases/latest">Download latest APK</a></p>
     <p style="text-align:center;margin:20px 0">
@@ -388,11 +393,11 @@ OPENCODE_SERVER_PASSWORD=yourpassword opencode serve --hostname 0.0.0.0 --port 4
       </details>
       <details>
         <summary>Is it on Google Play?</summary>
-        <p>Not publicly yet — Google Play is in internal testing only. You can install it on Android today via our <a href="https://dzianisv.github.io/opencode-mobile/fdroid/repo">F-Droid repo</a> or the <a href="https://github.com/dzianisv/opencode-mobile/releases/latest">direct signed APK</a>.</p>
+        <p>Yes — it is live on <a href="https://play.google.com/store/apps/details?id=cc.agentlabs.opencode">Google Play</a> since June 2026 (current version 0.4.17). You can also install it via our <a href="https://dzianisv.github.io/opencode-mobile/fdroid/repo">F-Droid repo</a> or the <a href="https://github.com/dzianisv/opencode-mobile/releases/latest">direct signed APK</a>.</p>
       </details>
       <details>
         <summary>Is there an iOS app?</summary>
-        <p>Not for download yet. The iPhone and iPad build is in active development, including native build CI and TestFlight automation. Follow the <a href="ios/">iOS / iPhone progress page</a>.</p>
+        <p>No. There is no iOS app and none is planned — OpenCode Mobile is Android-only. See <a href="ios/">why there is no iOS version</a>.</p>
       </details>
       <details>
         <summary>Where do my API keys live?</summary>
@@ -414,7 +419,7 @@ OPENCODE_SERVER_PASSWORD=yourpassword opencode serve --hostname 0.0.0.0 --port 4
       <a href="guide/">Setup guide</a>
       <a href="opencode-on-phone/">OpenCode on your phone</a>
       <a href="remote-access/">Remote access</a>
-      <a href="ios/">iOS / iPhone</a>
+      <a href="ios/">Why no iOS</a>
       <a href="features/">Features</a>
       <a href="comparison/">Comparison</a>
       <a href="vs-termux/">vs Termux</a>

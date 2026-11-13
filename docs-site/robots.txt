@@ -1,3 +1,26 @@
+# OpenCode Mobile — https://dzianisv.github.io/opencode-mobile/
+# AI search crawlers are explicitly allowed. See llms.txt for a machine-readable summary.
+User-agent: OAI-SearchBot
+Allow: /
+
+User-agent: ClaudeBot
+Allow: /
+
+User-agent: Claude-SearchBot
+Allow: /
+
+User-agent: PerplexityBot
+Allow: /
+
+User-agent: Perplexity-User
+Allow: /
+
+User-agent: Google-Extended
+Allow: /
+
+User-agent: Bingbot
+Allow: /
+
 User-agent: *
 Allow: /
 

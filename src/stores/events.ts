@@ -10,14 +10,29 @@ import { recordSuccessfulSession } from "../lib/store-review"
 import { isAuthError } from "../lib/api-error"
 import { isSessionActuallyIdle } from "../lib/session-status-reconcile"
 import { AppState } from "react-native"
+import * as Network from "expo-network"
 import { mergePendingPermissions, normalizePendingPermission, normalizePermissionEvent, type PendingPermission } from "../lib/permissions"
+import { SSE_DIAL_TIMEOUT_MS, SSE_LIVENESS_EVENT_TYPE, SSE_STALE_LIVE_MS } from "../lib/sse"
 import type { Client, Part, Session, Message } from "../lib/sdk"
 
 // Session status from the server
 type SessionStatus = { type: "idle" } | { type: "busy" } | { type: "retry"; attempt: number; message: string }
 
+// Transport liveness, distinct from "a connection is selected" (#186).
+// `connected` flips only when a byte actually arrives on the stream; the
+// finer distinction lives here so the UI can't show green over a stream that
+// never delivered anything.
+export type TransportState =
+  /** No attempt in flight and nothing live. */
+  | "idle"
+  /** Attempting; nothing received yet. NOT the same as connected. */
+  | "connecting"
+  /** At least one event received on this attempt. */
+  | "live"
+
 interface EventsState {
   connected: boolean
+  transport: TransportState
   // Set when the last connection attempt failed with 401/403 — the server
   // rejected our credentials, not a transient network issue. The reconnect
   // loop stops retrying in this case (see connect()) since hammering a
@@ -29,6 +44,12 @@ interface EventsState {
   lastDisconnectAt: number | null
   sessionStatus: Record<string, SessionStatus>
   statusText: Record<string, string>
+  // Last error message per session id, set on session.error for ANY session
+  // (unlike the viewed-session-only banner) so the subagent surface (#187)
+  // can show a Failed row for a child the user never opened. Cleared when
+  // the session next goes busy. Kept separate from erroredSessions, which
+  // drives notification/review logic and stays untouched.
+  sessionErrors: Record<string, string>
   // Permissions & questions (pending per session)
   permissions: Record<string, PendingPermission[]>
   questions: Record<
@@ -58,6 +79,21 @@ interface EventsState {
 
 let controller: AbortController | null = null
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null
+// True while a connect() attempt's stream loop is running. reconnectNow()
+// (the single resume entry point) no-ops while this is set, so a foreground
+// event racing a network-restore event cannot open a second stream. Guarded
+// by attemptToken: connect() bumps the token, and a stale loop's finally only
+// clears the flag when its token is still current — otherwise aborting an old
+// attempt would clear the flag out from under the new one.
+let attemptInFlight = false
+let attemptToken = 0
+// Wall-clock time a byte last arrived on the current attempt (any yielded
+// event — liveness-only included). Lets reconnectNow() tell a stale-live
+// half-open stream from a fresh one (Finding 3).
+let lastByteAt: number | null = null
+// When the current attempt started dialling. Lets reconnectNow() rescue an
+// attempt parked in a hung dial beyond the dial bound (Finding 2).
+let attemptStartedAt: number | null = null
 
 // Sessions that emitted session.error since they last went busy. SessionStatus
 // has no error variant — an errored session still ends with a busy -> idle
@@ -66,7 +102,6 @@ let reconnectTimer: ReturnType<typeof setTimeout> | null = null
 const erroredSessions = new Set<string>()
 
 const RECONNECT_DELAYS_MS = [1000, 2000, 4000, 8000, 15000] as const
-const STABLE_CONNECTION_MS = 10_000
 const PROLONGED_DISCONNECT_MS = 30_000
 
 // Re-fetch pending permissions and questions from the server for a session.
@@ -174,11 +209,13 @@ async function resyncBusySessions() {
 
 export const useEvents = create<EventsState>((set, get) => ({
   connected: false,
+  transport: "idle",
   authError: false,
   reconnectAttempts: 0,
   lastDisconnectAt: null,
   sessionStatus: {},
   statusText: {},
+  sessionErrors: {},
   permissions: {},
   questions: {},
 
@@ -195,7 +232,15 @@ export const useEvents = create<EventsState>((set, get) => ({
 
     controller = new AbortController()
     const currentController = controller
-    set({ connected: true, authError: false })
+    const token = ++attemptToken
+    attemptInFlight = true
+    attemptStartedAt = Date.now()
+    lastByteAt = null
+    // `connected` is NOT set here: it flips only on the first received
+    // evidence below, so "connecting" never reads as live (#186). It IS
+    // cleared here, so a re-entry (manual Retry) cannot leave a stale
+    // `connected: true` behind while the transport is "connecting" (LOW 5).
+    set({ connected: false, transport: "connecting", authError: false })
     console.log("[SSE] Connecting to event stream...")
     addBreadcrumb({ category: "sse", message: "connecting" })
 
@@ -208,11 +253,14 @@ export const useEvents = create<EventsState>((set, get) => ({
       // failed retries can't re-arm the check on every attempt.
       const isReconnect = get().reconnectAttempts > 0
       let resyncedAfterReconnect = false
-      const stableTimer = setTimeout(() => {
-        if (!currentController.signal.aborted) {
-          set({ reconnectAttempts: 0, lastDisconnectAt: null })
-        }
-      }, STABLE_CONNECTION_MS)
+      // True once this attempt has demonstrated liveness. The backoff reset
+      // below keys off this, not a timer: a silently-failing connection used
+      // to clear its own backoff after 10s whether or not anything arrived.
+      // The SDK yields an `sse.liveness` event for heartbeat-only chunks,
+      // so a healthy but idle server demonstrates liveness without any
+      // session event (Finding 1); the idle watchdog already treats any
+      // bytes on the wire as liveness at the transport layer.
+      let sawLiveness = false
 
       const scheduleReconnect = (reason: unknown) => {
         if (reconnectScheduled || currentController.signal.aborted) return
@@ -221,7 +269,7 @@ export const useEvents = create<EventsState>((set, get) => ({
         const reconnectAttempts = state.reconnectAttempts + 1
         const lastDisconnectAt = state.lastDisconnectAt ?? Date.now()
         const disconnectedFor = Date.now() - lastDisconnectAt
-        set({ connected: false, reconnectAttempts, lastDisconnectAt })
+        set({ connected: false, transport: "connecting", reconnectAttempts, lastDisconnectAt })
 
         if (disconnectedFor >= PROLONGED_DISCONNECT_MS) {
           notify({
@@ -253,17 +301,35 @@ export const useEvents = create<EventsState>((set, get) => ({
         for await (const event of client.global.events(currentController.signal)) {
           if (currentController.signal.aborted) break
 
+          const payload = (event as any).payload || event
+          const type = payload.type as string
+          // Any yielded event — liveness-only or session — is proof of
+          // bytes on the wire. Record it first: reconnectNow() keys its
+          // stale-live rescue off this timestamp.
+          lastByteAt = Date.now()
+
+          // First byte of evidence: the stream is genuinely live, not just
+          // dialled. This flips `connected`, marks the transport live, and
+          // resets the backoff — the only reset path (no timer).
+          if (!sawLiveness) {
+            sawLiveness = true
+            set({ connected: true, transport: "live", reconnectAttempts: 0, lastDisconnectAt: null })
+          }
+
           // The stream is genuinely live again (we're actually receiving
           // data, not just optimistically marked "connected") — resync once
-          // per reconnect, not on every event.
+          // per reconnect, not on every event. Runs on quiet reconnects
+          // too: liveness events reach this point, so no session event is
+          // needed to trigger the resync (Finding 1).
           if (isReconnect && !resyncedAfterReconnect) {
             resyncedAfterReconnect = true
             void resyncBusySessions()
             void refreshAllPending()
           }
 
-          const payload = (event as any).payload || event
-          const type = payload.type as string
+          // Liveness-only: no session payload to dispatch.
+          if (type === SSE_LIVENESS_EVENT_TYPE) continue
+
           const props = payload.properties || {}
 
           switch (type) {
@@ -282,11 +348,18 @@ export const useEvents = create<EventsState>((set, get) => ({
                 abortedSessions.delete(sessionID)
               }
 
-              set((state) => ({
-                sessionStatus: { ...state.sessionStatus, [sessionID]: status },
-                // Clear status text when idle
-                statusText: status.type === "idle" ? { ...state.statusText, [sessionID]: "" } : state.statusText,
-              }))
+              set((state) => {
+                const sessionErrors =
+                  status.type === "busy" && state.sessionErrors[sessionID]
+                    ? Object.fromEntries(Object.entries(state.sessionErrors).filter(([id]) => id !== sessionID))
+                    : state.sessionErrors
+                return {
+                  sessionStatus: { ...state.sessionStatus, [sessionID]: status },
+                  // Clear status text when idle
+                  statusText: status.type === "idle" ? { ...state.statusText, [sessionID]: "" } : state.statusText,
+                  sessionErrors,
+                }
+              })
 
               // SSE is the source of truth — update sending state unconditionally
               if (status.type === "idle") {
@@ -362,7 +435,25 @@ export const useEvents = create<EventsState>((set, get) => ({
             case "session.created": {
               const info = props.info as Session | undefined
               if (!info) break
-              // Add to sessions list
+              // #187 (AC3): route on parentID — a child must never reach the
+              // root list. Roots prepend exactly as before; children upsert
+              // into childrenByParent ONLY if that parent's key already
+              // exists (its section already loaded); otherwise ignore — the
+              // next loadChildren fetch picks the child up.
+              if (info.parentID) {
+                useSessions.setState((state) => {
+                  const existing = state.childrenByParent[info.parentID as string]
+                  if (!existing) return {}
+                  if (existing.some((s) => s.id === info.id)) return {}
+                  return {
+                    childrenByParent: {
+                      ...state.childrenByParent,
+                      [info.parentID as string]: [info, ...existing],
+                    },
+                  }
+                })
+                break
+              }
               useSessions.setState((state) => {
                 const exists = state.sessions.some((s) => s.id === info.id)
                 if (exists) return {}
@@ -378,6 +469,12 @@ export const useEvents = create<EventsState>((set, get) => ({
               // Mark so the eventual busy -> idle transition is not counted
               // as a success for the store review prompt
               erroredSessions.add(sessionID)
+              // #187 (AC4): record the message for any session id so a child
+              // row can show Failed with the server message. Notification and
+              // viewed-session banner behaviour below are unchanged.
+              set((state) => ({
+                sessionErrors: { ...state.sessionErrors, [sessionID]: error?.message || "Session error occurred" },
+              }))
               // Clear sending state unconditionally — SSE is truth
               useSessions.setState((state) => ({
                 sending: { ...state.sending, [sessionID]: false },
@@ -496,12 +593,12 @@ export const useEvents = create<EventsState>((set, get) => ({
             data: { status: err.status },
           })
           track(AnalyticsEvent.ConnectionFailed, { source: "sse", error_class: "unauthorized" })
-          set({ connected: false, authError: true })
+          set({ connected: false, transport: "idle", authError: true })
         } else {
           scheduleReconnect(err)
         }
       } finally {
-        clearTimeout(stableTimer)
+        if (token === attemptToken) attemptInFlight = false
         if (currentController.signal.aborted) {
           console.log("[SSE] Disconnected (aborted)")
         }
@@ -512,7 +609,27 @@ export const useEvents = create<EventsState>((set, get) => ({
   reconnectNow: () => {
     const connState = useConnections.getState()
     if (!connState.client) return
-    console.log("[SSE] Foreground reconnect — re-establishing event stream")
+    // Deduplicated resume (#186): a foreground event and a network-restore
+    // event often fire together, and neither may tear down a live stream or
+    // race an attempt already dialling — both would open a second stream and
+    // double-handle every event. Two rescues pierce the dedupe:
+    // - a `live` stream gone stale (no byte for SSE_STALE_LIVE_MS) is a
+    //   half-open socket network-restore must rescue (Finding 3);
+    // - a `connecting` attempt parked past the dial bound with no byte is a
+    //   hung dial; connect() below aborts the old controller, unwinding it
+    //   (Finding 2). A stalled "connecting" with no attempt in flight still
+    //   resumes (attemptInFlight is false once the loop has exited, e.g.
+    //   while a reconnect is waiting out its backoff).
+    const now = Date.now()
+    if (get().transport === "live") {
+      // `live` is only set after a byte arrives, so lastByteAt is non-null
+      // here; a null is treated as fresh (no rescue) — the safe direction.
+      if (lastByteAt === null || now - lastByteAt < SSE_STALE_LIVE_MS) return
+    } else if (attemptInFlight) {
+      const parkedFor = attemptStartedAt === null ? 0 : now - attemptStartedAt
+      if (lastByteAt !== null || parkedFor <= SSE_DIAL_TIMEOUT_MS) return
+    }
+    console.log("[SSE] Resume reconnect — re-establishing event stream")
     if (reconnectTimer) {
       clearTimeout(reconnectTimer)
       reconnectTimer = null
@@ -546,15 +663,23 @@ export const useEvents = create<EventsState>((set, get) => ({
     }
     controller?.abort()
     controller = null
+    // Invalidate any winding-down loop so its finally can't clear state that
+    // belongs to a later attempt.
+    attemptToken++
+    attemptInFlight = false
+    lastByteAt = null
+    attemptStartedAt = null
     erroredSessions.clear()
     abortedSessions.clear()
     set({
       connected: false,
+      transport: "idle",
       authError: false,
       reconnectAttempts: 0,
       lastDisconnectAt: null,
       sessionStatus: {},
       statusText: {},
+      sessionErrors: {},
       permissions: {},
       questions: {},
     })
@@ -563,4 +688,19 @@ export const useEvents = create<EventsState>((set, get) => ({
 
 AppState.addEventListener("change", (state) => {
   if (state === "active") void refreshAllPending()
+})
+
+// Resume the SSE stream when the network comes back (#186). expo-network
+// reports link state, not internet reachability: `isConnected` covers
+// LAN/Tailscale servers that `isInternetReachable` would call offline, so
+// only `isConnected` is consulted. Only the offline -> online transition
+// resumes; reconnectNow() itself is deduped, so a simultaneous foreground
+// event cannot open a second stream. expo-network is an Expo SDK module, so
+// no @react-native-community/netinfo dependency is needed.
+let wasNetworkConnected: boolean | null = null
+Network.addNetworkStateListener((state) => {
+  const isConnected = state.isConnected ?? false
+  const regained = wasNetworkConnected === false && isConnected
+  wasNetworkConnected = isConnected
+  if (regained) useEvents.getState().reconnectNow()
 })

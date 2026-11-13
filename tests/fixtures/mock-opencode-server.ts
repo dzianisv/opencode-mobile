@@ -16,6 +16,14 @@
 //     returns immediately; the actual reply is delivered as
 //     `message.updated` + `message.part.updated` + `session.status` (idle)
 //     events on the SSE stream (src/stores/events.ts).
+//   - GET /api/event is the v2 SSE stream: same framing as /global/event
+//     (heartbeat comment frames every 2s, `data:` frames) but v2-shaped raw
+//     events (`{type, data}` — see src/lib/v2-shape.ts V2EventTranslator):
+//     a `server.connected` frame on subscribe, plus
+//     `session.execution.started`/`succeeded` lifecycle frames when a prompt
+//     runs. Transport-level coverage for the SSE liveness work (#189/#186),
+//     not a full v2 content stream — message content still flows over the
+//     v1 endpoint only.
 //   - The real server ALSO persists and broadcasts the USER's message. The
 //     app relies on this: any `message.updated` event strips optimistic
 //     `temp-` messages (src/stores/sessions.ts handleEvent), so if the mock
@@ -103,6 +111,17 @@ export interface MockServerOptions {
    * depend on it landing first.
    */
   seedDiff?: boolean
+  /**
+   * Pre-populate a parent session (id "seed-parent", in DEFAULT_DIRECTORY)
+   * with two children (parentID "seed-parent") — used by
+   * .maestro/flows/subagents.yaml and the subagents block of
+   * src/lib/session-list.integration.test.ts (#187) to prove the global pool
+   * carries children with parentID, selectChildren isolates one parent's
+   * children, and the root list stays roots-only. The done child carries
+   * agent/model + time.idle (renders Done with an agent · model line); the
+   * idle child carries neither (renders Idle with no agent line).
+   */
+  seedSubagents?: boolean
 }
 
 interface StoredSession {
@@ -110,9 +129,12 @@ interface StoredSession {
   slug: string
   projectID: string
   directory: string
+  parentID?: string
   title: string
   version: string
-  time: { created: number; updated: number }
+  agent?: string
+  model?: { providerID: string; modelID: string }
+  time: { created: number; updated: number; idle?: number }
 }
 
 interface StoredPart {
@@ -200,6 +222,16 @@ export const SEED_DIFF_TOOL_TITLE = "Edit wide_diff_target.ts"
 export const SEED_DIFF_LINE_MARKER = "ZZZ_DIFF_SCROLL_TARGET_ZZZ"
 export const SEED_CODE_LINE_MARKER = "ZZZ_CODE_SCROLL_TARGET_ZZZ"
 
+// Exported so .maestro/flows/subagents.yaml's assertions, the subagents block
+// of src/lib/session-list.integration.test.ts, and this file's own seeding
+// logic share one source of truth for the seeded parent/child pair (#187).
+export const SEED_PARENT_SESSION_ID = "seed-parent"
+export const SEED_PARENT_TITLE = "Parent Session"
+export const SEED_CHILD_DONE_ID = "seed-child-done"
+export const SEED_CHILD_DONE_TITLE = "Done Subagent"
+export const SEED_CHILD_IDLE_ID = "seed-child-idle"
+export const SEED_CHILD_IDLE_TITLE = "Idle Subagent"
+
 // Long, space-free filler so the RN <Text> can't word-wrap it — it just
 // overflows its parent, which is exactly what the horizontal ScrollView (the
 // fix under test) exists to make scrollable instead of clipped/truncated.
@@ -213,11 +245,13 @@ export function createMockOpencodeServer(opts: MockServerOptions) {
     replyDelayMs = 300,
     seedSessions = false,
     seedDiff = false,
+    seedSubagents = false,
   } = opts
 
   const sessions = new Map<string, StoredSession>()
   const messagesBySession = new Map<string, StoredMessage[]>()
   const sseClients = new Set<http.ServerResponse>()
+  const sseV2Clients = new Set<http.ServerResponse>()
 
   if (seedDiff) {
     const now = Date.now()
@@ -308,6 +342,47 @@ export function createMockOpencodeServer(opts: MockServerOptions) {
     messagesBySession.set(seedOther.id, [])
   }
 
+  if (seedSubagents) {
+    const now = Date.now()
+    const seedParent: StoredSession = {
+      id: SEED_PARENT_SESSION_ID,
+      slug: "seed-parent",
+      projectID: "mock-project",
+      directory: DEFAULT_DIRECTORY,
+      title: SEED_PARENT_TITLE,
+      version: "0.0.0-mock",
+      time: { created: now - 120_000, updated: now - 60_000 },
+    }
+    const seedChildDone: StoredSession = {
+      id: SEED_CHILD_DONE_ID,
+      slug: "seed-child-done",
+      projectID: "mock-project",
+      directory: DEFAULT_DIRECTORY,
+      parentID: SEED_PARENT_SESSION_ID,
+      title: SEED_CHILD_DONE_TITLE,
+      version: "0.0.0-mock",
+      agent: "explore",
+      model: { providerID: "opencode", modelID: "deepseek-v4-flash-free" },
+      time: { created: now - 60_000, updated: now - 30_000, idle: now - 30_000 },
+    }
+    const seedChildIdle: StoredSession = {
+      id: SEED_CHILD_IDLE_ID,
+      slug: "seed-child-idle",
+      projectID: "mock-project",
+      directory: DEFAULT_DIRECTORY,
+      parentID: SEED_PARENT_SESSION_ID,
+      title: SEED_CHILD_IDLE_TITLE,
+      version: "0.0.0-mock",
+      time: { created: now - 60_000, updated: now - 45_000 },
+    }
+    sessions.set(seedParent.id, seedParent)
+    messagesBySession.set(seedParent.id, [])
+    sessions.set(seedChildDone.id, seedChildDone)
+    messagesBySession.set(seedChildDone.id, [])
+    sessions.set(seedChildIdle.id, seedChildIdle)
+    messagesBySession.set(seedChildIdle.id, [])
+  }
+
   function broadcast(type: string, properties: Record<string, unknown>) {
     const line = `data: ${JSON.stringify({ type, properties })}\n\n`
     console.log(`[mock-opencode-server] broadcast type=${type} clients=${sseClients.size}`)
@@ -318,6 +393,56 @@ export function createMockOpencodeServer(opts: MockServerOptions) {
         sseClients.delete(res)
       }
     }
+  }
+
+  // v2-shaped broadcast ({type, data}) for /api/event subscribers.
+  function broadcastV2(type: string, data: Record<string, unknown>) {
+    const line = `data: ${JSON.stringify({ type, data })}\n\n`
+    console.log(`[mock-opencode-server] broadcast v2 type=${type} clients=${sseV2Clients.size}`)
+    for (const res of sseV2Clients) {
+      try {
+        res.write(line)
+      } catch {
+        sseV2Clients.delete(res)
+      }
+    }
+  }
+
+  // Shared SSE subscribe plumbing for the v1 (/global/event) and v2
+  // (/api/event) streams: same headers, same 2s heartbeat comment frames,
+  // different first frame and client set.
+  function openSse(
+    req: http.IncomingMessage,
+    res: http.ServerResponse,
+    clients: Set<http.ServerResponse>,
+    firstFrame: string,
+    label: string,
+  ) {
+    res.writeHead(200, {
+      "Content-Type": "text/event-stream",
+      "Cache-Control": "no-cache",
+      Connection: "keep-alive",
+    })
+    res.write(firstFrame)
+    clients.add(res)
+    console.log(`[mock-opencode-server] SSE connect (${label}), clients=${clients.size}`)
+
+    // Periodic heartbeat comment. If the client never sees even this, the
+    // silence is a transport problem (expo/fetch not streaming), not a
+    // broadcast bug — attributes issue #90 mode B.
+    const heartbeat = setInterval(() => {
+      try {
+        res.write(": ping\n\n")
+      } catch {
+        clearInterval(heartbeat)
+      }
+    }, 2000)
+
+    req.on("close", () => {
+      clearInterval(heartbeat)
+      clients.delete(res)
+      console.log(`[mock-opencode-server] SSE disconnect (${label}), clients=${clients.size}`)
+    })
   }
 
   function json(res: http.ServerResponse, status: number, body: unknown) {
@@ -375,6 +500,7 @@ export function createMockOpencodeServer(opts: MockServerOptions) {
 
     setTimeout(() => {
       broadcast("session.status", { sessionID, status: { type: "busy" } })
+      broadcastV2("session.execution.started", { sessionID })
 
       const now = Date.now()
       const messageID = randomUUID()
@@ -400,6 +526,7 @@ export function createMockOpencodeServer(opts: MockServerOptions) {
       list.push({ info: { ...info, time: { created: now, completed: Date.now() } }, parts: [part] })
 
       broadcast("session.status", { sessionID, status: { type: "idle" } })
+      broadcastV2("session.execution.succeeded", { sessionID })
     }, replyDelayMs)
   }
 
@@ -496,31 +623,15 @@ export function createMockOpencodeServer(opts: MockServerOptions) {
 
     // SSE event stream — kept open for the lifetime of the connection.
     if (method === "GET" && path === "/global/event") {
-      res.writeHead(200, {
-        "Content-Type": "text/event-stream",
-        "Cache-Control": "no-cache",
-        Connection: "keep-alive",
-      })
-      res.write(": connected\n\n")
-      sseClients.add(res)
-      console.log(`[mock-opencode-server] SSE connect, clients=${sseClients.size}`)
+      openSse(req, res, sseClients, ": connected\n\n", "v1")
+      return
+    }
 
-      // Periodic heartbeat comment. If the client never sees even this, the
-      // silence is a transport problem (expo/fetch not streaming), not a
-      // broadcast bug — attributes issue #90 mode B.
-      const heartbeat = setInterval(() => {
-        try {
-          res.write(": ping\n\n")
-        } catch {
-          clearInterval(heartbeat)
-        }
-      }, 2000)
-
-      req.on("close", () => {
-        clearInterval(heartbeat)
-        sseClients.delete(res)
-        console.log(`[mock-opencode-server] SSE disconnect, clients=${sseClients.size}`)
-      })
+    // v2 SSE event stream (src/lib/sdk.ts createV2Client global.events).
+    // Same transport, v2-shaped frames: server.connected on subscribe, then
+    // session.execution.* lifecycle frames (see broadcastV2).
+    if (method === "GET" && path === "/api/event") {
+      openSse(req, res, sseV2Clients, `data: ${JSON.stringify({ type: "server.connected", data: {} })}\n\n`, "v2")
       return
     }
 
@@ -645,7 +756,7 @@ export function createMockOpencodeServer(opts: MockServerOptions) {
       return new Promise((resolve) => server.listen(port, "0.0.0.0", () => resolve()))
     },
     close(): Promise<void> {
-      for (const res of sseClients) {
+      for (const res of [...sseClients, ...sseV2Clients]) {
         try {
           res.end()
         } catch {
@@ -653,6 +764,7 @@ export function createMockOpencodeServer(opts: MockServerOptions) {
         }
       }
       sseClients.clear()
+      sseV2Clients.clear()
       return new Promise((resolve, reject) => {
         server.close((err) => (err ? reject(err) : resolve()))
       })
@@ -660,13 +772,14 @@ export function createMockOpencodeServer(opts: MockServerOptions) {
   }
 }
 
-function parseArgs(argv: string[]): { port: number; failAuth: boolean; seedSessions: boolean; seedDiff: boolean } {
-  const opts = { port: 4096, failAuth: false, seedSessions: false, seedDiff: false }
+function parseArgs(argv: string[]): { port: number; failAuth: boolean; seedSessions: boolean; seedDiff: boolean; seedSubagents: boolean } {
+  const opts = { port: 4096, failAuth: false, seedSessions: false, seedDiff: false, seedSubagents: false }
   for (let i = 0; i < argv.length; i++) {
     if (argv[i] === "--port") opts.port = Number(argv[++i])
     else if (argv[i] === "--fail-auth") opts.failAuth = true
     else if (argv[i] === "--seed-sessions") opts.seedSessions = true
     else if (argv[i] === "--seed-diff") opts.seedDiff = true
+    else if (argv[i] === "--seed-subagents") opts.seedSubagents = true
   }
   return opts
 }
@@ -679,7 +792,7 @@ if (invokedDirectly) {
   const mock = createMockOpencodeServer(opts)
   mock.listen().then(() => {
     console.log(
-      `[mock-opencode-server] listening on ${mock.url} (failAuth=${opts.failAuth}, seedSessions=${opts.seedSessions}, seedDiff=${opts.seedDiff})`,
+      `[mock-opencode-server] listening on ${mock.url} (failAuth=${opts.failAuth}, seedSessions=${opts.seedSessions}, seedDiff=${opts.seedDiff}, seedSubagents=${opts.seedSubagents})`,
     )
   })
   const shutdown = () => {
