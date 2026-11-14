@@ -1,0 +1,7 @@
+v0.4.18 — Keyboard, voice, and stability fixes
+
+• Fixed the keyboard covering the message composer and new replies.
+• Fixed phantom voice-input alerts when nothing was said.
+• Messages now auto-scroll to the newest reply.
+• More reliable server connection startup and recovery.
+• New Subagents section on the session screen.
