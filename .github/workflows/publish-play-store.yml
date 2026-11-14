@@ -418,9 +418,14 @@ jobs:
           RELEASE_ID=""
           for i in $(seq 1 60); do
             RELEASE_ID="$(gh api "repos/${{ github.repository }}/releases/tags/${TAG}" --jq '.id // empty' 2>/dev/null || true)"
-            if [ -n "$RELEASE_ID" ]; then
-              break
-            fi
+            # A 404 prints the gh error JSON to stdout, so a non-numeric
+            # capture means "not found yet" — keep polling, and clear it so
+            # the fail-loudly guard below still fires if the release never
+            # appears (see #251).
+            case "$RELEASE_ID" in
+              ''|*[!0-9]*) RELEASE_ID="" ;;
+              *) break ;;
+            esac
             echo "GitHub release for tag ${TAG} not found yet (attempt ${i}/60); waiting 10s"
             sleep 10
           done
