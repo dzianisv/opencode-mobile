@@ -456,8 +456,26 @@ jobs:
       - name: Verify Sentry artifacts for release
         # Issue #232: prove server-side that this release's artifacts exist,
         # so a skipped or silently failed upload can no longer ship green.
-        # (i) JS bundle + source map listed for $SENTRY_RELEASE, via the
-        # bundled sentry-cli. (ii) Native debug files: sentry-cli 2.53.0 has
+        # (i) JS bundle + source map, via the artifact-bundle API. WHY NOT
+        # `sentry-cli releases files list` (PR #233): the Gradle upload runs
+        # `sentry-cli react-native gradle`, which only uploads an artifact
+        # bundle with a weak release/dist association — sentry-cli 2.53.0
+        # source (src/commands/react_native/gradle.rs) contains NO release
+        # creation, and Sentry docs state creating a release is "no longer
+        # required" with Debug IDs. No Release object exists, so the legacy
+        # release-files endpoint 404s ("Release not found", publish run
+        # 43565249322). Creating the release first was NOT used: the
+        # artifact index that endpoint reads is keyed by the Release object
+        # and written at upload time, so nothing proves the bundle's files
+        # become listable after a late `releases new`. Instead query the
+        # artifact-bundle endpoints directly (the same endpoints Sentry's
+        # own web UI uses for Project Settings > Source Maps > Artifact
+        # Bundles; getsentry/sentry src/sentry/api/endpoints/
+        # artifact_bundles.py + project_artifact_bundle_files.py): list
+        # bundles by release, then list the matched bundle's files and
+        # require ~/index.android.bundle + ~/index.android.bundle.map with
+        # one shared non-empty debug id — that shared id is what makes
+        # symbolication work. (ii) Native debug files: sentry-cli 2.53.0 has
         # NO server-side debug-files list (its debug-files subcommands are
         # bundle-sources/check/find/print-sources/upload, and `find` is
         # local-only), so query the Sentry API's project debug-files (dsyms)
@@ -465,30 +483,73 @@ jobs:
         # empty list fails the job. No continue-on-error on purpose.
         run: |
           set -euo pipefail
-          SENTRY_CLI=node_modules/@sentry/cli/bin/sentry-cli
-          echo "Verifying Sentry artifacts for release $SENTRY_RELEASE"
-          FILES="$("$SENTRY_CLI" releases files list --org "$SENTRY_ORG" --project "$SENTRY_PROJECT" --release "$SENTRY_RELEASE")"
-          echo "$FILES"
-          if ! grep -Eq 'index\.android\.bundle([^.]|$)' <<< "$FILES"; then
-            echo "::error::JS bundle not listed for release $SENTRY_RELEASE"
+          echo "Verifying Sentry artifacts for release $SENTRY_RELEASE (dist $SENTRY_DIST)"
+          # (i-a) Find the artifact bundle associated with this release+dist.
+          HTTP_CODE="$(curl -sS -o /tmp/sentry-bundles.json -w '%{http_code}' \
+            -G --data-urlencode "query=$SENTRY_RELEASE" --data-urlencode "per_page=100" \
+            -H "Authorization: Bearer ${SENTRY_AUTH_TOKEN}" \
+            "https://sentry.io/api/0/projects/${SENTRY_ORG}/${SENTRY_PROJECT}/files/artifact-bundles/")"
+          if [ "$HTTP_CODE" != "200" ]; then
+            echo "::error::Sentry artifact-bundles API returned HTTP $HTTP_CODE"
             exit 1
           fi
-          # The map check must NOT grep the whole table: its Source Map
-          # column prints the bundle artifact's `Sourcemap` header verbatim,
-          # so a bundle-only upload (header set, no map artifact) would
-          # false-pass. Compare artifact names exactly instead: take the
-          # table's first column only (second field when split on '|',
-          # trimmed; the header row yields no name, border lines do not
-          # start with '|').
-          NAMES="$(printf '%s\n' "$FILES" | awk -F'|' '/^[|]/ { name=$2; gsub(/^[ \t]+|[ \t]+$/, "", name); if (name != "" && name != "Name") print name }')"
-          if [ -z "$NAMES" ] && [ -n "$FILES" ]; then
-            echo "::error::could not parse artifact names from the sentry-cli releases files list output for release $SENTRY_RELEASE"
+          cat > /tmp/sentry-find-bundle.py <<'PY'
+          import json, os, sys
+          data = json.load(open('/tmp/sentry-bundles.json'))
+          if not isinstance(data, list):
+              print('::error::unexpected artifact-bundles response (not a JSON list)', file=sys.stderr)
+              sys.exit(2)
+          want_release, want_dist = os.environ['SENTRY_RELEASE'], os.environ['SENTRY_DIST']
+          for bundle in data:  # API sorts newest first
+              for assoc in bundle.get('associations', []):
+                  if assoc.get('release') == want_release and assoc.get('dist') == want_dist:
+                      print(f"Matched artifact bundle {bundle['bundleId']} "
+                            f"(fileCount={bundle.get('fileCount')}, date={bundle.get('date')})",
+                            file=sys.stderr)
+                      print(bundle['bundleId'])
+                      sys.exit(0)
+          print(f'::error::no artifact bundle associated with release {want_release} dist {want_dist}',
+                file=sys.stderr)
+          sys.exit(1)
+          PY
+          BUNDLE_ID="$(python3 /tmp/sentry-find-bundle.py)"
+          echo "Artifact bundle ID: $BUNDLE_ID"
+          # (i-b) List the matched bundle's files; require the bundle and its
+          # source map, linked by one shared non-empty debug id.
+          HTTP_CODE="$(curl -sS -o /tmp/sentry-bundle-files.json -w '%{http_code}' \
+            -G --data-urlencode "per_page=100" \
+            -H "Authorization: Bearer ${SENTRY_AUTH_TOKEN}" \
+            "https://sentry.io/api/0/projects/${SENTRY_ORG}/${SENTRY_PROJECT}/artifact-bundles/${BUNDLE_ID}/files/")"
+          if [ "$HTTP_CODE" != "200" ]; then
+            echo "::error::Sentry artifact-bundle files API returned HTTP $HTTP_CODE"
             exit 1
           fi
-          if ! grep -qxF '~/index.android.bundle.map' <<< "$NAMES"; then
-            echo "::error::JS source map not listed for release $SENTRY_RELEASE"
-            exit 1
-          fi
+          cat > /tmp/sentry-check-bundle-files.py <<'PY'
+          import json, sys
+          data = json.load(open('/tmp/sentry-bundle-files.json'))
+          files = data.get('files')
+          if not isinstance(files, list):
+              print('::error::unexpected artifact-bundle files response (no files list)', file=sys.stderr)
+              sys.exit(2)
+          by_path = {f.get('filePath'): f for f in files}
+          for path in ('~/index.android.bundle', '~/index.android.bundle.map'):
+              entry = by_path.get(path)
+              if entry is None:
+                  print(f'::error::{path} not present in artifact bundle', file=sys.stderr)
+                  sys.exit(1)
+              print(f"Found {path} (size={entry.get('fileSize')}, "
+                    f"debugId={entry.get('debugId')}, sourcemap={entry.get('sourcemap')})")
+          bundle_id = by_path['~/index.android.bundle'].get('debugId')
+          map_id = by_path['~/index.android.bundle.map'].get('debugId')
+          if not bundle_id or not map_id:
+              print('::error::bundle or source map is missing its debug id', file=sys.stderr)
+              sys.exit(1)
+          if bundle_id != map_id:
+              print(f'::error::debug id mismatch: bundle {bundle_id} vs map {map_id}', file=sys.stderr)
+              sys.exit(1)
+          print(f'JS bundle + source map verified, shared debug id {bundle_id}')
+          PY
+          python3 /tmp/sentry-check-bundle-files.py
           HTTP_CODE="$(curl -sS -o /tmp/sentry-dsyms.json -w '%{http_code}' \
             -H "Authorization: Bearer ${SENTRY_AUTH_TOKEN}" \
             "https://sentry.io/api/0/projects/${SENTRY_ORG}/${SENTRY_PROJECT}/files/dsyms/")"
@@ -500,7 +561,7 @@ jobs:
             echo "::error::no native debug files stored for project $SENTRY_PROJECT"
             exit 1
           }
-          echo "Sentry artifacts verified for $SENTRY_RELEASE: bundle + source map listed, native debug files present."
+          echo "Sentry artifacts verified for $SENTRY_RELEASE: bundle + source map in artifact bundle $BUNDLE_ID (shared debug id), native debug files present."
 
       - name: Upload AAB artifact
         uses: actions/upload-artifact@v7
