@@ -1,0 +1,6 @@
+v0.4.19 — Camera and photo picker stability fix
+
+• Fixed a failure when taking a photo from the chat screen: if the camera
+  failed to open, the app now shows a clear message instead of reporting
+  an error.
+• Same guard for choosing photos from the library.
