@@ -2,10 +2,13 @@ name: Publish to Google Play Store
 
 on:
   # Issue #227 (design §2): the `release: published` trigger is RETIRED.
-  # Post-change entry paths are tag push and workflow_dispatch only — both
-  # funnel through the cua-mid-stream gate job below. build.yml already
-  # creates the GitHub release from the tag, and no release path depends
-  # on the retired trigger (the sentry-fix loop releases via tag push).
+  # Post-change entry paths are tag push and workflow_dispatch only.
+  # build.yml already creates the GitHub release from the tag, and no
+  # release path depends on the retired trigger (the sentry-fix loop
+  # releases via tag push).
+  # NOTE (2026-11-14): the cua-mid-stream gate job that used to sit below
+  # was REMOVED (triage verdict: STALE gate, publish run 43572233118).
+  # Revival recipe lives in the removal PR body.
   push:
     tags: ["v*"]
   workflow_dispatch:
@@ -35,11 +38,6 @@ on:
         required: false
         default: "0.20"
         type: string
-      cua_force_fail:
-        description: "Proof runs only: force the mid-stream-exit CUA gate to fail (CUA_FORCE_FAIL=1) and verify publication is blocked. Dispatch-only — a tag push cannot set it."
-        required: false
-        default: false
-        type: boolean
 
 # Issue #230 (design §3, N3): the tag-path Record step PATCHes the GitHub
 # release body with the rollout fraction/versionCode/status. That is the
@@ -55,249 +53,17 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  # Issue #227 (design §2, Option A): the mid-stream-exit CUA is job 1 of
-  # this workflow and the publish job `needs:` it — same run, same
-  # github.sha by construction. A failed gate skips publication; a green
-  # showcase run in cua-smoke.yml does NOT satisfy this gate.
-  # DISABLED as a publish gate (Den, 2026-11-06): no model tokens/credits
-  # for the real CUA run. Manual-dispatch only and non-blocking - publish
-  # does not `needs:` it. Re-enable (one line each): remove the `if:` below
-  # and restore `needs: [cua-mid-stream]` on the publish job.
-  cua-mid-stream:
-    if: ${{ github.event_name == 'workflow_dispatch' }}
-    runs-on: ubuntu-latest
-    timeout-minutes: 60
-    env:
-      AZURE_OPENAI_API_KEY: ${{ secrets.AZURE_OPENAI_API_KEY }}
-      AZURE_OPENAI_ENDPOINT: ${{ secrets.AZURE_OPENAI_ENDPOINT }}
-      # CUA driver uses chat-completions; 2024-08-01-preview is sufficient.
-      AZURE_OPENAI_API_VERSION: "2024-08-01-preview"
-      # opencode's @ai-sdk/azure provider hits the new /openai/v1/responses
-      # endpoint. That endpoint accepts ONLY api-version=preview or v1 — every
-      # date-based value returns 400 and forces MODEL_CAPABLE=false, which is
-      # FATAL for the mid-stream-exit scenario (design §1).
-      OPENCODE_AZURE_API_VERSION: "preview"
-      # Emulator reaches the runner host via 10.0.2.2.
-      OPENCODE_URL: "http://10.0.2.2:4096"
-    steps:
-      - uses: actions/checkout@v6
-
-      - uses: actions/setup-node@v6
-        with:
-          node-version: 20
-          cache: npm
-
-      - uses: actions/setup-java@v5
-        with:
-          distribution: temurin
-          java-version: 17
-
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v4
-
-      - name: Add emulator to PATH
-        run: echo "$ANDROID_HOME/emulator" >> $GITHUB_PATH
-
-      - name: Enable KVM
-        run: |
-          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
-          sudo udevadm control --reload-rules
-          sudo udevadm trigger --name-match=kvm
-
-      - name: Cache Gradle
-        uses: actions/cache@v5
-        with:
-          path: |
-            ~/.gradle/caches
-            ~/.gradle/wrapper
-            android/.gradle
-          key: ${{ runner.os }}-gradle-${{ hashFiles('android/**/*.gradle*', 'android/gradle/wrapper/gradle-wrapper.properties') }}
-          restore-keys: |
-            ${{ runner.os }}-gradle-
-
-      - name: Purge stale generated sources
-        # Same stale-autolinking guard as the publish job and cua-smoke.yml:
-        # a restored generated tree from a previous package id breaks the
-        # build for cc.agentlabs.opencode.
-        run: rm -rf android/app/build/generated android/build/generated android/app/build/intermediates
-
-      - name: Install dependencies & build APK
-        env:
-          SENTRY_DISABLE_AUTO_UPLOAD: "true"
-        run: |
-          npm install --legacy-peer-deps
-          npx expo prebuild --platform android --no-install
-          keytool -genkey -v -keystore android/app/debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
-          cd android && ./gradlew assembleRelease
-
-      - name: Install Python deps
-        run: pip install openai
-
-      - name: Configure opencode Azure provider
-        env:
-          AZURE_OPENAI_MODEL: "gpt-5.4"
-        run: |
-          npm install -g opencode-ai
-          # opencode (released npm pkg) does NOT read AZURE_OPENAI_* for its own LLM.
-          # It needs an explicit provider in opencode.json + a default `model`.
-          # Wire the same Azure resource the CUA driver uses (@ai-sdk/azure).
-          # Extract the resource name from the endpoint secret at runtime
-          # (e.g. https://NAME.openai.azure.com -> NAME) so nothing secret is in source.
-          RESOURCE_NAME="$(printf '%s' "$AZURE_OPENAI_ENDPOINT" | sed -E 's#https?://([^.]+)\..*#\1#')"
-          echo "Derived Azure resource name: ${RESOURCE_NAME:-<empty>}"
-          mkdir -p "$HOME/.config/opencode"
-          cat > "$HOME/.config/opencode/opencode.json" <<EOF
-          {
-            "\$schema": "https://opencode.ai/config.json",
-            "provider": {
-              "azure": {
-                "npm": "@ai-sdk/azure",
-                "name": "Azure OpenAI",
-                "options": {
-                  "resourceName": "${RESOURCE_NAME}",
-                  "apiKey": "{env:AZURE_OPENAI_API_KEY}",
-                  "apiVersion": "${OPENCODE_AZURE_API_VERSION}"
-                },
-                "models": {
-                  "${AZURE_OPENAI_MODEL}": { "name": "Azure ${AZURE_OPENAI_MODEL}" }
-                }
-              }
-            },
-            "model": "azure/${AZURE_OPENAI_MODEL}",
-            "small_model": "azure/${AZURE_OPENAI_MODEL}"
-          }
-          EOF
-          echo "opencode.json written:"; cat "$HOME/.config/opencode/opencode.json"
-
-      - name: Start opencode server on runner host
-        run: |
-          set -x
-          # Bind all interfaces so the emulator can reach it via 10.0.2.2.
-          nohup opencode serve --hostname 0.0.0.0 --port 4096 --print-logs > /tmp/opencode-server.log 2>&1 &
-          SRV_PID=$!
-          echo "opencode pid=$SRV_PID"
-          echo "Waiting for opencode server /global/health ..."
-          HEALTHY=0
-          for i in $(seq 1 60); do
-            if curl -sf --connect-timeout 2 -m 5 http://127.0.0.1:4096/global/health > /dev/null; then
-              echo "opencode server healthy after ${i}s"
-              HEALTHY=1
-              break
-            fi
-            if [ $((i % 10)) -eq 0 ]; then
-              echo "--- @${i}s: server log so far ---"
-              tail -20 /tmp/opencode-server.log || true
-              echo "--- listening ports ---"
-              ss -tlnp 2>/dev/null | grep -E ':4096|opencode' || echo "no listener on 4096"
-              echo "--- pid alive? ---"
-              kill -0 $SRV_PID 2>/dev/null && echo "pid $SRV_PID alive" || echo "pid $SRV_PID DEAD"
-            fi
-            sleep 1
-          done
-          if [ "$HEALTHY" != "1" ]; then
-            echo "::error::opencode server failed to become healthy in 60s"
-            echo "--- final server log ---"
-            cat /tmp/opencode-server.log || true
-            exit 1
-          fi
-
-      - name: Probe opencode model capability (can it reply?)
-        id: probe
-        env:
-          AZURE_OPENAI_MODEL: "gpt-5.4"
-        run: |
-          # Deterministic check that the server can actually produce a
-          # streaming assistant reply BEFORE the emulator run. Unlike
-          # cua-smoke.yml (informational there), MODEL_CAPABLE is FATAL for
-          # the mid-stream-exit gate (design §1): it is passed to the
-          # scenario step, and the harness fails the gate when it is false.
-          set +e
-          SID=$(curl -s -X POST http://127.0.0.1:4096/session -H 'content-type: application/json' -d '{}' | python3 -c "import sys,json;print(json.load(sys.stdin).get('id',''))" 2>/dev/null)
-          echo "session id: ${SID:-<none>}"
-          CAPABLE=false
-          if [ -n "$SID" ]; then
-            HTTP=$(curl -s -o /tmp/probe_reply.json -w '%{http_code}' \
-              -X POST "http://127.0.0.1:4096/session/$SID/message" \
-              -H 'content-type: application/json' \
-              -d "{\"model\":{\"providerID\":\"azure\",\"modelID\":\"$AZURE_OPENAI_MODEL\"},\"parts\":[{\"type\":\"text\",\"text\":\"reply with the single word: pong\"}]}" \
-              2>/tmp/probe_err.txt)
-            echo "probe HTTP status: ${HTTP:-<none>}"
-            echo "--- probe reply (truncated) ---"; head -c 3000 /tmp/probe_reply.json; echo
-            echo "--- probe err (truncated) ---"; head -c 1000 /tmp/probe_err.txt; echo
-            if [ "$HTTP" = "200" ] && grep -qi 'assistant' /tmp/probe_reply.json && grep -qi 'pong\|"text"' /tmp/probe_reply.json; then
-              CAPABLE=true
-            fi
-          fi
-          echo "MODEL_CAPABLE=$CAPABLE" >> "$GITHUB_OUTPUT"
-          echo "opencode model-capable in CI: $CAPABLE"
-
-      - name: Write CUA runner script
-        run: |
-          cat > /tmp/cua-runner.sh << 'RUNNEREOF'
-          #!/bin/sh
-          # Generated by CI workflow — runs ONLY the mid-stream-exit gate
-          # scenario (issue #227, design §1). A showcase run does not
-          # satisfy this gate.
-          set -e
-          exec python3 scripts/android-cua-smoke.py --mid-stream-exit --model gpt-5.4 --include-xml --opencode-url "${OPENCODE_URL}" --artifacts-dir /tmp/cua-artifacts --apk-path android/app/build/outputs/apk/release/app-release.apk
-          RUNNEREOF
-          chmod +x /tmp/cua-runner.sh
-
-      - name: Run mid-stream-exit CUA gate with emulator
-        uses: reactivecircus/android-emulator-runner@v2
-        env:
-          OPENCODE_URL: ${{ env.OPENCODE_URL }}
-          # Fatal for this scenario (design §1): the harness fails the gate
-          # when the probe found the model incapable of replying/streaming.
-          MODEL_CAPABLE: ${{ steps.probe.outputs.MODEL_CAPABLE }}
-          # Failure-blocks-publication proof hook (design §2): the
-          # dispatch-only cua_force_fail input wires CUA_FORCE_FAIL=1 to
-          # this step. The input does not exist on tag pushes, so a tag
-          # run can never set it.
-          CUA_FORCE_FAIL: ${{ inputs.cua_force_fail == true && '1' || '' }}
-        with:
-          api-level: 28
-          arch: x86_64
-          target: default
-          disable-animations: true
-          emulator-boot-timeout: 600
-          emulator-options: -no-window -no-audio -no-boot-anim -gpu swiftshader_indirect -no-snapshot
-          # NOTE: android-emulator-runner wraps script content in sh -c "..."
-          # which breaks on inner " chars. Use a temp shell script instead.
-          script: |
-            adb shell pm clear cc.agentlabs.opencode || true
-            adb install android/app/build/outputs/apk/release/app-release.apk
-            adb shell am start -n cc.agentlabs.opencode/.MainActivity
-            sleep 5
-            sh /tmp/cua-runner.sh
-
-      - name: opencode server log
-        if: always()
-        run: cat /tmp/opencode-server.log || true
-
-      - name: Upload test artifacts
-        if: always()
-        uses: actions/upload-artifact@v7
-        with:
-          name: cua-mid-stream-artifacts-${{ github.run_number }}
-          # Extended for the mid-stream-exit gate (design §1 artifacts):
-          # manifest.json (github.sha, tag, APK sha256, package,
-          # versionName/versionCode from aapt dump badging, per-cycle
-          # samples/timestamps/INVALID flag/PID), the logcat dump, and
-          # 1 screenshot per cycle — all written by the harness into
-          # /tmp/cua-artifacts.
-          path: |
-            /tmp/cua-artifacts/manifest.json
-            /tmp/cua-artifacts/logcat.txt
-            /tmp/cua-artifacts/logcat-cycle-*.txt
-            /tmp/cua-artifacts/cycle-*.png
-            /tmp/cua_*.png
-            /tmp/cua_*.mp4
-          if-no-files-found: warn
+  # NOTE (2026-11-14): the cua-mid-stream gate job (Issue #227) was
+  # REMOVED from this workflow — triage verdict STALE gate, publish run
+  # 43572233118 (gate failed while `publish` succeeded; gate never
+  # passed; sampler reads the opencode server API, not the app).
+  # scripts/android-cua-smoke.py is kept for local runs. Revival recipe
+  # lives in the removal PR body.
 
   publish:
-    # CUA gate DISABLED (Den, 2026-11-06): no `needs:` on cua-mid-stream -
-    # publication is not blocked by it. See the cua-mid-stream job comment.
+    # NOTE (2026-11-14): the cua-mid-stream gate job was removed from
+    # this workflow (triage verdict STALE gate, run 43572233118); publish
+    # never depended on it — no `needs:` was ever wired.
     runs-on: ubuntu-latest
     env:
       EXPO_PUBLIC_SENTRY_DSN: ${{ secrets.EXPO_PUBLIC_SENTRY_DSN }}

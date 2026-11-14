@@ -1664,9 +1664,9 @@ def run_scenario_mid_stream_exit(
     def _write_manifest() -> None:
         (artifacts / "manifest.json").write_text(json.dumps(manifest, indent=2))
 
-    # Failure-blocks-publication proof hook (design §2): the dispatch-only
-    # cua_force_fail input wires CUA_FORCE_FAIL=1 to this step's env. It does
-    # not exist on tag pushes, so a tag run can never set it.
+    # Proof hook (design §2): set CUA_FORCE_FAIL=1 in the environment to
+    # fail the gate on purpose. (The publish workflow's cua_force_fail
+    # dispatch input that used to wire this was removed 2026-11-14.)
     if os.environ.get("CUA_FORCE_FAIL") == "1":
         manifest["forced_fail"] = True
         _write_manifest()
