@@ -13,6 +13,7 @@
     "sections": {
       "security": "安全",
       "notifications": "通知",
+      "display": "显示",
       "privacy": "隐私",
       "about": "关于"
     },
@@ -33,6 +34,12 @@
     },
     "notifications": {
       "disabledNotice": "通知已在系统层面关闭。请在系统设置中启用通知以接收提醒。"
+    },
+    "display": {
+      "messageTimestamps": {
+        "label": "消息时间戳",
+        "description": "显示每条消息发送的日期和时间"
+      }
     },
     "privacy": {
       "crashReporting": {

@@ -41,6 +41,7 @@ import { useSessions } from "../../src/stores/sessions"
 import { useEvents, refreshPending } from "../../src/stores/events"
 import { useConnections } from "../../src/stores/connections"
 import { useAuth } from "../../src/stores/auth"
+import { useSettings } from "../../src/stores/settings"
 import { useCatalog } from "../../src/stores/catalog"
 import { useSpeech } from "../../src/lib/speech"
 import { messagePartsToSelectableText } from "../../src/lib/message-text"
@@ -90,6 +91,8 @@ export default function SessionScreen() {
   const isDark = colorScheme === "dark"
   const insets = useSafeAreaInsets()
   const { t } = useTranslation()
+  const { locale, showMessageTimestamps } = useSettings()
+  const timestampLocale = locale === "system" ? undefined : locale
 
   const flatListRef = useRef<FlatList>(null)
   const modelSheetRef = useRef<BottomSheet>(null)
@@ -805,6 +808,8 @@ export default function SessionScreen() {
                   message={item.message}
                   parts={item.parts}
                   isDark={isDark}
+                  showTimestamp={showMessageTimestamps}
+                  timestampLocale={timestampLocale}
                   onSelectText={openSelectTextSheet}
                   onEdit={startEditFlow}
                 />
@@ -941,7 +946,6 @@ export default function SessionScreen() {
               editable={!speech.listening}
               multiline
               scrollEnabled
-              maxLength={10000}
               testID="chat-message-input"
             />
             {/* Stop button: only when busy and no input */}

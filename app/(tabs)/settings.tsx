@@ -76,7 +76,8 @@ export default function SettingsScreen() {
   const { t } = useTranslation()
 
   const { settings, hasBiometrics, updateSettings, lock } = useAuth()
-  const { notifications, setNotification, locale, setLocale } = useSettings()
+  const { notifications, setNotification, locale, setLocale, showMessageTimestamps, setShowMessageTimestamps } =
+    useSettings()
   const [osGranted, setOsGranted] = useState<boolean | null>(null)
   const [telemetryUpdating, setTelemetryUpdating] = useState(false)
 
@@ -231,6 +232,22 @@ export default function SettingsScreen() {
             </Text>
           </View>
         )}
+      </SettingSection>
+
+      <SettingSection title={t("settings.sections.display")} isDark={isDark}>
+        <SettingRow
+          icon="time-outline"
+          label={t("settings.display.messageTimestamps.label")}
+          description={t("settings.display.messageTimestamps.description")}
+          isDark={isDark}
+          right={
+            <Switch
+              value={showMessageTimestamps}
+              onValueChange={setShowMessageTimestamps}
+              trackColor={{ false: "#767577", true: "#22c55e" }}
+            />
+          }
+        />
       </SettingSection>
 
       <SettingSection title={t("settings.sections.privacy")} isDark={isDark}>

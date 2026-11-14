@@ -92,3 +92,20 @@ test("the session screen wires the buttons to single-implementation handlers", (
   assert.doesNotMatch(src, /setTextSheet\(sheetText\)/)
   assert.equal(src.split("revertToMessage(").length - 1, 1, "the revert flow must exist once, in startEditFlow")
 })
+
+test("the chat composer does not impose a client-side message length cap", () => {
+  const src = readFileSync(path.join(here, "..", "..", "app", "session", "[id].tsx"), "utf8")
+  const input = src.slice(src.indexOf('testID="chat-message-input"') - 800, src.indexOf('testID="chat-message-input"'))
+  assert.match(input, /multiline/)
+  assert.doesNotMatch(input, /maxLength\s*=/, "the server should decide whether a prompt is too long")
+})
+
+test("the persisted timestamp preference reaches every session message bubble", () => {
+  const session = readFileSync(path.join(here, "..", "..", "app", "session", "[id].tsx"), "utf8")
+  const bubble = read("chat/MessageBubble.tsx")
+  assert.match(session, /showTimestamp=\{showMessageTimestamps\}/)
+  assert.match(session, /timestampLocale=\{timestampLocale\}/)
+  assert.match(bubble, /showTimestamp \? formatMessageTimestamp\(message\.time\.created, timestampLocale\)/)
+  assert.match(bubble, /testID=\{`message-timestamp-\$\{message\.id\}`\}/)
+  assert.match(bubble, /prev\.showTimestamp !== next\.showTimestamp/)
+})
