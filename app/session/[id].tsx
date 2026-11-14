@@ -436,12 +436,19 @@ export default function SessionScreen() {
   }
 
   const pickFromLibrary = useCallback(async () => {
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ["images"],
-      allowsMultipleSelection: true,
-      selectionLimit: 10,
-      quality: 1, // full quality - we compress in manipulator
-    })
+    let result: ImagePicker.ImagePickerResult
+    try {
+      result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ["images"],
+        allowsMultipleSelection: true,
+        selectionLimit: 10,
+        quality: 1, // full quality - we compress in manipulator
+      })
+    } catch (err) {
+      console.error("Failed to launch image library:", err)
+      Alert.alert(t("session.alerts.imageFailedTitle"), t("session.alerts.imageFailedMessage"))
+      return
+    }
     if (result.canceled) return
     const settled = await Promise.allSettled(result.assets.map((a) => toJpeg(a.uri, a.width, a.height)))
     const items = settled.filter((r) => r.status === "fulfilled").map((r) => r.value)
@@ -461,7 +468,14 @@ export default function SessionScreen() {
       Alert.alert(t("session.alerts.cameraPermissionTitle"), t("session.alerts.cameraPermissionMessage"))
       return
     }
-    const result = await ImagePicker.launchCameraAsync({ quality: 1 })
+    let result: ImagePicker.ImagePickerResult
+    try {
+      result = await ImagePicker.launchCameraAsync({ quality: 1 })
+    } catch (err) {
+      console.error("Failed to launch camera:", err)
+      Alert.alert(t("session.alerts.imageFailedTitle"), t("session.alerts.imageFailedMessage"))
+      return
+    }
     if (result.canceled) return
     const a = result.assets[0]
     try {
