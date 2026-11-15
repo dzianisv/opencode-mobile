@@ -42,6 +42,11 @@ interface EventsState {
   authError: boolean
   reconnectAttempts: number
   lastDisconnectAt: number | null
+  // Last SSE disconnect reason as a short display string (issue #214 AF-4):
+  // shown as the second line of the reconnect banner so the user sees *why*
+  // the stream dropped, not just the attempt count. Set when a reconnect is
+  // scheduled, cleared once the stream proves live again.
+  lastDisconnectReason: string | null
   sessionStatus: Record<string, SessionStatus>
   statusText: Record<string, string>
   // Last error message per session id, set on session.error for ANY session
@@ -103,6 +108,15 @@ const erroredSessions = new Set<string>()
 
 const RECONNECT_DELAYS_MS = [1000, 2000, 4000, 8000, 15000] as const
 const PROLONGED_DISCONNECT_MS = 30_000
+
+// Short display form of an SSE disconnect reason for the reconnect banner
+// (issue #214 AF-4). Errors stringify as "Error: <message>" — drop the
+// redundant prefix so the banner reads like the design's example
+// ("SSE stream closed (code 1006)"), and cap the length so a verbose
+// transport error can't blow out the banner.
+function disconnectReasonText(reason: unknown): string {
+  return String(reason).replace(/^Error:\s*/, "").slice(0, 200)
+}
 
 // Re-fetch pending permissions and questions from the server for a session.
 // Called when entering a session to recover from missed SSE events or failed
@@ -213,6 +227,7 @@ export const useEvents = create<EventsState>((set, get) => ({
   authError: false,
   reconnectAttempts: 0,
   lastDisconnectAt: null,
+  lastDisconnectReason: null,
   sessionStatus: {},
   statusText: {},
   sessionErrors: {},
@@ -269,7 +284,7 @@ export const useEvents = create<EventsState>((set, get) => ({
         const reconnectAttempts = state.reconnectAttempts + 1
         const lastDisconnectAt = state.lastDisconnectAt ?? Date.now()
         const disconnectedFor = Date.now() - lastDisconnectAt
-        set({ connected: false, transport: "connecting", reconnectAttempts, lastDisconnectAt })
+        set({ connected: false, transport: "connecting", reconnectAttempts, lastDisconnectAt, lastDisconnectReason: disconnectReasonText(reason) })
 
         if (disconnectedFor >= PROLONGED_DISCONNECT_MS) {
           notify({
@@ -313,7 +328,7 @@ export const useEvents = create<EventsState>((set, get) => ({
           // resets the backoff — the only reset path (no timer).
           if (!sawLiveness) {
             sawLiveness = true
-            set({ connected: true, transport: "live", reconnectAttempts: 0, lastDisconnectAt: null })
+            set({ connected: true, transport: "live", reconnectAttempts: 0, lastDisconnectAt: null, lastDisconnectReason: null })
           }
 
           // The stream is genuinely live again (we're actually receiving
@@ -640,7 +655,7 @@ export const useEvents = create<EventsState>((set, get) => ({
     // resync on reconnectAttempts > 0, and a foreground resume must resync
     // even from a previously "stable" (but actually dead) connection — so we
     // run the resync explicitly below instead.
-    set({ reconnectAttempts: 0, lastDisconnectAt: null })
+    set({ reconnectAttempts: 0, lastDisconnectAt: null, lastDisconnectReason: null })
     get().connect()
     void resyncBusySessions()
     const sessions = useSessions.getState()
@@ -677,6 +692,7 @@ export const useEvents = create<EventsState>((set, get) => ({
       authError: false,
       reconnectAttempts: 0,
       lastDisconnectAt: null,
+      lastDisconnectReason: null,
       sessionStatus: {},
       statusText: {},
       sessionErrors: {},
