@@ -22,3 +22,42 @@ allprojects {
 
 apply plugin: "expo-root-project"
 apply plugin: "com.facebook.react.rootproject"
+
+// F-Droid reproducible builds (#95): apply -ffile-prefix-map /
+// -fdebug-prefix-map to EVERY Android module's native build (app + all
+// libraries), not just the app. Two places need it:
+//  - __FILE__ strings in the locally compiled .so files (codegen libs embed
+//    the repo checkout path; all embed the Gradle-cache prefab header path)
+//  - DWARF debug paths, which feed the GNU BuildID — the .so files are
+//    stripped before packaging, but the BuildID is computed pre-strip, so
+//    an unmapped debug path still makes the packaged .so differ.
+// The remapped values are computed from the build environment, so they are
+// the same on every machine (CI, F-Droid buildserver, local).
+// Root is rootProject.projectDir.parent: projectDir is the android/ dir,
+// not the repo root.
+subprojects {
+    plugins.withId("com.android.library") {
+        android.defaultConfig.externalNativeBuild.cmake {
+            cppFlags "-ffile-prefix-map=${rootProject.projectDir.parent}=/src",
+                    "-ffile-prefix-map=${gradle.gradleUserHomeDir}=/gradle",
+                    "-ffile-prefix-map=${System.getenv('ANDROID_HOME') ?: System.getenv('ANDROID_SDK_ROOT')}=/sdk",
+                    "-fdebug-prefix-map=${rootProject.projectDir.parent}=/src",
+                    "-fdebug-prefix-map=${gradle.gradleUserHomeDir}=/gradle",
+                    "-fdebug-prefix-map=${System.getenv('ANDROID_HOME') ?: System.getenv('ANDROID_SDK_ROOT')}=/sdk",
+                    "-fdebug-compilation-dir=/build"
+            arguments "-DCMAKE_CXX_FLAGS_RELWITHDEBINFO=-O2 -g -DNDEBUG"
+        }
+    }
+    plugins.withId("com.android.application") {
+        android.defaultConfig.externalNativeBuild.cmake {
+            cppFlags "-ffile-prefix-map=${rootProject.projectDir.parent}=/src",
+                    "-ffile-prefix-map=${gradle.gradleUserHomeDir}=/gradle",
+                    "-ffile-prefix-map=${System.getenv('ANDROID_HOME') ?: System.getenv('ANDROID_SDK_ROOT')}=/sdk",
+                    "-fdebug-prefix-map=${rootProject.projectDir.parent}=/src",
+                    "-fdebug-prefix-map=${gradle.gradleUserHomeDir}=/gradle",
+                    "-fdebug-prefix-map=${System.getenv('ANDROID_HOME') ?: System.getenv('ANDROID_SDK_ROOT')}=/sdk",
+                    "-fdebug-compilation-dir=/build"
+            arguments "-DCMAKE_CXX_FLAGS_RELWITHDEBINFO=-O2 -g -DNDEBUG"
+        }
+    }
+}

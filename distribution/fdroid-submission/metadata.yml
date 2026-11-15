@@ -21,9 +21,12 @@ Repo: https://github.com/dzianisv/opencode-mobile
 Binaries: https://github.com/dzianisv/opencode-mobile/releases/download/v%v/app-release-fdroid.apk
 
 Builds:
-  - versionName: 0.4.3
-    versionCode: 5
-    commit: c46f273ecda0269ba2dc165053096e63d2bf5160
+  - versionName: 0.4.19
+    versionCode: 46
+    # NOTE: the fdroiddata MR must re-pin this to the release tag commit
+    # (the tag built with this fix) when it is filed — see issue #95.
+    # This value points at the fix commit on the PR branch for now.
+    commit: PLACEHOLDER_PR_HEAD_SHA
     subdir: android/app
     sudo:
       - apt-get update
@@ -40,6 +43,10 @@ Builds:
         node_modules/@react-native/gradle-plugin/react-native-gradle-plugin/src/main/kotlin/com/facebook/react/utils/JdkConfiguratorUtils.kt
         node_modules/expo-modules-core/android/ExpoModulesCorePlugin.gradle
       - printf '\nkotlin.jvm.target.validation.mode=warning\n' >> android/gradle.properties
+      # Pin react_native_dev_server_ip to localhost: the RN gradle plugin
+      # bakes the build machine's IP into the APK (see issue #95). The patch
+      # adds a reactNativeDevServerIp property (set in android/gradle.properties).
+      - patch -p1 -d node_modules/@react-native/gradle-plugin < fdroid/react-native-dev-server-ip.patch
       - sed -i '/firebase/d' node_modules/expo-notifications/android/build.gradle
       - cp -a fdroid/expo-notifications-patches/.
         node_modules/expo-notifications/android/src/main/java/expo/modules/notifications/
@@ -64,5 +71,5 @@ AllowedAPKSigningKeys: 0c259d94e0ffea5d6319614b229d4b6bdc22de1f56e38e76948398d2d
 
 AutoUpdateMode: Version
 UpdateCheckMode: Tags
-CurrentVersion: 0.4.3
-CurrentVersionCode: 5
+CurrentVersion: 0.4.19
+CurrentVersionCode: 46
