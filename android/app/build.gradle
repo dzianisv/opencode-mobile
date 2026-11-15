@@ -98,6 +98,29 @@ android {
         versionName "0.4.19"
 
         buildConfigField "String", "REACT_NATIVE_RELEASE_LEVEL", "\"${findProperty('reactNativeReleaseLevel') ?: 'stable'}\""
+
+        // F-Droid reproducible builds (#95): remap absolute build-machine
+        // paths out of __FILE__ strings and DWARF debug info in the locally
+        // compiled native libs, so builds from different directories produce
+        // identical .so bytes. The remapped values are computed from the
+        // build environment, so they are the same on every machine (CI,
+        // F-Droid buildserver, local). -fdebug-compilation-dir pins
+        // DW_AT_comp_dir, removing the AGP .cxx config-hash dir from the
+        // debug info — the BuildID is computed pre-strip, so an unmapped
+        // debug path still makes the packaged .so differ. The matching
+        // subprojects hook in android/build.gradle covers library modules.
+        externalNativeBuild {
+            cmake {
+                cppFlags "-ffile-prefix-map=${rootProject.projectDir.parent}=/src",
+                         "-ffile-prefix-map=${gradle.gradleUserHomeDir}=/gradle",
+                         "-ffile-prefix-map=${System.getenv('ANDROID_HOME') ?: System.getenv('ANDROID_SDK_ROOT')}=/sdk",
+                         "-fdebug-prefix-map=${rootProject.projectDir.parent}=/src",
+                         "-fdebug-prefix-map=${gradle.gradleUserHomeDir}=/gradle",
+                         "-fdebug-prefix-map=${System.getenv('ANDROID_HOME') ?: System.getenv('ANDROID_SDK_ROOT')}=/sdk",
+                         "-fdebug-compilation-dir=/build"
+                arguments "-DCMAKE_CXX_FLAGS_RELWITHDEBINFO=-O2 -g -DNDEBUG"
+            }
+        }
     }
     signingConfigs {
         debug {

@@ -204,6 +204,12 @@ jobs:
             node_modules/expo-modules-core/android/ExpoModulesCorePlugin.gradle
           printf '\nkotlin.jvm.target.validation.mode=warning\n' >> android/gradle.properties
 
+          # Pin react_native_dev_server_ip to localhost (fdroid/react-native-dev-server-ip.patch):
+          # the RN gradle plugin bakes the build machine's IP into the APK;
+          # the patch adds a reactNativeDevServerIp property (see
+          # android/gradle.properties). Mirrors metadata.yml prebuild.
+          patch -p1 -d node_modules/@react-native/gradle-plugin < fdroid/react-native-dev-server-ip.patch
+
           # Strip Firebase Cloud Messaging from expo-notifications.
           sed -i '/firebase/d' node_modules/expo-notifications/android/build.gradle
           cp -a fdroid/expo-notifications-patches/. \
