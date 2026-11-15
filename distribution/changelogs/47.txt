@@ -1,0 +1,7 @@
+v0.4.20 — F-Droid byte-reproducible APK
+
+• The release APK is now byte-reproducible: builds from the same source
+  produce an identical APK, so the F-Droid build can be verified
+  byte-for-byte against this release.
+• Build paths and the dev-server address are pinned, removing
+  machine-specific values from the APK.
