@@ -26,7 +26,7 @@ Builds:
     # NOTE: the fdroiddata MR must re-pin this to the release tag commit
     # (the tag built with this fix) when it is filed — see issue #95.
     # This value points at the fix commit on the PR branch for now.
-    commit: PLACEHOLDER_PR_HEAD_SHA
+    commit: 59f5ae9d4793a5f6d693ca6dcd5f19230d815712
     subdir: android/app
     sudo:
       - apt-get update
