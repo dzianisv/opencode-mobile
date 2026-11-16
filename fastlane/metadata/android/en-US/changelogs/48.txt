@@ -1,0 +1,6 @@
+v0.4.21 — Jump between messages in a chat
+
+• A docked strip below the message list jumps to the previous or next
+  message, with a counter and a Latest button to return to the newest.
+• Long chats are easier to review: move message by message instead of
+  scrolling through the whole conversation.
