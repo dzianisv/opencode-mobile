@@ -1,6 +1,4 @@
-v0.4.21 — Jump between messages in a chat
+v0.4.22 — Very long chats no longer crash the app
 
-• A docked strip below the message list jumps to the previous or next
-  message, with a counter and a Latest button to return to the newest.
-• Long chats are easier to review: move message by message instead of
-  scrolling through the whole conversation.
+• Very long messages no longer crash the app. The chat renderer hit a hard
+  limit on huge messages and quit; it now handles messages of any length.

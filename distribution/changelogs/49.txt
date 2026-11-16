@@ -1,0 +1,4 @@
+v0.4.22 — Very long chats no longer crash the app
+
+• Very long messages no longer crash the app. The chat renderer hit a hard
+  limit on huge messages and quit; it now handles messages of any length.
