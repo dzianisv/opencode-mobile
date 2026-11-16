@@ -135,7 +135,7 @@ test("root reachable but internet probe down still classifies as health-failed, 
 test("health probe 401 -> auth-failed, and the summary tells the user to fix credentials", () => {
   const r = classify(
     okUrl,
-    probe({ ok: false, error: "HTTP 401", status: 401 }), // health
+    probe({ ok: false, error: "HTTP 401", status: 401, authProvided: true }), // health
     probe({ ok: true }), // internet
     probe({ ok: true, status: 401 }), // root reachable
   )
@@ -146,8 +146,45 @@ test("health probe 401 -> auth-failed, and the summary tells the user to fix cre
   assert.doesNotMatch(r.summary, /actually works/i)
 })
 
+// The probe only sends Authorization when a password is filled in. A 401 with
+// NO credentials sent says nothing about the saved password — the user may
+// just not have typed it yet. That must not be reported as "the server
+// rejected your credentials", or they re-type a good password in a loop.
+test("health probe 401 with no credentials sent -> auth-required, not auth-failed", () => {
+  const r = classify(
+    okUrl,
+    probe({ ok: false, error: "HTTP 401", status: 401 }), // health, authProvided unset
+    probe({ ok: true }),
+    probe({ ok: true, status: 401 }),
+  )
+  assert.equal(r.classification, "auth-required")
+  assert.match(r.summary, /requires authentication/i)
+  assert.match(r.summary, /no credentials/i)
+  assert.doesNotMatch(r.summary, /rejected your credentials/i)
+})
+
+test("health probe 403 with no credentials sent -> auth-required too", () => {
+  const r = classify(
+    okUrl,
+    probe({ ok: false, status: 403 }),
+    probe({ ok: true }),
+    probe({ ok: true, status: 403 }),
+  )
+  assert.equal(r.classification, "auth-required")
+})
+
+test("explicit authProvided: false is treated the same as unset", () => {
+  const r = classify(
+    okUrl,
+    probe({ ok: false, status: 401, authProvided: false }),
+    probe({ ok: true }),
+    probe({ ok: true, status: 401 }),
+  )
+  assert.equal(r.classification, "auth-required")
+})
+
 test("health probe 403 -> auth-failed too", () => {
-  const r = classify(okUrl, probe({ ok: false, status: 403 }), probe({ ok: true }), probe({ ok: true, status: 403 }))
+  const r = classify(okUrl, probe({ ok: false, status: 403, authProvided: true }), probe({ ok: true }), probe({ ok: true, status: 403 }))
   assert.equal(r.classification, "auth-failed")
   assert.match(r.summary, /403/)
 })
@@ -155,7 +192,7 @@ test("health probe 403 -> auth-failed too", () => {
 test("auth-failed wins even when the server root probe is unreachable", () => {
   // A 401 from /global/health already proves the server answered us; the
   // root probe's outcome must not downgrade this to server-unreachable.
-  const r = classify(okUrl, probe({ ok: false, status: 401 }), probe({ ok: true }), probe({ ok: false }))
+  const r = classify(okUrl, probe({ ok: false, status: 401, authProvided: true }), probe({ ok: true }), probe({ ok: false }))
   assert.equal(r.classification, "auth-failed")
 })
 

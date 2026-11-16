@@ -90,6 +90,7 @@ export async function probeConnection(url: string, auth?: { username: string; pa
       timedFetch("server-root", `${base}/`, { headers }, { requireOk: false }),
       timedFetch("internet", INTERNET_CHECK_URL),
     ])
+    health.authProvided = Boolean(auth?.password)
   } else {
     const skipped: ProbeAttempt = { name: "health", target: url, ok: false, durationMs: 0, error: "skipped: malformed url" }
     health = skipped
