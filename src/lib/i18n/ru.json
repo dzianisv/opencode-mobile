@@ -81,10 +81,22 @@
     },
     "banners": {
       "reconnecting": "Переподключение… (попытка {{attempt}})",
+      "lastError": "Последняя ошибка: {{error}}",
       "connected": "Подключено ✓",
       "reverted": "Сообщение отменено — отправьте заново для подтверждения",
       "undo": "Отменить",
-      "dismiss": "Скрыть"
+      "dismiss": "Скрыть",
+      "errorNextAction": "Проверьте соединение с сервером и отправьте снова."
+    },
+    "nav": {
+      "previous": "Назад",
+      "next": "Далее",
+      "latest": "Последние",
+      "previousLabel": "Предыдущее сообщение",
+      "nextLabel": "Следующее сообщение",
+      "latestLabel": "Последнее сообщение",
+      "counter": "{{current}} / {{total}}",
+      "counterLabel": "Сообщение {{current}} из {{total}}"
     },
     "sheet": {
       "thinking": "Размышления",
@@ -109,6 +121,7 @@
       "replace": "Заменить",
       "selectText": "Выделить текст",
       "copyAll": "Копировать всё",
+      "copy": "Копировать",
       "copied": "Скопировано"
     },
     "alerts": {

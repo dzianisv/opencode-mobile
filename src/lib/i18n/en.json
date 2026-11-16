@@ -81,10 +81,22 @@
     },
     "banners": {
       "reconnecting": "Reconnecting… (attempt {{attempt}})",
+      "lastError": "Last error: {{error}}",
       "connected": "Connected ✓",
       "reverted": "Message reverted — resend to confirm",
       "undo": "Undo",
-      "dismiss": "Dismiss"
+      "dismiss": "Dismiss",
+      "errorNextAction": "Check the server connection, then resend."
+    },
+    "nav": {
+      "previous": "Previous",
+      "next": "Next",
+      "latest": "Latest",
+      "previousLabel": "Previous message",
+      "nextLabel": "Next message",
+      "latestLabel": "Latest message",
+      "counter": "{{current}} / {{total}}",
+      "counterLabel": "Message {{current}} of {{total}}"
     },
     "sheet": {
       "thinking": "Thinking",
@@ -109,6 +121,7 @@
       "replace": "Replace",
       "selectText": "Select text",
       "copyAll": "Copy all",
+      "copy": "Copy",
       "copied": "Copied"
     },
     "alerts": {
