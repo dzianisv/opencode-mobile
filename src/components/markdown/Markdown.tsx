@@ -14,7 +14,26 @@ import { CodeBlock } from "./CodeBlock"
 // own FlatList (app/session/[id].tsx), so every markdown text node hits
 // this. Code content is still copyable via CodeBlock's explicit Copy
 // button, so dropping `selectable` on plain text costs little.
-class CustomRenderer extends Renderer {
+// Exported so the key generation can be driven directly (repro/verification
+// harness, issue #255) without rendering the component.
+export class CustomRenderer extends Renderer {
+  // Base Renderer generates every React key via github-slugger, slugging the
+  // same constant string ("react-native-marked-ele") on every call — one new
+  // property on the slugger's `occurrences` object per rendered node in a
+  // single parse. Past 196,607 nodes Hermes throws RangeError "Property
+  // storage exceeds 196607 properties" (issue #255, Sentry
+  // OPENCODE-MOBILE-Q). Keys only need to be unique within a parse, so use
+  // a cheap counter instead: no per-node storage, no limit to hit. Every
+  // base method (list/link/image/table/code/paragraph/...) calls
+  // `this.getKey()`, so this one override covers all of them. The renderer
+  // is created fresh per `children` value (below), so the counter restarts
+  // per parse and keys stay stable for a given value.
+  private keyCounter = 0
+
+  getKey(): string {
+    return `markdown-key-${this.keyCounter++}`
+  }
+
   private plainText(children: string | ReactNode[], styles?: StyleProp<TextStyle>): ReactNode {
     return (
       <Text key={this.getKey()} style={styles}>
@@ -132,13 +151,11 @@ export function Markdown({ children }: Props) {
   const isDark = useColorScheme() === "dark"
   const theme = isDark ? darkTheme : lightTheme
 
-  // A module-scope singleton renderer would share one CustomRenderer (and
-  // its underlying github-slugger) across every Markdown instance and every
-  // streamed token forever. github-slugger never resets, so its heading-slug
-  // keys only ever climb — which fed into useMarkdown's memoized parser and
-  // made the emitted React keys change on every token, remounting the whole
-  // subtree (resetting code-block scroll position, flashing content). Scoping
-  // the renderer to `children` resets the slugger per parse, so keys are
+  // A module-scope singleton renderer would share one CustomRenderer across
+  // every Markdown instance and every streamed token forever, so the emitted
+  // React keys would change on every token and remount the whole subtree
+  // (resetting code-block scroll position, flashing content). Scoping the
+  // renderer to `children` restarts the key counter per parse, so keys are
   // deterministic (and stable) for a given value, while re-renders with an
   // unchanged value stay memoized instead of creating a new renderer.
   const renderer = useMemo(() => new CustomRenderer(), [children])
