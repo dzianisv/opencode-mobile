@@ -441,11 +441,14 @@ export function createV1Client(config: ClientConfig) {
 
       get: (sessionID: string) => request<Session>(config, `/session/${sessionID}`),
 
-      create: (params?: { title?: string }) =>
-        request<Session>(config, "/session", {
+      create: (params?: { title?: string; directory?: string }) => {
+        const body: Record<string, unknown> = { ...(params || {}) }
+        delete body.directory
+        return request<Session>(config, "/session", {
           method: "POST",
-          body: JSON.stringify(params || {}),
-        }),
+          body: JSON.stringify(body),
+        })
+      },
 
       delete: (sessionID: string) => request<void>(config, `/session/${sessionID}`, { method: "DELETE" }),
 
