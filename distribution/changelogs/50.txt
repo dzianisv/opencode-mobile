@@ -1,0 +1,9 @@
+v0.4.23 — Chat crash fix and F-Droid build parity
+
+• Fixed a crash that could freeze the app while a chat message
+  re-rendered.
+• Fixed the F-Droid build dropping the in-app review module — it now
+  builds with the same parts as the Play version.
+• Opening a v2 session now uses that session's own folder.
+• The APK downloaded from GitHub now has its own version number,
+  distinct from the Play Store build.
