@@ -483,6 +483,14 @@ jobs:
         # step FAILS LOUDLY (the upload already happened — a red run is the
         # alarm). Runs only on the tag (push) path and only after a green
         # upload (no `if: always()`).
+        # Issue #266 (AC2): also record the Play AAB's built debug id
+        # ($BUILT_DEBUG_ID, persisted by the verify step above from the
+        # just-built AAB+map) alongside the versionCode, so a Sentry event
+        # can be traced to this exact build while the three builds still
+        # share one Sentry release+dist. The verify step already fails the
+        # job if the id cannot be extracted, so by the time this step runs
+        # it is always set; `:-unknown` only guards against a future
+        # reorder of the steps.
         if: ${{ github.event_name == 'push' }}
         env:
           GH_TOKEN: ${{ github.token }}
@@ -511,7 +519,7 @@ jobs:
             exit 1
           fi
           gh api "repos/${{ github.repository }}/releases/${RELEASE_ID}" --jq '.body // ""' > /tmp/release-body.txt
-          export ROLLOUT_LINE="Rollout: fraction ${FRACTION} — versionCode ${VERSION_CODE} — status ${STATUS_VALUE}"
+          export ROLLOUT_LINE="Rollout: fraction ${FRACTION} — versionCode ${VERSION_CODE} — status ${STATUS_VALUE} — Play debug id ${BUILT_DEBUG_ID:-unknown}"
           python3 - <<'PYEOF'
           import json, os
           old = open("/tmp/release-body.txt").read()
