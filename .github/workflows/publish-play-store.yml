@@ -178,7 +178,25 @@ jobs:
         # `sentry-dbid-<uuid>` marker against the Debug ID of the built
         # release source map (path per @react-native/gradle-plugin:
         # generated/sourcemaps/react/<variant>/index.android.bundle.map).
-        run: node scripts/verify-release-bundle.mjs android/app/build/outputs/bundle/release/app-release.aab android/app/build/generated/sourcemaps/react/release/index.android.bundle.map
+        # Issue #265: persist the just-built debug id for the server-side
+        # identity check below ("Verify Sentry artifacts for release").
+        # verify-release-bundle.mjs already prints
+        # `debug id: bundle <id>, source map <id>` for the AAB+map (and
+        # exits non-zero if the two disagree), so capture its output and
+        # extract the bundle id into $GITHUB_ENV as BUILT_DEBUG_ID. A
+        # missing/unparsable id fails the step — never let a publish run
+        # continue to the verify step with no built id to check against.
+        run: |
+          set -euo pipefail
+          OUTPUT="$(node scripts/verify-release-bundle.mjs android/app/build/outputs/bundle/release/app-release.aab android/app/build/generated/sourcemaps/react/release/index.android.bundle.map)"
+          echo "$OUTPUT"
+          BUILT_DEBUG_ID="$(printf '%s\n' "$OUTPUT" | sed -nE 's/^debug id: bundle ([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}), source map .*/\1/p')"
+          if [ -z "$BUILT_DEBUG_ID" ]; then
+            echo "::error::could not extract the built bundle debug id from verify-release-bundle.mjs output"
+            exit 1
+          fi
+          echo "BUILT_DEBUG_ID=$BUILT_DEBUG_ID" >> "$GITHUB_ENV"
+          echo "Built Sentry debug id: $BUILT_DEBUG_ID"
 
       - name: Upload native debug symbols to Sentry
         # Issue #232: nothing ever uploaded the native (.so) debug symbols -
@@ -247,6 +265,23 @@ jobs:
         # local-only), so query the Sentry API's project debug-files (dsyms)
         # endpoint with the same SENTRY_AUTH_TOKEN; a non-200 response or an
         # empty list fails the job. No continue-on-error on purpose.
+        # Issue #265: the (i) check below is an IDENTITY check, not an
+        # existence check. A tag push triggers three workflows (Play AAB
+        # here, CI APK in build.yml, F-Droid APK in publish-fdroid.yml)
+        # that all upload a bundle under the SAME release+dist, each with
+        # a different debug id — so "first bundle for this release+dist"
+        # used to match a sibling build and pass (0.4.22: built 95a40809,
+        # verify matched the F-Droid bundle's 656f154e and passed). The
+        # step now requires a matched bundle's shared debug id to equal
+        # $BUILT_DEBUG_ID (persisted above from the just-built AAB+map),
+        # and checks EVERY bundle matching release+dist instead of taking
+        # the first. More than one match only warns: sibling uploads
+        # legitimately collide on release+dist, so failing on count alone
+        # would fail every publish by design — the debug-id match is the
+        # gate. NOTE: this fix alone does NOT restore symbolication.
+        # Uploaded bundles since 0.4.16 do not survive in Sentry (the
+        # vanishing mechanism is still unidentified, issue #265), so this
+        # step will correctly FAIL publishes until that is resolved.
         run: |
           set -euo pipefail
           echo "Verifying Sentry artifacts for release $SENTRY_RELEASE (dist $SENTRY_DIST)"
@@ -266,56 +301,98 @@ jobs:
               print('::error::unexpected artifact-bundles response (not a JSON list)', file=sys.stderr)
               sys.exit(2)
           want_release, want_dist = os.environ['SENTRY_RELEASE'], os.environ['SENTRY_DIST']
+          matches = []
           for bundle in data:  # API sorts newest first
               for assoc in bundle.get('associations', []):
                   if assoc.get('release') == want_release and assoc.get('dist') == want_dist:
-                      print(f"Matched artifact bundle {bundle['bundleId']} "
-                            f"(fileCount={bundle.get('fileCount')}, date={bundle.get('date')})",
-                            file=sys.stderr)
-                      print(bundle['bundleId'])
-                      sys.exit(0)
-          print(f'::error::no artifact bundle associated with release {want_release} dist {want_dist}',
-                file=sys.stderr)
-          sys.exit(1)
+                      matches.append(bundle)
+                      break
+          if not matches:
+              print(f'::error::no artifact bundle associated with release {want_release} dist {want_dist}',
+                    file=sys.stderr)
+              sys.exit(1)
+          for bundle in matches:
+              print(f"Matched artifact bundle {bundle['bundleId']} "
+                    f"(fileCount={bundle.get('fileCount')}, date={bundle.get('date')})",
+                    file=sys.stderr)
+          if len(matches) > 1:
+              # Sibling workflows upload different builds under the same
+              # release+dist (issue #265) — a count alone proves nothing,
+              # so this warns and the debug-id check below decides.
+              print(f"::warning::{len(matches)} artifact bundles match release {want_release} "
+                    f"dist {want_dist} — sibling builds collide on release+dist; "
+                    "matching on the built debug id, not on order", file=sys.stderr)
+          for bundle in matches:
+              print(bundle['bundleId'])
           PY
-          BUNDLE_ID="$(python3 /tmp/sentry-find-bundle.py)"
-          echo "Artifact bundle ID: $BUNDLE_ID"
-          # (i-b) List the matched bundle's files; require the bundle and its
-          # source map, linked by one shared non-empty debug id.
-          HTTP_CODE="$(curl -sS -o /tmp/sentry-bundle-files.json -w '%{http_code}' \
-            -G --data-urlencode "per_page=100" \
-            -H "Authorization: Bearer ${SENTRY_AUTH_TOKEN}" \
-            "https://sentry.io/api/0/projects/${SENTRY_ORG}/${SENTRY_PROJECT}/artifact-bundles/${BUNDLE_ID}/files/")"
-          if [ "$HTTP_CODE" != "200" ]; then
-            echo "::error::Sentry artifact-bundle files API returned HTTP $HTTP_CODE"
+          MATCHED_BUNDLE_IDS="$(python3 /tmp/sentry-find-bundle.py)"
+          echo "Artifact bundles matching release $SENTRY_RELEASE dist $SENTRY_DIST:"
+          printf '%s\n' "$MATCHED_BUNDLE_IDS" | sed 's/^/  /'
+          # (i-b) Check every matched bundle's files; pass only if one of
+          # them carries the JUST-BUILT debug id (issue #265). A bundle
+          # from a sibling workflow (different debug id) or a malformed
+          # bundle is skipped with a warning — it is not this build, so
+          # it cannot prove this build is symbolicated. An API (non-200)
+          # failure is still a hard failure: an unreadable candidate must
+          # never be skipped silently.
+          if [ -z "${BUILT_DEBUG_ID:-}" ]; then
+            echo "::error::BUILT_DEBUG_ID is empty — the built bundle debug id was not persisted; refusing to verify against an unknown build"
             exit 1
           fi
+          echo "Built debug id to match: $BUILT_DEBUG_ID"
           cat > /tmp/sentry-check-bundle-files.py <<'PY'
           import json, sys
           data = json.load(open('/tmp/sentry-bundle-files.json'))
           files = data.get('files')
           if not isinstance(files, list):
-              print('::error::unexpected artifact-bundle files response (no files list)', file=sys.stderr)
+              print('unexpected artifact-bundle files response (no files list)', file=sys.stderr)
               sys.exit(2)
           by_path = {f.get('filePath'): f for f in files}
           for path in ('~/index.android.bundle', '~/index.android.bundle.map'):
               entry = by_path.get(path)
               if entry is None:
-                  print(f'::error::{path} not present in artifact bundle', file=sys.stderr)
+                  print(f'{path} not present in artifact bundle', file=sys.stderr)
                   sys.exit(1)
               print(f"Found {path} (size={entry.get('fileSize')}, "
-                    f"debugId={entry.get('debugId')}, sourcemap={entry.get('sourcemap')})")
+                    f"debugId={entry.get('debugId')}, sourcemap={entry.get('sourcemap')})",
+                    file=sys.stderr)
           bundle_id = by_path['~/index.android.bundle'].get('debugId')
           map_id = by_path['~/index.android.bundle.map'].get('debugId')
           if not bundle_id or not map_id:
-              print('::error::bundle or source map is missing its debug id', file=sys.stderr)
+              print('bundle or source map is missing its debug id', file=sys.stderr)
               sys.exit(1)
           if bundle_id != map_id:
-              print(f'::error::debug id mismatch: bundle {bundle_id} vs map {map_id}', file=sys.stderr)
+              print(f'debug id mismatch within bundle: bundle {bundle_id} vs map {map_id}', file=sys.stderr)
               sys.exit(1)
-          print(f'JS bundle + source map verified, shared debug id {bundle_id}')
+          print(bundle_id)
           PY
-          python3 /tmp/sentry-check-bundle-files.py
+          MATCHED_BUNDLE_ID=""
+          for BUNDLE_ID in $MATCHED_BUNDLE_IDS; do
+            echo "Checking artifact bundle $BUNDLE_ID..."
+            HTTP_CODE="$(curl -sS -o /tmp/sentry-bundle-files.json -w '%{http_code}' \
+              -G --data-urlencode "per_page=100" \
+              -H "Authorization: Bearer ${SENTRY_AUTH_TOKEN}" \
+              "https://sentry.io/api/0/projects/${SENTRY_ORG}/${SENTRY_PROJECT}/artifact-bundles/${BUNDLE_ID}/files/")"
+            if [ "$HTTP_CODE" != "200" ]; then
+              echo "::error::Sentry artifact-bundle files API returned HTTP $HTTP_CODE for bundle $BUNDLE_ID"
+              exit 1
+            fi
+            if SHARED_DEBUG_ID="$(python3 /tmp/sentry-check-bundle-files.py)"; then
+              echo "Artifact bundle $BUNDLE_ID: shared debug id $SHARED_DEBUG_ID"
+              if [ "$SHARED_DEBUG_ID" = "$BUILT_DEBUG_ID" ]; then
+                MATCHED_BUNDLE_ID="$BUNDLE_ID"
+                break
+              fi
+              echo "::warning::artifact bundle $BUNDLE_ID carries debug id $SHARED_DEBUG_ID, not the built debug id $BUILT_DEBUG_ID — sibling build, skipping"
+            else
+              echo "::warning::artifact bundle $BUNDLE_ID is not a usable candidate for this release, skipping"
+            fi
+          done
+          if [ -z "$MATCHED_BUNDLE_ID" ]; then
+            echo "::error::no artifact bundle for release $SENTRY_RELEASE dist $SENTRY_DIST carries the built debug id $BUILT_DEBUG_ID — the shipped bundle is not symbolicated (see issue #265)"
+            exit 1
+          fi
+          echo "JS bundle + source map verified: artifact bundle $MATCHED_BUNDLE_ID carries the built debug id $BUILT_DEBUG_ID"
           HTTP_CODE="$(curl -sS -o /tmp/sentry-dsyms.json -w '%{http_code}' \
             -H "Authorization: Bearer ${SENTRY_AUTH_TOKEN}" \
             "https://sentry.io/api/0/projects/${SENTRY_ORG}/${SENTRY_PROJECT}/files/dsyms/")"
@@ -327,7 +404,7 @@ jobs:
             echo "::error::no native debug files stored for project $SENTRY_PROJECT"
             exit 1
           }
-          echo "Sentry artifacts verified for $SENTRY_RELEASE: bundle + source map in artifact bundle $BUNDLE_ID (shared debug id), native debug files present."
+          echo "Sentry artifacts verified for $SENTRY_RELEASE: bundle + source map in artifact bundle $MATCHED_BUNDLE_ID (built debug id $BUILT_DEBUG_ID), native debug files present."
 
       - name: Upload AAB artifact
         uses: actions/upload-artifact@v7
