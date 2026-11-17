@@ -83,38 +83,28 @@ jobs:
           fi
 
       - name: Build APK
+        # Gradle signs v1+v2-only via the committed android/app/build.gradle
+        # flags (signingConfigs.release: enableV3Signing/enableV4Signing
+        # false — androguard, used by fdroidserver, crashes parsing a v2+v3
+        # signature block pair). `npx expo prebuild` leaves
+        # android/app/build.gradle byte-identical (verified on dev-1:
+        # sha256 unchanged, flags intact at lines 146-147), so the committed
+        # flags survive the prebuild step above.
+        #
+        # Do NOT re-sign with the `apksigner` CLI here: apksigner rewrites
+        # Zipflinger's 2-byte zero alignment padding into 0xD935 zipalign
+        # extra fields, shifting local-header offsets and breaking F-Droid's
+        # reproducible-build v2 digest — see issue #95 / pipeline 3081125466.
+        # Same layout hazard as build-fdroid in build.yml.
         working-directory: android
         run: ./gradlew assembleRelease
-
-      - name: Re-sign APK v1+v2 only (drop v3/v4 for fdroidserver compatibility)
-        if: ${{ env.RELEASE_STORE_FILE != '' }}
-        run: |
-          # androguard (used by fdroidserver) crashes parsing a v2+v3 signature
-          # block pair: "'NoOverwriteDict' object has no attribute 'append'".
-          # expo prebuild regenerates build.gradle, so we can't rely on the
-          # gradle signing flags surviving — force v1+v2-only here deterministically.
-          APK=android/app/build/outputs/apk/release/app-release.apk
-          APKSIGNER=$(ls "$ANDROID_HOME"/build-tools/*/apksigner | sort -V | tail -1)
-          echo "Using $APKSIGNER"
-          "$APKSIGNER" sign \
-            --ks android/app/release.keystore \
-            --ks-pass "pass:${RELEASE_STORE_PASSWORD}" \
-            --ks-key-alias "${RELEASE_KEY_ALIAS}" \
-            --key-pass "pass:${RELEASE_KEY_PASSWORD}" \
-            --v1-signing-enabled true \
-            --v2-signing-enabled true \
-            --v3-signing-enabled false \
-            --v4-signing-enabled false \
-            "$APK"
-          echo "=== signature schemes after re-sign ==="
-          "$APKSIGNER" verify -v "$APK" | grep -i "Verified using" || true
 
       - name: Install fdroidserver
         # androguard version matters. 4.1.4 crashes extracting the signer cert
         # ("'NoOverwriteDict' object has no attribute 'append'" in
         # parse_v2_v3_signature) — this is what broke the publish from v0.4.2 on.
         # 4.1.3 is the version that successfully published v0.3.2–v0.4.1 and parses
-        # our (v1+v2-only, re-signed above) APK cleanly — verified locally against
+        # our (v1+v2-only, Gradle-signed) APK cleanly — verified locally against
         # the release APK via fdroidserver.common.get_first_signer_certificate.
         run: pip install "fdroidserver==2.4.4" "androguard==4.1.3"
 
