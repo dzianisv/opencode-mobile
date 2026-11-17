@@ -85,6 +85,46 @@ jobs:
           echo "SENTRY_DIST=${VERSION}" >> "$GITHUB_ENV"
           echo "Sentry release=opencode-mobile@${VERSION} dist=${VERSION}"
 
+      - name: Derive CI versionCode/versionName
+        # Issue #266: this job used to build at the repo versionCode (49) —
+        # the same code the Play AAB's source tree carries — while shipping a
+        # DIFFERENT JS bundle (different debug id) than the Play AAB. Same
+        # versionCode, different builds: the CI APK went out on the GitHub
+        # release (184 downloads at v0.4.22) indistinguishable from the Play
+        # build, and a fix verified against one build was not proven against
+        # the other. Give every CI build its own Android identity:
+        #   versionCode = 1_000_000 + github.run_number
+        #   versionName = <expo.version>-ci.<github.run_number>
+        #     (via expo.android.version — config-plugins reads
+        #     config.android.version, NOT android.versionName, for the
+        #     Gradle versionName; verified by a local prebuild run)
+        # The ranges are disjoint by construction, so this can never collide
+        # with Play's run_number+100 scheme (publish-play-store.yml, 162 for
+        # 0.4.22) or with the repo versionCode 49: Play reaches 1,000,000 only
+        # after ~999,900 publishes, and CI stays below Android's
+        # 2,100,000,000 cap for ~2.1B runs. github.run_number is monotonic
+        # per workflow, so each CI APK is also an upgrade over the previous
+        # one for sideload users. In-workflow only (app.json is NOT committed
+        # with these values), so `npm run check:versions` in the test job —
+        # which pins the committed 49 to distribution/changelogs/49.txt —
+        # keeps passing unchanged.
+        # The build-fdroid job in this workflow is deliberately NOT touched:
+        # its APK is F-Droid's Binaries: reference (metadata.yml) and must
+        # carry the repo versionCode 49 so F-Droid's from-source rebuild
+        # compares against the same code; publish-fdroid.yml stays at 49 for
+        # the same reason (its repo users upgrade off versionCode).
+        # SENTRY_DIST is deliberately NOT changed here: the runtime reports
+        # dist=<expo.version> (src/lib/sentry.ts), so an upload-side-only
+        # discriminator would repeat the #265 release/dist mismatch and break
+        # symbolication lookup for CI builds. The Sentry release+dist
+        # collision across the three builds remains a known residual — see
+        # the PR body — to be closed by a lockstep runtime+upload dist
+        # change on the #265 track.
+        run: |
+          node -e "const f='app.json';const j=require('./'+f);const v=j.expo.version;j.expo.android=j.expo.android||{};j.expo.android.versionCode=1000000+${{ github.run_number }};j.expo.android.version=v+'-ci.'+${{ github.run_number }};require('fs').writeFileSync(f,JSON.stringify(j,null,2)+'\n')"
+          echo "CI versionCode: $(node -p "require('./app.json').expo.android.versionCode")"
+          echo "CI versionName: $(node -p "require('./app.json').expo.android.version")"
+
       - name: Expo prebuild
         run: npx expo prebuild --platform android --no-install
 
