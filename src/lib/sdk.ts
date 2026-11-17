@@ -544,12 +544,24 @@ function createV2Client(config: ClientConfig) {
 
       get: getSession,
 
-      create: async (params?: { title?: string }): Promise<Session> => {
-        const body = await request<{ data: V2SessionInfo }>(config, "/api/session", {
+      create: async (params?: { title?: string; directory?: string; location?: { directory: string } }): Promise<Session> => {
+        const body: Record<string, unknown> = { ...(params || {}) }
+        // v2 creates a session at an explicit location. Older callers (and the
+        // directory-scoped clients built via clientForDirectory) rely on the
+        // client's configured directory, so default to it when no location is
+        // given. `directory` is an app-level shorthand that maps to location.
+        if (!body.location) {
+          const dir = params?.directory ?? config.directory
+          if (dir) body.location = { directory: dir }
+        }
+        // `directory` is not part of the v2 request schema (additionalProperties
+        // is false), so strip it after converting to `location`.
+        delete body.directory
+        const response = await request<{ data: V2SessionInfo }>(config, "/api/session", {
           method: "POST",
-          body: JSON.stringify(params || {}),
+          body: JSON.stringify(body),
         })
-        return toSession(body.data)
+        return toSession(response.data)
       },
 
       delete: (sessionID: string) => request<void>(config, `/api/session/${sessionID}`, { method: "DELETE" }),

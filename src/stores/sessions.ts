@@ -51,7 +51,7 @@ interface SessionsState {
   loadChildren: (parentID: string) => Promise<void>
   selectSession: (sessionID: string, directory?: string) => Promise<void>
   loadOlderMessages: () => Promise<void>
-  createSession: (title?: string) => Promise<Session | null>
+  createSession: (title?: string, directory?: string) => Promise<Session | null>
   deleteSession: (sessionID: string) => Promise<void>
   sendMessage: (
     text: string,
@@ -246,16 +246,16 @@ export const useSessions = create<SessionsState>((set, get) => ({
     }
   },
 
-  createSession: async (title) => {
+  createSession: async (title, directory) => {
     const connState = useConnections.getState()
-    const client = connState.client
+    const client = directory ? (connState.clientForDirectory(directory) ?? connState.client) : connState.client
     if (!client) {
       set({ error: "No active connection" })
       return null
     }
 
     try {
-      const created = await client.session.create({ title })
+      const created = await client.session.create({ title, ...(directory ? { directory } : {}) })
       // Don't optimistically add to sessions list — let loadSessions() handle it
       // to avoid duplicate key errors from race conditions
       set({

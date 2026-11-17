@@ -352,7 +352,7 @@ export default function SessionsScreen() {
         const dirClient = clientForDirectory(dir.trim())
         if (!dirClient) return
         try {
-          const session = await dirClient.session.create({})
+          const session = await dirClient.session.create({ directory: dir.trim() })
           addRecentDirectory(dir.trim())
           setShowNewSession(false)
           setCustomDir("")
