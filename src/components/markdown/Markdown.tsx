@@ -1,7 +1,8 @@
 import { useMemo, type ReactNode } from "react"
-import { View, Text, useColorScheme, Platform, type StyleProp, type ViewStyle, type TextStyle } from "react-native"
+import { View, Text, useColorScheme, Platform, type ImageStyle, type StyleProp, type ViewStyle, type TextStyle } from "react-native"
 import { useMarkdown, Renderer } from "react-native-marked"
 import { CodeBlock } from "./CodeBlock"
+import { MarkdownImage } from "./MarkdownImage"
 
 // react-native-marked's base Renderer hardcodes `selectable` on every plain
 // text node it produces (text/strong/em/del/heading/codespan). On Android,
@@ -72,6 +73,18 @@ export class CustomRenderer extends Renderer {
 
   codespan(text: string, styles?: TextStyle): ReactNode {
     return this.plainText(text, [styles, { fontStyle: "normal", fontWeight: "normal" }])
+  }
+
+  image(uri: string, alt?: string, style?: ImageStyle, title?: string): ReactNode {
+    // .svg keeps the library's MDSvg — its fetch effect is already scoped
+    // to [uri], so it does not loop.
+    if (uri.endsWith(".svg")) return super.image(uri, alt, style, title)
+    // Non-SVG images must NOT use the library's MDImage: its size-fetch
+    // effect has no dependency array, so it refetches and setStates after
+    // every render — an unbounded re-render loop that trips React's
+    // "Maximum update depth exceeded" guard (issue #262, Sentry S/T).
+    // MarkdownImage is the same rendering with the fetch scoped to [uri].
+    return <MarkdownImage key={this.getKey()} uri={uri} alt={alt || title} style={style} />
   }
 }
 
