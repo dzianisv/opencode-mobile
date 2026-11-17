@@ -2,6 +2,7 @@ import { create } from "zustand"
 import { ApiError, type Session, type Message, type Part, type Event, type MessageWithParts, type Client } from "../lib/sdk"
 import { useConnections } from "./connections"
 import { useSettings } from "./settings"
+import { useCatalog } from "./catalog"
 import { addBreadcrumb } from "../lib/sentry"
 import { AnalyticsEvent, track } from "../lib/analytics"
 import { extractPromptFromParts, type PromptFromParts } from "../lib/prompt-from-parts"
@@ -301,6 +302,12 @@ export const useSessions = create<SessionsState>((set, get) => ({
       return
     }
 
+    // Drop an agent name that isn't part of this project's catalog (stale
+    // selection after switching projects) so the server falls back to its
+    // default instead of erroring on an unknown agent.
+    const validAgent =
+      agent && useCatalog.getState().agents.some((a) => a.name === agent) ? agent : undefined
+
     try {
       set((state) => ({ sending: { ...state.sending, [session.id]: true }, error: null }))
       track(AnalyticsEvent.MessageSent)
@@ -313,7 +320,7 @@ export const useSessions = create<SessionsState>((set, get) => ({
         role: "user",
         time: { created: ts },
         model,
-        agent,
+        agent: validAgent,
       }
       const optimisticParts: Part[] = []
       if (text) {
@@ -360,7 +367,7 @@ export const useSessions = create<SessionsState>((set, get) => ({
       // Await submission (POST to /prompt_async resolves fast, well before the
       // streamed response) so a failure here can propagate to the caller — SSE
       // events still update messages/parts/status in real-time on success.
-      await client.session.prompt(session.id, { parts: promptParts, model, agent, variant })
+      await client.session.prompt(session.id, { parts: promptParts, model, agent: validAgent, variant })
     } catch (err) {
       console.error("[sendMessage] error:", err)
       const stillCurrent = get().currentSession?.id === session.id
