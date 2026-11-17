@@ -3,7 +3,7 @@
     "name": "OpenCode",
     "slug": "opencode-mobile",
     "version": "0.4.22",
-    "orientation": "portrait",
+    "orientation": "default",
     "scheme": "opencode",
     "userInterfaceStyle": "automatic",
     "icon": "./assets/icon.png",
