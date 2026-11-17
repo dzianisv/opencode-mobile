@@ -156,9 +156,10 @@ jobs:
 
   # F-Droid rebuilds this app from source using the recipe in
   # distribution/fdroid-submission/metadata.yml (Builds:), which applies
-  # fdroid/expo-application-patches and fdroid/expo-notifications-patches to
-  # strip Firebase Cloud Messaging / Play Install Referrer / Sentry before
-  # compiling. If we only ever publish the full-featured `app-release.apk`
+  # fdroid/expo-application-patches, fdroid/expo-notifications-patches and
+  # fdroid/expo-store-review-patches to
+  # strip Firebase Cloud Messaging / Play Install Referrer / Play In-App Review
+  # / Sentry before compiling. If we only ever publish the full-featured `app-release.apk`
   # (built above, unpatched) and metadata.yml's `Binaries:` points at it,
   # F-Droid's reproducible-build check compares its from-source (patched)
   # rebuild against that (unpatched) reference binary and can never match —
@@ -262,6 +263,15 @@ jobs:
           sed -i '/installreferrer/d' node_modules/expo-application/android/build.gradle
           cp -a fdroid/expo-application-patches/. \
             node_modules/expo-application/android/src/main/java/expo/modules/application/
+
+          # Strip Google Play In-App Review (Play-only APIs) from expo-store-review.
+          # Without this, F-Droid's scanner deletes the module's whole build.gradle
+          # (usual-suspect hit + `scandelete: node_modules`) and the reference
+          # binary keeps the Play Review code/resources, so the reproducible-build
+          # comparison can never match — see issue #95.
+          sed -i '/play:review/d; /play-services-base/d' node_modules/expo-store-review/android/build.gradle
+          cp -a fdroid/expo-store-review-patches/. \
+            node_modules/expo-store-review/android/src/main/java/expo/modules/storereview/
 
       - name: Setup signing
         run: |

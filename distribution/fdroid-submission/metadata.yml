@@ -21,9 +21,9 @@ Binaries:
   https://github.com/dzianisv/opencode-mobile/releases/download/v%v/app-release-fdroid.apk
 
 Builds:
-  - versionName: 0.4.21
-    versionCode: 48
-    commit: d7230d8fc8ce75d48e77cc4649e6a474ae5fc82c
+  - versionName: 0.4.22
+    versionCode: 49
+    commit: ec0766cba712227b294ea48ba64f8c890f8c369e
     subdir: android/app
     sudo:
       - apt-get update
@@ -49,6 +49,8 @@ Builds:
         node_modules/expo-notifications/android/src/main/java/expo/modules/notifications/notifications/model/triggers/FirebaseNotificationTrigger.kt
       - sed -i '/installreferrer/d' node_modules/expo-application/android/build.gradle
       - cp -a fdroid/expo-application-patches/. node_modules/expo-application/android/src/main/java/expo/modules/application/
+      - sed -i '/play:review/d; /play-services-base/d' node_modules/expo-store-review/android/build.gradle
+      - cp -a fdroid/expo-store-review-patches/. node_modules/expo-store-review/android/src/main/java/expo/modules/storereview/
     scanignore:
       - node_modules/expo-modules-autolinking/scripts/android/autolinking_implementation.gradle
       - node_modules/expo-modules-core/android/ExpoModulesCorePlugin.gradle
@@ -66,5 +68,5 @@ AllowedAPKSigningKeys: 0c259d94e0ffea5d6319614b229d4b6bdc22de1f56e38e76948398d2d
 
 AutoUpdateMode: Version
 UpdateCheckMode: Tags
-CurrentVersion: 0.4.21
-CurrentVersionCode: 48
+CurrentVersion: 0.4.22
+CurrentVersionCode: 49
