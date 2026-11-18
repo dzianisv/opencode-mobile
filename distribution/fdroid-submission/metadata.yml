@@ -21,9 +21,9 @@ Binaries:
   https://github.com/dzianisv/opencode-mobile/releases/download/v%v/app-release-fdroid.apk
 
 Builds:
-  - versionName: 0.4.22
-    versionCode: 49
-    commit: ec0766cba712227b294ea48ba64f8c890f8c369e
+  - versionName: 0.4.24
+    versionCode: 51
+    commit: e2729965e956ce264e722c9f7514afc8176ddac2
     subdir: android/app
     sudo:
       - apt-get update
@@ -68,5 +68,5 @@ AllowedAPKSigningKeys: 0c259d94e0ffea5d6319614b229d4b6bdc22de1f56e38e76948398d2d
 
 AutoUpdateMode: Version
 UpdateCheckMode: Tags
-CurrentVersion: 0.4.22
-CurrentVersionCode: 49
+CurrentVersion: 0.4.24
+CurrentVersionCode: 51
