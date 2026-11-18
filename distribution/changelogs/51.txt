@@ -1,0 +1,5 @@
+v0.4.24 — F-Droid build now matches the Play build
+
+• The F-Droid APK is no longer re-signed after building, so F-Droid can
+  verify it against the release byte-for-byte.
+• Product Hunt launch materials added — no app change.

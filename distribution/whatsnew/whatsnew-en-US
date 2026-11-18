@@ -1,9 +1,5 @@
-v0.4.23 — Chat crash fix and F-Droid build parity
+v0.4.24 — F-Droid build now matches the Play build
 
-• Fixed a crash that could freeze the app while a chat message
-  re-rendered.
-• Fixed the F-Droid build dropping the in-app review module — it now
-  builds with the same parts as the Play version.
-• Opening a v2 session now uses that session's own folder.
-• The APK downloaded from GitHub now has its own version number,
-  distinct from the Play Store build.
+• The F-Droid APK is no longer re-signed after building, so F-Droid can
+  verify it against the release byte-for-byte.
+• Product Hunt launch materials added — no app change.
