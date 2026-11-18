@@ -57,11 +57,25 @@ jobs:
         # mismatch made every uploaded source map land under a release Sentry
         # never looks up, so symbolication silently failed. Pin the Gradle-side
         # values to exactly what the app reports.
+        # Dist (issue #269) is <expo.version>+<expo.android.versionCode>, the
+        # same formula the runtime builds in src/lib/sentry-dist.ts from the
+        # same app.json — so one release+dist identifies exactly one build.
+        # CODE here is the repo versionCode (51), never bumped in-workflow:
+        # F-Droid's buildserver rebuilds from the same source and must see
+        # the same dist. Repeat runs for one version therefore share dist
+        # 0.4.24+51; re-runs are distinguishable only by debug id (accepted
+        # residual, issue #269).
         run: |
+          set -euo pipefail
           VERSION=$(node -p "require('./app.json').expo.version")
+          CODE=$(node -p "require('./app.json').expo.android.versionCode")
+          if [ -z "$CODE" ] || [ "$CODE" = "undefined" ]; then
+            echo "::error::expo.android.versionCode is missing from app.json — cannot derive SENTRY_DIST"
+            exit 1
+          fi
           echo "SENTRY_RELEASE=opencode-mobile@${VERSION}" >> "$GITHUB_ENV"
-          echo "SENTRY_DIST=${VERSION}" >> "$GITHUB_ENV"
-          echo "Sentry release=opencode-mobile@${VERSION} dist=${VERSION}"
+          echo "SENTRY_DIST=${VERSION}+${CODE}" >> "$GITHUB_ENV"
+          echo "Sentry release=opencode-mobile@${VERSION} dist=${VERSION}+${CODE}"
 
       - name: Expo prebuild
         run: npx expo prebuild --platform android --no-install
