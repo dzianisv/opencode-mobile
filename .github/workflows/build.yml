@@ -293,30 +293,21 @@ jobs:
           fi
 
       - name: Build F-Droid-flavored APK
+        # Gradle signs v1+v2-only via the committed android/app/build.gradle
+        # flags (signingConfigs.release: enableV3Signing/enableV4Signing
+        # false — androguard, used by fdroidserver, crashes parsing a v2+v3
+        # signature block pair). This job does NOT run `npx expo prebuild`,
+        # it patches the committed android/ tree directly, so those flags
+        # survive here.
+        #
+        # Do NOT re-sign with the `apksigner` CLI here: apksigner rewrites
+        # Zipflinger's 2-byte zero alignment padding into 0xD935 zipalign
+        # extra fields, shifting local-header offsets and breaking F-Droid's
+        # reproducible-build v2 digest — the reference APK then never matches
+        # F-Droid's from-source rebuild even though all entries are
+        # byte-identical. See issue #95 / pipeline 3081125466.
         working-directory: android
         run: ./gradlew assembleRelease
-
-      - name: Re-sign APK v1+v2 only (drop v3/v4 for fdroidserver compatibility)
-        if: ${{ env.RELEASE_STORE_FILE != '' }}
-        run: |
-          # Same rationale as publish-fdroid.yml: androguard (used by
-          # fdroidserver) crashes parsing a v2+v3 signature block pair. Force
-          # v1+v2-only here deterministically.
-          APK=android/app/build/outputs/apk/release/app-release.apk
-          APKSIGNER=$(ls "$ANDROID_HOME"/build-tools/*/apksigner | sort -V | tail -1)
-          echo "Using $APKSIGNER"
-          "$APKSIGNER" sign \
-            --ks android/app/release.keystore \
-            --ks-pass "pass:${RELEASE_STORE_PASSWORD}" \
-            --ks-key-alias "${RELEASE_KEY_ALIAS}" \
-            --key-pass "pass:${RELEASE_KEY_PASSWORD}" \
-            --v1-signing-enabled true \
-            --v2-signing-enabled true \
-            --v3-signing-enabled false \
-            --v4-signing-enabled false \
-            "$APK"
-          echo "=== signature schemes after re-sign ==="
-          "$APKSIGNER" verify -v "$APK" | grep -i "Verified using" || true
 
       - name: Rename artifact
         run: cp android/app/build/outputs/apk/release/app-release.apk app-release-fdroid.apk
