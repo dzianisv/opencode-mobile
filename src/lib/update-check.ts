@@ -72,8 +72,27 @@ async function fetchLatestRelease(): Promise<AvailableUpdate | null> {
 }
 
 /**
+ * The package that installed this app, via the local InstallSource module
+ * (modules/install-source). Loaded lazily and only on Android: the module is
+ * Android-only, and importing it on iOS would throw at load time. Null when
+ * undetermined — the policy then treats the install as sideload.
+ */
+async function readInstallerPackageName(): Promise<string | null> {
+  try {
+    const { getInstallerPackageName } = await import("../../modules/install-source")
+    return await getInstallerPackageName()
+  } catch {
+    return null
+  }
+}
+
+/**
  * Returns the update the user should be told about, or null for "stay quiet".
  * Safe to call on every foreground: the 24h throttle lives in the policy.
+ * The destination URL is routed by install source in the policy (Play installs
+ * go to the Play listing, F-Droid installs get no prompt, sideload goes to
+ * GitHub) — the banner and the Settings row both read from here, so there is
+ * still exactly one choke point.
  */
 export async function checkForUpdate(options?: {
   force?: boolean
@@ -81,12 +100,14 @@ export async function checkForUpdate(options?: {
   ignoreDismissed?: boolean
 }): Promise<AvailableUpdate | null> {
   if (Platform.OS !== "android") return null
+  const installerPackageName = await readInstallerPackageName()
   return resolveUpdate({
     storage,
     fetchLatest: fetchLatestRelease,
     currentVersion: CURRENT_VERSION,
     force: options?.force,
     ignoreDismissed: options?.ignoreDismissed,
+    installerPackageName,
   })
 }
 
