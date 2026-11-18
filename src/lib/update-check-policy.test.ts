@@ -5,6 +5,7 @@ import {
   compareVersions,
   isNewer,
   parseVersion,
+  routeUpdateUrl,
   shouldCheck,
   shouldPrompt,
   resolveUpdate,
@@ -263,4 +264,90 @@ test("resolveUpdate: ignoreDismissed still reports a dismissed version (Settings
   })
 
   assert.equal(update?.version, "0.4.14")
+})
+
+test("routeUpdateUrl routes by installer (#276)", () => {
+  const githubUrl = "https://github.com/dzianisv/opencode-mobile/releases/latest"
+  assert.equal(
+    routeUpdateUrl("com.android.vending", githubUrl),
+    "https://play.google.com/store/apps/details?id=cc.agentlabs.opencode",
+  )
+  assert.equal(routeUpdateUrl("org.fdroid.fdroid", githubUrl), null)
+  // A sideloaded APK (system package installer) and an unknown installer
+  // keep the GitHub URL, exactly as before.
+  assert.equal(routeUpdateUrl("com.google.android.packageinstaller", githubUrl), githubUrl)
+  assert.equal(routeUpdateUrl(null, githubUrl), githubUrl)
+  assert.equal(routeUpdateUrl(undefined, githubUrl), githubUrl)
+})
+
+test("resolveUpdate: a Play install is sent to the Play Store listing, never GitHub (#276)", async () => {
+  const storage = memoryStorage()
+  const update = await resolveUpdate({
+    storage,
+    currentVersion: "0.4.10",
+    now: NOW,
+    installerPackageName: "com.android.vending",
+    fetchLatest: async () => ({
+      version: "0.4.14",
+      url: "https://github.com/dzianisv/opencode-mobile/releases/v0.4.14",
+    }),
+  })
+
+  assert.deepEqual(update, {
+    version: "0.4.14",
+    url: "https://play.google.com/store/apps/details?id=cc.agentlabs.opencode",
+  })
+  // Routing happens at return time: the cache keeps the fetched GitHub URL,
+  // so a later read on a different install source still routes correctly.
+  assert.deepEqual(JSON.parse(storage.data.get(LATEST_KEY) as string), {
+    version: "0.4.14",
+    url: "https://github.com/dzianisv/opencode-mobile/releases/v0.4.14",
+  })
+})
+
+test("resolveUpdate: an F-Droid install is never prompted (#276)", async () => {
+  const storage = memoryStorage()
+  const fetchLatest = async () => ({
+    version: "0.4.14",
+    url: "https://github.com/dzianisv/opencode-mobile/releases/v0.4.14",
+  })
+  // Banner path.
+  assert.equal(
+    await resolveUpdate({
+      storage,
+      currentVersion: "0.4.10",
+      now: NOW,
+      installerPackageName: "org.fdroid.fdroid",
+      fetchLatest,
+    }),
+    null,
+  )
+  // Settings row path (ignoreDismissed): still nothing — the row reports up to date.
+  assert.equal(
+    await resolveUpdate({
+      storage,
+      currentVersion: "0.4.10",
+      now: NOW,
+      installerPackageName: "org.fdroid.fdroid",
+      ignoreDismissed: true,
+      fetchLatest,
+    }),
+    null,
+  )
+})
+
+test("resolveUpdate: sideload and unknown installs still go to GitHub (#276)", async () => {
+  const githubUrl = "https://github.com/dzianisv/opencode-mobile/releases/v0.4.14"
+  const fetchLatest = async () => ({ version: "0.4.14", url: githubUrl })
+  for (const installerPackageName of ["com.google.android.packageinstaller", null, undefined]) {
+    const storage = memoryStorage()
+    const update = await resolveUpdate({
+      storage,
+      currentVersion: "0.4.10",
+      now: NOW,
+      installerPackageName,
+      fetchLatest,
+    })
+    assert.deepEqual(update, { version: "0.4.14", url: githubUrl })
+  }
 })
