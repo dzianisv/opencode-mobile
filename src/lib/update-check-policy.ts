@@ -31,6 +31,31 @@
  *      never prompt for a version that is not strictly newer. A false "update
  *      available" is worse than silence.
  *
+ * INSTALL SOURCE (#276) — where the user is sent depends on who installed the app
+ * ------------------------------------------------------------------------------
+ * AGE-110 assumed one GitHub APK installs over any install. The #268
+ * versionCode split broke that: the F-Droid APK (versionCode 51) sits below
+ * every Play build (Play v0.4.24 = 164), so Android refuses it as a
+ * downgrade; and Play App Signing may make the Play build carry a different
+ * cert than the GitHub APK, so even the main APK may fail over a Play
+ * install. A Play-installed user sent to GitHub (#276) gets "The update
+ * could not be completed" with no working path.
+ *
+ *   Play (com.android.vending)  -> Play Store listing. Play owns updates for
+ *                                  its installs; the listing is the only path
+ *                                  that can install over a Play build.
+ *   F-Droid (org.fdroid.fdroid, org.fdroid.basic) -> no prompt at all.
+ *                                  F-Droid manages its own updates, and a
+ *                                  GitHub APK cannot install over an
+ *                                  F-Droid-signed build anyway.
+ *   anything else / unknown     -> GitHub releases page, exactly as before.
+ *
+ * Routing is applied at return time, never at fetch/cache time, so a cached
+ * GitHub URL is re-routed per install source on every read. The installer
+ * package name comes from the local InstallSource module
+ * (modules/install-source, PackageManager.getInstallSourceInfo); when it
+ * cannot be determined the install is treated as sideload.
+ *
  * Everything here is pure so it runs under `node --test` with no React Native,
  * no network and no clock. The effectful half lives in update-check.ts.
  */
@@ -101,6 +126,32 @@ export const LATEST_KEY = "opencode_update_latest"
 
 export type AvailableUpdate = { version: string; url: string }
 
+/** The package that installed this app, as reported by the InstallSource module. */
+export type InstallerPackageName = string | null | undefined
+
+/** Play Store installer package. */
+export const PLAY_INSTALLER_PACKAGE = "com.android.vending"
+/** F-Droid installer packages: the official client and F-Droid Basic. */
+export const FDROID_INSTALLER_PACKAGES: ReadonlySet<string> = new Set([
+  "org.fdroid.fdroid",
+  "org.fdroid.basic",
+])
+/** Play Store listing for this app (package cc.agentlabs.opencode, unchanged). */
+export const PLAY_STORE_URL = "https://play.google.com/store/apps/details?id=cc.agentlabs.opencode"
+
+/**
+ * Where should this install be sent for the update? Returns null when no
+ * prompt should be shown at all (F-Droid manages its own updates).
+ *
+ * The https Play URL — not a market:// URI — because both callers open it
+ * with Linking.openURL, which is how the app already opens https links.
+ */
+export function routeUpdateUrl(installerPackageName: InstallerPackageName, githubUrl: string): string | null {
+  if (installerPackageName === PLAY_INSTALLER_PACKAGE) return PLAY_STORE_URL
+  if (installerPackageName && FDROID_INSTALLER_PACKAGES.has(installerPackageName)) return null
+  return githubUrl
+}
+
 /** The two storage calls this needs, injected so the logic stays testable. */
 export type UpdateStorage = {
   getItem: (key: string) => Promise<string | null>
@@ -130,6 +181,12 @@ export async function resolveUpdate(deps: {
    * "not now" means stop interrupting me, not lie to me when I go looking.
    */
   ignoreDismissed?: boolean
+  /**
+   * Installer package name from the InstallSource module, or null/undefined
+   * when unknown. Routes the update destination (see routeUpdateUrl);
+   * unknown behaves exactly as before (GitHub).
+   */
+  installerPackageName?: InstallerPackageName
 }): Promise<AvailableUpdate | null> {
   const now = deps.now ?? Date.now()
   try {
@@ -163,7 +220,11 @@ export async function resolveUpdate(deps: {
       })
     )
       return null
-    return latest
+    // Route the destination by install source (#276). F-Droid installs get
+    // no prompt at all; Play installs go to the Play listing.
+    const url = routeUpdateUrl(deps.installerPackageName, latest.url)
+    if (url === null) return null
+    return { version: latest.version, url }
   } catch {
     return null
   }
