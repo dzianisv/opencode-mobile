@@ -44,9 +44,10 @@
  *   Play (com.android.vending)  -> Play Store listing. Play owns updates for
  *                                  its installs; the listing is the only path
  *                                  that can install over a Play build.
- *   F-Droid (org.fdroid.fdroid) -> no prompt at all. F-Droid manages its own
- *                                  updates, and a GitHub APK cannot install
- *                                  over an F-Droid-signed build anyway.
+ *   F-Droid (org.fdroid.fdroid, org.fdroid.basic) -> no prompt at all.
+ *                                  F-Droid manages its own updates, and a
+ *                                  GitHub APK cannot install over an
+ *                                  F-Droid-signed build anyway.
  *   anything else / unknown     -> GitHub releases page, exactly as before.
  *
  * Routing is applied at return time, never at fetch/cache time, so a cached
@@ -130,8 +131,11 @@ export type InstallerPackageName = string | null | undefined
 
 /** Play Store installer package. */
 export const PLAY_INSTALLER_PACKAGE = "com.android.vending"
-/** F-Droid installer package. */
-export const FDROID_INSTALLER_PACKAGE = "org.fdroid.fdroid"
+/** F-Droid installer packages: the official client and F-Droid Basic. */
+export const FDROID_INSTALLER_PACKAGES: ReadonlySet<string> = new Set([
+  "org.fdroid.fdroid",
+  "org.fdroid.basic",
+])
 /** Play Store listing for this app (package cc.agentlabs.opencode, unchanged). */
 export const PLAY_STORE_URL = "https://play.google.com/store/apps/details?id=cc.agentlabs.opencode"
 
@@ -143,14 +147,9 @@ export const PLAY_STORE_URL = "https://play.google.com/store/apps/details?id=cc.
  * with Linking.openURL, which is how the app already opens https links.
  */
 export function routeUpdateUrl(installerPackageName: InstallerPackageName, githubUrl: string): string | null {
-  switch (installerPackageName) {
-    case PLAY_INSTALLER_PACKAGE:
-      return PLAY_STORE_URL
-    case FDROID_INSTALLER_PACKAGE:
-      return null
-    default:
-      return githubUrl
-  }
+  if (installerPackageName === PLAY_INSTALLER_PACKAGE) return PLAY_STORE_URL
+  if (installerPackageName && FDROID_INSTALLER_PACKAGES.has(installerPackageName)) return null
+  return githubUrl
 }
 
 /** The two storage calls this needs, injected so the logic stays testable. */

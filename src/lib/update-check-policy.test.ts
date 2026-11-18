@@ -336,6 +336,24 @@ test("resolveUpdate: an F-Droid install is never prompted (#276)", async () => {
   )
 })
 
+test("resolveUpdate: an F-Droid Basic install is never prompted (#276)", async () => {
+  const storage = memoryStorage()
+  const update = await resolveUpdate({
+    storage,
+    currentVersion: "0.4.10",
+    now: NOW,
+    installerPackageName: "org.fdroid.basic",
+    fetchLatest: async () => ({
+      version: "0.4.14",
+      url: "https://github.com/dzianisv/opencode-mobile/releases/v0.4.14",
+    }),
+  })
+
+  // F-Droid Basic is an F-Droid install: same trap as the main client — a
+  // GitHub APK cannot install over an F-Droid-signed build.
+  assert.equal(update, null)
+})
+
 test("resolveUpdate: sideload and unknown installs still go to GitHub (#276)", async () => {
   const githubUrl = "https://github.com/dzianisv/opencode-mobile/releases/v0.4.14"
   const fetchLatest = async () => ({ version: "0.4.14", url: githubUrl })
