@@ -1,13 +1,13 @@
 # Product Hunt — launch runbook for OpenCode Mobile
 
-Status: PREP ONLY, 2026-11-18. Nothing here has been posted. There is no
-Product Hunt account and no listing for OpenCode Mobile; do not create
-either from this prep — the launch itself is a later step, once prep is
-complete and a Tue–Thu window opens.
+Status: LAUNCH IN PROGRESS, 2026-11-19 (WITA). Unblock sweep 2026-11-18:
+the launch is not a Den blocker — the project account is created by the
+agent with the project Gmail (vibeteaichnologies@gmail.com). Launch
+scheduled for Thu Nov 19 12:01am PT.
 
 Product: OpenCode Mobile — free, open-source (MIT) Android client for
 OpenCode (v1 + v2). Package `cc.agentlabs.opencode` — never change it.
-Prod: v0.4.23 (Play 20% rollout, versionCode 163). Repo:
+Prod: v0.4.24 (Play 50% rollout, versionCode 164). Repo:
 github.com/dzianisv/opencode-mobile. Play:
 https://play.google.com/store/apps/details?id=cc.agentlabs.opencode.
 Docs site: https://dzianisv.github.io/opencode-mobile/
@@ -39,19 +39,19 @@ Developer Tools, Artificial Intelligence, Android
 
 ### First comment (posted by the maker, right after the listing goes live)
 
-> Hey — I'm Den, I build OpenCode Mobile.
+> Hey — we're the team behind OpenCode Mobile.
 >
-> What broke: my AI coding agent lived on my desk. OpenCode runs on my
-> workstation, and the moment I walked away from it — commute, couch,
-> coffee shop — I was blind. The agent kept working, but I couldn't see
-> it, steer it, or approve anything until I was back at my keyboard.
+> What broke: our AI coding agent lived on the desk. OpenCode runs on our
+> workstation, and the moment we walked away from it — commute, couch,
+> coffee shop — we were blind. The agent kept working, but we couldn't see
+> it, steer it, or approve anything until we were back at our keyboard.
 >
 > What changed: OpenCode Mobile puts the session in your pocket. Connect
 > your phone to the OpenCode server on your own machine and you can watch
 > the agent think token by token, review diffs before anything lands,
-> and approve or reject tool calls from anywhere. v0.4.23, live on Google
-> Play now, fixes the chat crash that killed long sessions and ships
-> F-Droid parity, so the open-source build is reproducible.
+> and approve or reject tool calls from anywhere. v0.4.24, live on Google
+> Play now, fixes the in-app update routing and ships F-Droid parity, so
+> the open-source build is reproducible.
 >
 > Why it matters: the agent works for you, not the other way round. You
 > don't need a laptop to stay in the loop on a long job — you need a
@@ -61,7 +61,7 @@ Developer Tools, Artificial Intelligence, Android
 > code, prompts, and API keys never leave your server — the app talks
 > only to the server you run.
 >
-> Happy to answer anything — and I'd genuinely like to know: if you run
+> Happy to answer anything — and we'd genuinely like to know: if you run
 > a coding agent, what would you want a phone client to do first?
 
 ## Where the content comes from
@@ -156,8 +156,8 @@ Investigated: Firebase Test Lab Robo-test video, project
 
 ## How the post is uploaded
 
-1. Create the Product Hunt account at launch time (maker account — not
-   part of this prep).
+1. Create the Product Hunt account at launch time (maker account —
+   project Gmail, created by the agent; see the launch Work Log row).
 2. New product: name "OpenCode Mobile", tagline + description from
    "Launch copy" above, links: Google Play listing + GitHub repo +
    docs site.
@@ -180,7 +180,8 @@ Investigated: Firebase Test Lab Robo-test video, project
 
 - Docs-site version bump: `llms.txt` says 0.4.22, prod is 0.4.23.
   That is a separate pick (tomorrow's), not this PR.
-- No Product Hunt account creation, no posting, no launch today.
+- Account creation + launch scheduling are in progress (unblock sweep
+  2026-11-18) — no longer out of scope.
 - No DevHunt, Show HN, or Reddit step in this PR (DevHunt
   UNCONFIRMED — no public page for the Android client exists in
   search, only the upstream OpenCode CLI's page).
