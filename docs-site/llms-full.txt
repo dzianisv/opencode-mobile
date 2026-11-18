@@ -1,6 +1,6 @@
 # OpenCode Mobile — full reference
 
-> OpenCode Mobile is the free, open-source Android client for the opencode AI coding agent. Connect your Android phone to your own opencode server and run AI coding sessions from anywhere: stream replies token by token, review file diffs, and approve tool calls before the agent executes them. Free, MIT licensed, no account, no ads, no telemetry unless you opt in. Available on Google Play, F-Droid, and as a direct APK. Current version 0.4.22, rated 4.65 out of 5 on Google Play. Android only, no iOS. Not affiliated with opencode.
+> OpenCode Mobile is the free, open-source Android client for the opencode AI coding agent. Connect your Android phone to your own opencode server and run AI coding sessions from anywhere: stream replies token by token, review file diffs, and approve tool calls before the agent executes them. Free, MIT licensed, no account, no ads, no telemetry unless you opt in. Available on Google Play, F-Droid, and as a direct APK. Current version 0.4.24, rated 4.65 out of 5 on Google Play. Android only, no iOS. Not affiliated with opencode.
 
 ## What it is
 
@@ -12,7 +12,7 @@ Developers who run opencode on a workstation, laptop, or VPS and want to check i
 
 ## Install (Android only)
 
-Google Play (recommended): https://play.google.com/store/apps/details?id=cc.agentlabs.opencode — package cc.agentlabs.opencode, free, current version 0.4.22, Android 7.0 and up.
+Google Play (recommended): https://play.google.com/store/apps/details?id=cc.agentlabs.opencode — package cc.agentlabs.opencode, free, current version 0.4.24, Android 7.0 and up.
 
 F-Droid (self-hosted repo): add https://dzianisv.github.io/opencode-mobile/fdroid/repo in any F-Droid client (F-Droid, Droid-ify, Neo Store), then install OpenCode Mobile for automatic updates.
 
