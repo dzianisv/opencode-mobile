@@ -1,12 +1,38 @@
 # Product Hunt — launch runbook for OpenCode Mobile
 
-Status: LAUNCH IN PROGRESS, 2026-11-19 (WITA). Unblock sweep 2026-11-18:
-the launch is not a Den blocker. Account: NEW project account via Google
-OAuth (vibeteaichnologies@gmail.com) — retry in progress; Product Hunt
-offers no email signup (six social buttons only). @den29 is Den's
-personal Product Hunt account (dzianisvv@gmail.com) — leave it alone, do
-NOT post from it (it carries the AgentPod + VibeBrowser drafts). Launch
-scheduled for Thu Nov 19 12:01am PT once the project account exists.
+Status: PARKED, 2026-11-19 (WITA). Unblock sweep 2026-11-19 12:21 WITA:
+the Google verification step is VERIFIED Den-only — the launch is parked
+pending it. Do not retry the Google route, do not use @den29, do not
+create the account via any other social provider, and do not ask Den for
+a passkey, code, or browser takeover. Resume only when Den completes the
+verification himself.
+
+## Launch status — PARKED (2026-11-19)
+
+Google route attempted to completion (browser task 5ca74a0a, 23:56–00:49
+UTC): the saved password for vibeteaichnologies@gmail.com was accepted,
+then Google's "Verify it's you" page offered only two options: "Use your
+passkey" and "Get a verification code from the Google Authenticator app".
+No phone-tap, text-message, or email-code option. Passkey prompt text:
+"Use your passkey to confirm it's really you" / "To help keep your
+account safe, Google wants to make sure it's really you" / "Your device
+will ask for your fingerprint, face, or screen lock". The cloud browser
+cannot do a passkey. §9 store check (sweep 12:21 WITA): BWS agentpod
+(20 keys), vibebrowser (10 keys), shared_infra (~100 keys) hold no Google
+TOTP seed or passkey for this account; the workspace holds no otpauth://
+URI; 1Password / Secure Vault hold no Vibe Google login that can satisfy
+a live 2SV challenge (the saved password was already used and accepted).
+A passkey / Authenticator code is a credential only Den holds.
+
+Unpublished draft left as-is (do not publish, do not delete):
+https://www.producthunt.com/posts/new/YDKNH42P5YCQ36F4QW47SPQOOEQ2I57RKL?step=assistant
+— created from @den29 before the stop instruction arrived; name/tagline/
+description + Play link set, logo + 3 gallery images auto-filled from
+the Play Store, checklist 6/12. AgentPod/VibeBrowser drafts untouched.
+
+Resume only when Den completes the Google verification himself. Do not
+retry the Google route. Do not post from @den29. Do not create the
+account via another social provider.
 
 Product: OpenCode Mobile — free, open-source (MIT) Android client for
 OpenCode (v1 + v2). Package `cc.agentlabs.opencode` — never change it.
