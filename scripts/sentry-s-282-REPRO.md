@@ -99,6 +99,10 @@ E throws the exact Sentry error with the exact stack shape
 not a harness blind spot. Counts stay linear in tokens; the window
 stabilizes (updater returns null) whenever heights stop changing.
 
+Follow-up (2026-11-20): scenarios F (app-fidelity) and G (event burst) were
+added by the investigation subagent — both no-throw; full A–G table and the
+Animated / second-source verdicts are in §7 below.
+
 ## 3. Mechanism finding (why the harness cannot throw with these ingredients)
 
 Read against React 19.1's reconciler (`react-test-renderer/.../development.js`):
@@ -145,7 +149,120 @@ with `gh run download 44205840647 --name app-release`).
   `package-lock.json` untouched (verified by `git status`).
 - Branch contains only: `scripts/sentry-s-282-harness.mjs` + this file.
 
-## 6. Recommended next step (for the fix lead)
+## 7. Follow-up investigation — unmodeled ingredient hunt (2026-11-20)
+
+Result: **NOT FOUND** from static + harness evidence. Scenarios F/G added to
+the harness (same branch, `scripts/sentry-s-282-harness.mjs`); full run
+`--scenario=all --tokens=200 --items=200`:
+
+| Scenario | Result | List renders | setStates | _updateCellsToRender |
+|---|---|---|---|---|
+| A streaming + scroll | no-throw | 221 | 23 | 23 |
+| B A + focus capture | no-throw | 234 | 102 | 102 |
+| C B + nav + MVCP prepend | no-throw | 233 | 107 | 106 |
+| D worst case | no-throw | 291 | 135 | 135 |
+| E positive control | **THREW** | — | — | — |
+| F app-fidelity (MessageCell + new wrappers + footer + prepend + auto-scroll + seek loop) | no-throw | 242 | 113 | 113 |
+| G 60-event focus/layout/scroll burst in one task, twice | no-throw | 14 | 132 | 132 |
+
+F's 7,514 row renders (vs D's 685) confirm the app's `messageData` useMemo
+rebuilds every row's wrapper object per token, so every CellRenderer's
+`getDerivedStateFromProps` fires per cell per token — render-phase churn,
+not nesting. G's 132 setStates collapse to 14 list renders: bursts batch and
+the `_updateCellsToRender` updater returns null once the window is stable.
+`npm test`: 465 pass / 0 fail. `package.json`/`package-lock.json` untouched.
+
+Findings (all verified in the 0.4.25 tree / RN 0.81.5 / React 19.1 sources):
+
+1. **Animated node: EXISTS but cannot schedule setState.** Exactly one
+   Animated arithmetic node is mounted on the session-screen path:
+   `Animated.add(rawAnimatedHeaderHeight, headerHeightCorrectionOffset)` in
+   `@react-navigation/native-stack/src/views/NativeStackView.native.tsx:241-248`
+   (one per stack screen, provided via `AnimatedHeaderHeightContext`). No JS
+   consumer exists on this path — nothing in `app/`/`src/` or expo-router
+   calls `useAnimatedHeaderHeight()` (only bottom-tabs' unstable NativeScreen
+   copy does, unused) — so the node is never evaluated on the JS thread and
+   has no listener and no setState attached. Its `Animated.event`
+   (`onHeaderHeightChange`) listener calls hooks `setHeaderHeight`, but only
+   on discrete native header-height events (static on Android after mount).
+   The other Animated nodes in the tree (BottomTabBar `visible.interpolate`
+   for the tab-hide translate, `BottomTabView` per-route values, screens'
+   `onTransitionProgress` `Animated.event`, ScrollView's
+   `_scrollAnimatedValue`) likewise never call setState during a commit: the
+   tab-bar animation completion `setIsTabBarHidden` is async (250 ms timing),
+   the rest are native-driver values with no JS listener. The re-triage's
+   "Animated arithmetic node" frame does not fit any single call chain ending
+   in `setState` (an `Animated.add` node can only appear in a stack via
+   `__getValue()` during render or a listener — neither schedules setState
+   here), so it is most plausibly a misattribution from the ~7% bundle drift
+   the re-triage itself flagged — exact attribution needs the shipped
+   sourcemap (#265). The `ReactNativeFeatureFlags` frame DOES fit one real
+   path: `_onCellFocusCapture` (VirtualizedList.js:1336) checks
+   `deferFlatListFocusChangeRenderUpdate()` (default `false`, verified in
+   `ReactNativeFeatureFlags.js:145`) and calls `_updateCellsToRender()`
+   directly — the only unguarded synchronous setState outside CDU — but
+   focus events are discrete native events, and G proves a 60-event burst
+   batches instead of nesting.
+2. **No second sync-update source in the full tree.** Swept every
+   layout-phase setState site that could run inside the list subtree during
+   the chain: no `useLayoutEffect` anywhere in `app/`/`src/`; library layout
+   effects are `NavigationStateListenerProvider` (only on navigation-state
+   change), bottom-sheet `useBoundingClientRect` (no-dep layout effect, but
+   its handler writes Reanimated shared values only), gesture-handler
+   `GestureDetector` (native attach only); class CDUs are VirtualizedList
+   (hiPri, ≤2 passes), FlatList (invariants), CellRenderer (none),
+   ScrollView (Animated attach only), gesture-handler `createHandler`
+   (native calls only), ErrorBoundary (error-only); elements `Screen` (the
+   only other layout-effect component) is NOT mounted on this path
+   (NativeStackView imports only header helpers from `@react-navigation/elements`).
+   Zustand/SSE dispatch (`src/stores/events.ts`, `src/stores/sessions.ts`)
+   is async-only (SSE `for await`, timers, network listeners) — each event
+   starts a fresh cascade. `MessageCell.onLayout → seekMessage()` is
+   synchronous native calls only (`scrollToIndex`/`scrollToOffset`, no
+   setState); its retry is a 100 ms timer. `getDerivedStateFromProps`
+   (CellRenderer + VirtualizedList MVCP) is render-phase, not nested.
+   `_updateCellsToRender` returns null when the window is stable, so the
+   chain self-terminates. FlatList viewability is a no-op (no app callback;
+   `_viewabilityTuples` empty).
+3. **Mechanism (read in React 19.1 reconciler):** `nestedUpdateCount`
+   increments once per commit pass whose layout phase leaves sync lanes
+   pending, and resets to 0 on any pass that doesn't — so 51 consecutive
+   layout-phase sync updates are required, with no pass yielding. The list
+   alone contributes at most ~2 (the `_hiPriInProgress` guard). No candidate
+   found can supply the other ~49. A burst cannot substitute: discrete
+   events batch into one commit each (G).
+4. **Unmodeled props/wrappers (session screen, `app/session/[id].tsx`):**
+   `CellRendererComponent={MessageCell}` (:1009, onLayout → `seekMessage()`
+   when target); `ListFooterComponent` loading spinner (:1045); `onEndReached`
+   + threshold 0.5 (:1041) with older-page prepend; `scrollEventThrottle={100}`
+   (:1039); `onScrollBeginDrag` (:1017); FlatList `onLayout` → `nav.observe`
+   (:1012); `contentContainerStyle` padding 16/8; auto-scroll effect
+   (`scrollToBottom` per content-signature change); `setCurrentNavIndex`
+   effects on `messageData`; `nav.sync()` during render; new wrapper objects
+   per token (all rows); Markdown parse per token (JS-thread busy time);
+   keyboard listeners + `jsKeyboardPadding`; `ModelPicker`/`VariantPicker`
+   bottom sheets mounted (each with its own `BottomSheetFlatList` /
+   `BottomSheetSectionList` — separate VirtualizedLists, static data, no
+   chain). All of the above except Markdown parse cost and keyboard padding
+   are now modeled by F/G. No `getItemLayout`, `onViewableItemsChanged`,
+   `ListHeaderComponent`, sticky headers, or refresh control (confirmed
+   absent — nothing left unmodeled there).
+
+Genuinely unknown (needs device, not more static work): whether Hermes/Fabric
+delivers any native event re-entrantly inside a commit (the one delivery
+semantic the test renderer cannot reproduce); the exact S stack frames
+(blocked by #265 — shipped sourcemap gone); whether a 0.4.24 device run with
+a real streaming session + Previous/Next navigation throws at all (FTL still
+blocked per §1 — auth/MFA/backend). Recommended next step: do NOT keep
+extending the harness — it has converged (A–G all no-throw, E still throws).
+Either (a) parent arranges the FTL device run per §1, or (b) the lead fixes
+defensively at the most plausible seam with the harness as the regression
+guard: cap MVCP churn during streaming (e.g. suspend
+`maintainVisibleContentPosition` while the newest row is growing, or
+`getItemLayout` with estimated heights so `scrollToIndex` never takes the
+`onScrollToIndexFailed` path) — both are one-prop changes F can guard.
+
+## 8. Recommended next step (for the fix lead)
 
 Device repro still needed for acceptance, but do not re-run the harness
 ingredients expecting a different result — the guard analysis says they
