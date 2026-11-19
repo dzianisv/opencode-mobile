@@ -1,11 +1,12 @@
 # Product Hunt — launch runbook for OpenCode Mobile
 
 Status: LAUNCH IN PROGRESS, 2026-11-19 (WITA). Unblock sweep 2026-11-18:
-the launch is not a Den blocker. Account: @den29 — Den's EXISTING
-Product Hunt account (dzianisvv@gmail.com), found via the GitHub route;
-it already carries the AgentPod + VibeBrowser drafts. The launch posts
-from @den29 as-is — do NOT rename it, do NOT change its display name
-or email. Launch scheduled for Thu Nov 19 12:01am PT.
+the launch is not a Den blocker. Account: NEW project account via Google
+OAuth (vibeteaichnologies@gmail.com) — retry in progress; Product Hunt
+offers no email signup (six social buttons only). @den29 is Den's
+personal Product Hunt account (dzianisvv@gmail.com) — leave it alone, do
+NOT post from it (it carries the AgentPod + VibeBrowser drafts). Launch
+scheduled for Thu Nov 19 12:01am PT once the project account exists.
 
 Product: OpenCode Mobile — free, open-source (MIT) Android client for
 OpenCode (v1 + v2). Package `cc.agentlabs.opencode` — never change it.
@@ -41,12 +42,12 @@ Developer Tools, Artificial Intelligence, Android
 
 ### First comment (posted by the maker, right after the listing goes live)
 
-> Hey — I'm Den, I build OpenCode Mobile.
+> Hey — we're the team behind OpenCode Mobile.
 >
-> What broke: my AI coding agent lived on my desk. OpenCode runs on my
-> workstation, and the moment I walked away from it — commute, couch,
-> coffee shop — I was blind. The agent kept working, but I couldn't see
-> it, steer it, or approve anything until I was back at my keyboard.
+> What broke: our AI coding agent lived on the desk. OpenCode runs on our
+> workstation, and the moment we walked away from it — commute, couch,
+> coffee shop — we were blind. The agent kept working, but we couldn't see
+> it, steer it, or approve anything until we were back at our keyboard.
 >
 > What changed: OpenCode Mobile puts the session in your pocket. Connect
 > your phone to the OpenCode server on your own machine and you can watch
@@ -63,7 +64,7 @@ Developer Tools, Artificial Intelligence, Android
 > code, prompts, and API keys never leave your server — the app talks
 > only to the server you run.
 >
-> Happy to answer anything — and I'd genuinely like to know: if you run
+> Happy to answer anything — and we'd genuinely like to know: if you run
 > a coding agent, what would you want a phone client to do first?
 
 ## Where the content comes from
@@ -158,8 +159,9 @@ Investigated: Firebase Test Lab Robo-test video, project
 
 ## How the post is uploaded
 
-1. Create the Product Hunt account at launch time (maker account — Den's
-   existing @den29 account; the launch posts from it as-is).
+1. Create the Product Hunt account at launch time (maker account — NEW
+   project account via Google OAuth with the project Gmail; see the launch
+   Work Log row).
 2. New product: name "OpenCode Mobile", tagline + description from
    "Launch copy" above, links: Google Play listing + GitHub repo +
    docs site.
