@@ -1,7 +1,7 @@
 import { memo } from "react"
 import { View, Text, Image, StyleSheet, ScrollView, TouchableOpacity, Dimensions, Platform } from "react-native"
 import { Ionicons } from "@expo/vector-icons"
-import { Markdown } from "../markdown"
+import { Markdown, LinkifiedText } from "../markdown"
 import { ToolCallCard } from "./ToolCallCard"
 import { ReasoningBlock } from "./ReasoningBlock"
 import type { Message, Part } from "../../lib/sdk"
@@ -125,9 +125,9 @@ export const MessageBubble = memo(
             // Android: inline selection in a list row is unreliable (RN#46999)
             // and competes with the bubble's long-press, so user text selects
             // through the "Select text" sheet. iOS has no such conflict.
-            <Text style={[s.messageText, isDark && s.textWhite]} selectable={Platform.OS === "ios"}>
-              {text}
-            </Text>
+            // Bare URLs in user text linkify through LinkifiedText (issue
+            // #284) — same open/copy treatment as assistant markdown links.
+            <LinkifiedText text={text} style={[s.messageText, isDark && s.textWhite]} selectable={Platform.OS === "ios"} isDark={isDark} />
           ) : (
             <View style={s.markdownWrap}>
               <Markdown>{text}</Markdown>
