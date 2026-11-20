@@ -6,6 +6,7 @@ import { ToolCallCard } from "./ToolCallCard"
 import { ReasoningBlock } from "./ReasoningBlock"
 import type { Message, Part } from "../../lib/sdk"
 import { hasSelectableContent } from "../../lib/message-text"
+import { formatMessageTimestamp } from "../../lib/message-timestamp"
 
 const SCREEN_WIDTH = Dimensions.get("window").width
 
@@ -17,6 +18,8 @@ interface Props {
   message: Message
   parts: Part[]
   isDark: boolean
+  showTimestamp?: boolean
+  timestampLocale?: string
   // Message actions arrive as buttons in the bubble header (see the header
   // comment in the render). There is deliberately no bubble-wide press or
   // long-press: it competed with horizontal scrolling in code blocks and with
@@ -30,8 +33,9 @@ interface Props {
 // TODO: Replace with streamdown-rn once React 19 types PR lands - it has
 // built-in block-level memoization that eliminates re-renders for stable blocks
 export const MessageBubble = memo(
-  function MessageBubble({ message, parts, isDark, onSelectText, onEdit }: Props) {
+  function MessageBubble({ message, parts, isDark, showTimestamp = false, timestampLocale, onSelectText, onEdit }: Props) {
     const isUser = message.role === "user"
+    const timestamp = showTimestamp ? formatMessageTimestamp(message.time.created, timestampLocale) : undefined
 
     const textParts = parts.filter((p) => p.type === "text")
     const reasoningParts = parts.filter((p) => p.type === "reasoning")
@@ -94,6 +98,12 @@ export const MessageBubble = memo(
             </View>
           )}
         </View>
+
+        {timestamp && (
+          <Text style={[s.timestamp, isDark && s.timestampDark]} testID={`message-timestamp-${message.id}`}>
+            {timestamp}
+          </Text>
+        )}
 
         {/* Image attachments */}
         {fileParts.length > 0 && (
@@ -170,6 +180,8 @@ export const MessageBubble = memo(
     // unchanged (completed) messages during other messages' streaming.
     if (prev.message !== next.message) return false
     if (prev.isDark !== next.isDark) return false
+    if (prev.showTimestamp !== next.showTimestamp) return false
+    if (prev.timestampLocale !== next.timestampLocale) return false
     if (prev.onSelectText !== next.onSelectText) return false
     if (prev.onEdit !== next.onEdit) return false
     if (prev.parts.length !== next.parts.length) return false
@@ -191,6 +203,8 @@ const s = StyleSheet.create({
   role: { fontSize: 13, fontWeight: "600", color: "#666666" },
   roleUser: { color: "#0a0a0a" },
   textWhite: { color: "#ffffff" },
+  timestamp: { alignSelf: "flex-end", marginTop: -4, marginBottom: 6, fontSize: 11, color: "#737373" },
+  timestampDark: { color: "#a3a3a3" },
 
   actions: {
     // Pushes the group to the right edge of the header row; the chips inside it
