@@ -162,6 +162,9 @@ interface StoredMessageInfo {
   time: { created: number; completed?: number }
   modelID?: string
   providerID?: string
+  // Per-assistant-message spend in $ — the real server reports it, and the
+  // session header (#293) sums it. Same value as src/lib/demo-script.ts.
+  cost?: number
 }
 
 interface StoredMessage {
@@ -511,6 +514,7 @@ export function createMockOpencodeServer(opts: MockServerOptions) {
         time: { created: now },
         modelID: "mock-model",
         providerID: "mock",
+        cost: 0.0143,
       }
       broadcast("message.updated", { info })
 

@@ -20,6 +20,7 @@ import assert from "node:assert/strict"
 import { register } from "node:module"
 import {
   createMockOpencodeServer,
+  DEFAULT_DIRECTORY,
   SEED_PARENT_SESSION_ID,
   SEED_PARENT_TITLE,
   SEED_CHILD_DONE_ID,
@@ -28,6 +29,7 @@ import {
   SEED_CHILD_IDLE_TITLE,
 } from "../../tests/fixtures/mock-opencode-server.ts"
 import { loadSessionList, legacySessionQuery, type SessionListTransport } from "./session-list.ts"
+import { formatSessionCost, sessionCost, sessionCostText } from "./session-cost.ts"
 import { selectChildren } from "./session-children.ts"
 import { SSEParser, SSE_LIVENESS_EVENT_TYPE } from "./sse.ts"
 import type { Client } from "./sdk"
@@ -423,4 +425,134 @@ test("v2 client.global.events: lifecycle events still flow through the generator
   assert.ok(types.includes("session.status"), `lifecycle must reach the generator, got: ${types.join(",")}`)
   // And the liveness yield must not have swallowed them — both kinds flow.
   assert.ok(types.includes(SSE_LIVENESS_EVENT_TYPE), `liveness must still be yielded, got: ${types.join(",")}`)
+})
+
+// --- New session defaults to the server default directory (#291) -----------
+//
+// The app's default create path (FAB tap, and the New Session modal's primary
+// button) calls session.create with NO directory: the server must place the
+// session in its own default directory, matching the terminal app, instead of
+// forcing the user through the directory form on every new session. The
+// directory choice stays available as an optional/advanced path — a
+// directory-scoped client still creates in the directory it was given.
+// These tests drive the REAL v1 client against the mock server over HTTP
+// (same pattern as the liveness tests above). The modal's collapsed-by-default
+// disclosure itself is RN-only and not runnable under node --test, so it is
+// covered by typecheck + review and by .maestro/flows/directory-picker.yaml
+// (which now expands the disclosure before asserting on its contents).
+//
+// Appended at the end of the file on purpose: the tests above assert exact
+// session counts on the shared mock, and these creates add sessions to it.
+describe("new session defaults to server default directory (#291)", () => {
+  test("create with no directory lands in the server default directory", async () => {
+    const { createClient } = await import("./sdk.ts")
+    const client = createClient({ baseUrl: base, api: "v1" })
+    const created = await client.session.create({})
+    assert.ok(created.id, "create must return a session id")
+    assert.equal(
+      created.directory,
+      DEFAULT_DIRECTORY,
+      "a directory-less create must land in the server default, not require a picked folder",
+    )
+  })
+
+  test("directory-scoped create still honors an explicitly chosen directory", async () => {
+    const { createClient } = await import("./sdk.ts")
+    const otherDir = "/mock/project/other-dir"
+    const client = createClient({ baseUrl: base, api: "v1", directory: otherDir })
+    const created = await client.session.create({})
+    assert.ok(created.id, "create must return a session id")
+    assert.equal(
+      created.directory,
+      otherDir,
+      "the optional/advanced directory choice must still scope the new session",
+    )
+  })
+})
+
+// --- Session cost (#293) ---------------------------------------------------
+//
+// The header cost is the sum of Message.cost over assistant messages, so
+// this test proves the cost actually arrives over the wire: drive the REAL
+// v1 client.global.events generator against the mock server, trigger a
+// prompt, and assert the assistant message.updated carries the cost the
+// mock reply reports — then assert the header's sum/format over exactly
+// those received messages. v1, not v2: the v2 translator drops v1-shaped
+// frames, and the mock broadcasts message.updated in v1 shape.
+
+async function collectV1Events(
+  client: Client,
+  durationMs: number,
+  trigger?: () => Promise<void>,
+): Promise<Array<{ type: string; properties: Record<string, unknown> }>> {
+  const controller = new AbortController()
+  const gen = client.global.events(controller.signal)
+  const events: Array<{ type: string; properties: Record<string, unknown> }> = []
+  let notifyFirst: () => void = () => {}
+  const firstYield = new Promise<void>((resolve) => {
+    notifyFirst = resolve
+  })
+  const pump = (async () => {
+    try {
+      for await (const event of gen) {
+        events.push(event)
+        if (events.length === 1) notifyFirst()
+      }
+    } catch {
+      // Expected: aborting the fetch below rejects the pending read.
+    }
+  })()
+  // Wait for the subscription to be established (first yield) before
+  // triggering: a broadcast sent before the dial completes is missed, and
+  // SSE does not replay.
+  await Promise.race([
+    firstYield,
+    new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error("generator never yielded — no liveness on a quiet stream")), 5000),
+    ),
+  ])
+  if (trigger) await trigger()
+  await new Promise((resolve) => setTimeout(resolve, durationMs))
+  controller.abort()
+  await Promise.race([pump, new Promise((resolve) => setTimeout(resolve, 2000))])
+  return events
+}
+
+test("v1 client.global.events: assistant message.updated carries the cost the session header sums (#293)", async () => {
+  const { createClient } = await import("./sdk.ts")
+  const client = createClient({ baseUrl: base, api: "v1" })
+  const created = (await (
+    await fetch(`${base}/session`, { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" })
+  ).json()) as { id: string }
+
+  const events = await collectV1Events(client, 5000, async () => {
+    const res = await fetch(`${base}/session/${created.id}/prompt_async`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ parts: [{ type: "text", text: "hi" }] }),
+    })
+    assert.equal(res.status, 200, "prompt_async must be accepted")
+  })
+
+  const infos = events
+    .filter((e) => e.type === "message.updated")
+    .map((e) => e.properties.info as { role?: string; cost?: number; sessionID?: string })
+    .filter((info) => info.sessionID === created.id && info.role === "assistant")
+  assert.ok(
+    infos.length >= 1,
+    `assistant message.updated must arrive, got: ${events.map((e) => e.type).join(",")}`,
+  )
+  assert.ok(
+    infos.some((info) => info.cost === 0.0143),
+    `assistant message must carry the mock reply cost 0.0143, got: ${JSON.stringify(infos)}`,
+  )
+
+  // The header's exact inputs: the received messages, summed and formatted.
+  const messages = infos.map((info) => ({ role: "assistant" as const, cost: info.cost }))
+  assert.equal(sessionCost(messages), 0.0143)
+  assert.equal(sessionCostText(messages), "$0.0143")
+  assert.equal(formatSessionCost(1.5), "$1.50")
+  // No priced message yet → the header renders nothing, never "$0.00".
+  assert.equal(sessionCostText([]), null)
+  assert.equal(sessionCostText([{ role: "user", cost: undefined }]), null)
 })

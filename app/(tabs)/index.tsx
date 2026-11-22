@@ -149,6 +149,10 @@ export default function SessionsScreen() {
   const { t } = useTranslation()
   const [showNewSession, setShowNewSession] = useState(false)
   const [customDir, setCustomDir] = useState("")
+  // Directory choice is optional/advanced (#291): the modal opens showing
+  // only the server-default create action; the directory sections appear
+  // only when the user expands this toggle.
+  const [showDirectoryOptions, setShowDirectoryOptions] = useState(false)
   const [isCreating, setIsCreating] = useState(false)
   const [renaming, setRenaming] = useState<Session | null>(null)
   const [renameText, setRenameText] = useState("")
@@ -417,8 +421,10 @@ export default function SessionsScreen() {
   }
 
   const onFabLongPress = () => {
-    // Show modal with more options
+    // Show modal with more options — always in the clean default view (#291):
+    // server-default create up front, directory choice collapsed.
     setCustomDir("")
+    setShowDirectoryOptions(false)
     setShowNewSession(true)
   }
 
@@ -616,6 +622,37 @@ export default function SessionsScreen() {
                 <Ionicons name="arrow-forward-circle" size={20} color={isDark ? "#8b5cf6" : "#6d28d9"} />
               </TouchableOpacity>
 
+              {/* Directory choice is optional/advanced (#291) — the modal
+                  defaults to creating in the server default directory; the
+                  sections below only appear when the user asks for a
+                  different directory. */}
+              <TouchableOpacity
+                style={[styles.projectRow, isDark && styles.projectRowDark, { marginTop: 16 }]}
+                onPress={() => {
+                  // Collapsing discards a typed-but-unsubmitted path, so the
+                  // footer button can never silently create in a directory
+                  // the user can no longer see.
+                  if (showDirectoryOptions) setCustomDir("")
+                  setShowDirectoryOptions(!showDirectoryOptions)
+                }}
+                disabled={isCreating}
+                testID="choose-different-directory-button"
+              >
+                <Ionicons name="folder-open-outline" size={18} color={isDark ? "#8b5cf6" : "#6d28d9"} />
+                <View style={styles.projectRowContent}>
+                  <Text style={[styles.projectRowName, isDark && styles.textDark]}>
+                    {t("sessionsList.newSessionModal.chooseDifferentDirectory")}
+                  </Text>
+                </View>
+                <Ionicons
+                  name={showDirectoryOptions ? "chevron-down" : "chevron-forward"}
+                  size={16}
+                  color={isDark ? "#666666" : "#999999"}
+                />
+              </TouchableOpacity>
+
+              {showDirectoryOptions && (
+                <>
               {/* Recent projects */}
               {recentDirectories.length > 0 && (
                 <>
@@ -757,6 +794,8 @@ export default function SessionsScreen() {
                     <Text style={[styles.pathChipText, isDark && styles.pathChipTextDark]}>~/</Text>
                   </TouchableOpacity>
                 </View>
+              )}
+                </>
               )}
             </ScrollView>
 
