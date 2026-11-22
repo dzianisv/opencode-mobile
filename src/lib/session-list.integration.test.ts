@@ -20,6 +20,7 @@ import assert from "node:assert/strict"
 import { register } from "node:module"
 import {
   createMockOpencodeServer,
+  DEFAULT_DIRECTORY,
   SEED_PARENT_SESSION_ID,
   SEED_PARENT_TITLE,
   SEED_CHILD_DONE_ID,
@@ -134,6 +135,30 @@ test("older servers (404 on /experimental/session) fall back to /session and sti
   assert.deepEqual(new Set(sessions.map((s) => s.id)), new Set(["seed-default", "seed-other"]))
   // Sanity: the legacy query we sent is the exact one the old code sent.
   assert.equal(legacySessionQuery({ roots: true, limit: 50 }), "?roots=true&limit=50")
+})
+
+// Session rename (#295) — the long-press Rename menu in the sessions list
+// (app/(tabs)/index.tsx submitRename) calls client.session.update, which on
+// v1 is PATCH /session/:id { title }. Drives the REAL v1 client over HTTP
+// against the mock and proves the round-trip the switcher depends on: the
+// renamed title is what a re-list returns, so the list shows the new name
+// after the rename (the list itself then just re-renders the re-loaded rows).
+// Renames seed-default (DEFAULT_DIRECTORY, so the directory-less client may
+// PATCH it — the mock enforces the same per-directory scoping as GET), and
+// leaves time.updated alone so the most-recent-first order above is stable.
+test("rename (#295): PATCH title via the real v1 client, re-list shows the new title", async () => {
+  const { createClient } = await import("./sdk.ts")
+  const client = createClient({ baseUrl: base, api: "v1" })
+
+  const renamed = await client.session.update("seed-default", { title: "Renamed Session" })
+  assert.equal(renamed.id, "seed-default")
+  assert.equal(renamed.title, "Renamed Session")
+
+  // The list the switcher renders reflects the rename — no stale title.
+  const sessions = await loadSessionList(realTransport(base), { roots: true, limit: 50 })
+  const byId = new Map(sessions.map((s) => [s.id, s]))
+  assert.equal(byId.get("seed-default")?.title, "Renamed Session")
+  assert.equal(byId.get("seed-other")?.title, "Cross-Project Session")
 })
 
 // Subagent children (#187) — the session.created routing itself lives in the
@@ -400,6 +425,49 @@ test("v2 client.global.events: lifecycle events still flow through the generator
   assert.ok(types.includes("session.status"), `lifecycle must reach the generator, got: ${types.join(",")}`)
   // And the liveness yield must not have swallowed them — both kinds flow.
   assert.ok(types.includes(SSE_LIVENESS_EVENT_TYPE), `liveness must still be yielded, got: ${types.join(",")}`)
+})
+
+// --- New session defaults to the server default directory (#291) -----------
+//
+// The app's default create path (FAB tap, and the New Session modal's primary
+// button) calls session.create with NO directory: the server must place the
+// session in its own default directory, matching the terminal app, instead of
+// forcing the user through the directory form on every new session. The
+// directory choice stays available as an optional/advanced path — a
+// directory-scoped client still creates in the directory it was given.
+// These tests drive the REAL v1 client against the mock server over HTTP
+// (same pattern as the liveness tests above). The modal's collapsed-by-default
+// disclosure itself is RN-only and not runnable under node --test, so it is
+// covered by typecheck + review and by .maestro/flows/directory-picker.yaml
+// (which now expands the disclosure before asserting on its contents).
+//
+// Appended at the end of the file on purpose: the tests above assert exact
+// session counts on the shared mock, and these creates add sessions to it.
+describe("new session defaults to server default directory (#291)", () => {
+  test("create with no directory lands in the server default directory", async () => {
+    const { createClient } = await import("./sdk.ts")
+    const client = createClient({ baseUrl: base, api: "v1" })
+    const created = await client.session.create({})
+    assert.ok(created.id, "create must return a session id")
+    assert.equal(
+      created.directory,
+      DEFAULT_DIRECTORY,
+      "a directory-less create must land in the server default, not require a picked folder",
+    )
+  })
+
+  test("directory-scoped create still honors an explicitly chosen directory", async () => {
+    const { createClient } = await import("./sdk.ts")
+    const otherDir = "/mock/project/other-dir"
+    const client = createClient({ baseUrl: base, api: "v1", directory: otherDir })
+    const created = await client.session.create({})
+    assert.ok(created.id, "create must return a session id")
+    assert.equal(
+      created.directory,
+      otherDir,
+      "the optional/advanced directory choice must still scope the new session",
+    )
+  })
 })
 
 // --- Session cost (#293) ---------------------------------------------------
