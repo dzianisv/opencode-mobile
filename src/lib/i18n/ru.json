@@ -312,7 +312,8 @@
       "browseFoldersHint": "Просмотр файловой системы сервера",
       "enterPathLabel": "Ввести путь вручную",
       "createInButton": "Создать в {{dir}}",
-      "createSessionButton": "Создать сессию"
+      "createSessionButton": "Создать сессию",
+      "chooseDifferentDirectory": "Выбрать другую папку"
     },
     "renameModal": {
       "title": "Переименовать сессию"
