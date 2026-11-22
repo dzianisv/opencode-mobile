@@ -1,4 +1,6 @@
-v0.4.25 — In-app updates go to the right place
+v0.4.26 — Mic input works again, links tap open, session switcher
 
-• Play installs now open the Play Store listing to update; F-Droid installs no longer get a broken update prompt; sideloaded installs still update from GitHub.
-• Crash reports now identify exactly one build, so crashes on this release can be matched to their source maps.
+• Voice input works again — the mic button can now request the microphone permission in release builds.
+• Links in chat messages are tappable and open in your browser.
+• Switch between sessions from the header, see the current session's cost, and start new sessions in your server's default folder.
+• Inline code in messages is easier to read.
