@@ -16,7 +16,15 @@
  *
  * The update sends back the COMPLETE Track object returned by tracks.get,
  * verbatim except the target release — a constructed single-release
- * payload would delete the other releases on the track (design §5).
+ * payload would delete the other releases on the track (design §5) —
+ * WITH ONE EXCEPTION (#296): on `complete` only, any OTHER release with
+ * status `completed` and a numerically strictly lower versionCode is
+ * OMITTED from the PUT payload, because Play allows at most one
+ * `completed` release per track and rejects a payload carrying two
+ * (400 "Only one completed release is allowed"). Omitting it removes it
+ * from the track's active releases only — that is what completing to
+ * 100% means. The bundle stays in Play and Play retains it as the
+ * halt-fallback. See buildUpdatedTrack() below.
  *
  * TARGETING (fail-closed)
  * -----------------------
@@ -70,6 +78,83 @@ const VALID_FROM = {
 };
 /** Intended end status per action. */
 const END_STATUS = { halt: "halted", resume: "inProgress", complete: "completed" };
+
+/**
+ * Build the PUT payload for one rollout transition (#296).
+ *
+ * Pure: no I/O, no API calls. `targetVersionCode` is the resolved target
+ * (the --version-code value, or the auto-resolved one on non-production
+ * tracks); matching is BY STRING, as Play returns versionCodes as strings.
+ *
+ * Complete-action supersede rule (#296): on `complete` only, every OTHER
+ * release with status `completed` and a maximum versionCode NUMERICALLY
+ * strictly lower than the target's is omitted from the payload — Play
+ * allows at most one completed release per track and rejects a payload
+ * carrying two (400 "Only one completed release is allowed"). Ordering is
+ * NUMERIC via Number() on the int64 versionCode strings (safe for values
+ * ≤ 2.1e9); string comparison is for equality matching only, never for
+ * ordering — lexicographically "99" > "165" and "1000" < "999".
+ * Omitting a release removes it from the track's active releases only;
+ * the bundle stays in Play and Play retains it as the halt-fallback.
+ *
+ * Fail-closed: if any other completed release has a versionCode numerically
+ * equal to or newer than the target's, throws BEFORE any track update or
+ * commit (insertEdit + tracks.get have already run; no track mutation
+ * occurs). Also throws when the target's status is not a valid source for
+ * the action (the VALID_FROM gate — e.g. completing an already-completed
+ * target).
+ *
+ * Returns { updatedTrack, dropped } where `dropped` is the list of
+ * superseded releases (name + versionCodes) for logging.
+ */
+export function buildUpdatedTrack(trackObj, targetVersionCode, action) {
+  const releases = trackObj.releases || [];
+  const target = releases.find((r) => (r.versionCodes || []).map(String).includes(String(targetVersionCode)));
+  if (!target) {
+    throw new Error(`no release with versionCode ${targetVersionCode} on the track — aborting, no commit`);
+  }
+  if (!VALID_FROM[action].includes(target.status)) {
+    throw new Error(
+      `cannot ${action} versionCode ${targetVersionCode}: release status is "${target.status}" (valid source: ${VALID_FROM[action].join(" | ")}) — aborting, no commit`,
+    );
+  }
+
+  const targetCode = Number(targetVersionCode);
+  if (Number.isNaN(targetCode)) {
+    throw new Error(`target versionCode ${targetVersionCode} is not numeric — aborting, no commit`);
+  }
+
+  const updatedRelease = { ...target };
+  updatedRelease.status = END_STATUS[action];
+  if (action === "complete") delete updatedRelease.userFraction;
+
+  const dropped = [];
+  const updatedReleases = [];
+  for (const r of releases) {
+    if (r === target) {
+      updatedReleases.push(updatedRelease);
+      continue;
+    }
+    if (action === "complete" && r.status === "completed") {
+      const codes = (r.versionCodes || []).map(String);
+      const maxCode = codes.length ? Math.max(...codes.map(Number)) : NaN;
+      if (Number.isNaN(maxCode)) {
+        throw new Error(
+          `cannot complete versionCode ${targetVersionCode}: completed release "${r.name || "(unnamed)"}" versionCodes=${JSON.stringify(r.versionCodes)} has no numeric versionCode — aborting, no commit`,
+        );
+      }
+      if (maxCode >= targetCode) {
+        throw new Error(
+          `cannot complete versionCode ${targetVersionCode}: track already holds completed release "${r.name || "(unnamed)"}" with versionCode(s) ${codes.join(", ")} (>= target) — a newer version was published over the staged one; aborting, no commit`,
+        );
+      }
+      dropped.push(r);
+      continue;
+    }
+    updatedReleases.push(r);
+  }
+  return { updatedTrack: { ...trackObj, releases: updatedReleases }, dropped };
+}
 
 function parseArgs(argv) {
   const out = { action: "", track: "", versionCode: "", dryRun: false };
@@ -207,17 +292,19 @@ async function main() {
     );
   }
 
-  // 3) Build the updated track: the COMPLETE Track object from the GET,
-  // verbatim except the target release (design §5).
+  // 3) Build the updated track via the pure builder (#296): the COMPLETE
+  // Track object from the GET, verbatim except the target release — plus,
+  // on `complete` only, strictly-older completed releases are omitted
+  // (Play allows at most one completed release per track). The builder
+  // throws before any track update or commit if a newer completed
+  // release is present.
   const originalFraction = target.userFraction;
-  const updatedRelease = { ...target };
-  updatedRelease.status = END_STATUS[args.action];
-  if (args.action === "complete") delete updatedRelease.userFraction;
-  const targetIndex = releases.indexOf(target);
-  const updatedTrack = {
-    ...trackObj,
-    releases: releases.map((r, i) => (i === targetIndex ? updatedRelease : r)),
-  };
+  const { updatedTrack, dropped } = buildUpdatedTrack(trackObj, resolvedVersionCode, args.action);
+  for (const d of dropped) {
+    console.log(
+      `play-rollout: superseding completed release "${d.name || "(unnamed)"}" versionCodes=${(d.versionCodes || []).join(", ")} — omitted from the PUT payload (Play allows at most one completed release per track)`,
+    );
+  }
   await api(`edits/${encodeURIComponent(editId)}/tracks/${encodeURIComponent(args.track)}`, token, {
     method: "PUT",
     body: JSON.stringify(updatedTrack),
@@ -226,7 +313,7 @@ async function main() {
   if (args.dryRun) {
     console.log(JSON.stringify(updatedTrack, null, 2));
     console.log(
-      `play-rollout: DRY RUN — action=${args.action} track=${args.track} versionCode=${resolvedVersionCode} would become status=${END_STATUS[args.action]}; edit ${editId} abandoned WITHOUT commit`,
+      `play-rollout: DRY RUN — action=${args.action} track=${args.track} versionCode=${resolvedVersionCode} would become status=${END_STATUS[args.action]}${dropped.length ? `; superseded (omitted from payload): ${dropped.map((d) => `"${d.name || "(unnamed)"}" [${(d.versionCodes || []).join(", ")}]`).join(", ")}` : ""}; edit ${editId} abandoned WITHOUT commit`,
     );
     return;
   }
@@ -259,6 +346,16 @@ async function main() {
         `POST-COMMIT VERIFICATION FAILED: completed release ${resolvedVersionCode} still carries userFraction=${live.userFraction}`,
       );
     }
+    // #296: the live track must hold exactly one completed release — the target.
+    const liveCompleted = (liveTrack.releases || []).filter((r) => r.status === "completed");
+    if (
+      liveCompleted.length !== 1 ||
+      !(liveCompleted[0].versionCodes || []).map(String).includes(resolvedVersionCode)
+    ) {
+      throw new Error(
+        `POST-COMMIT VERIFICATION FAILED: track ${args.track} holds ${liveCompleted.length} completed release(s) after completing ${resolvedVersionCode}, expected exactly one (the target)`,
+      );
+    }
   } else if (intendedFraction !== undefined && live.userFraction !== intendedFraction) {
     throw new Error(
       `POST-COMMIT VERIFICATION FAILED: versionCode ${resolvedVersionCode} fraction is ${live.userFraction}, expected ${intendedFraction}`,
@@ -270,7 +367,9 @@ async function main() {
   );
 }
 
-main().catch((err) => {
-  console.error(`play-rollout: ${err.message}`);
-  process.exit(1);
-});
+if (import.meta.url === `file://${process.argv[1]}`) {
+  main().catch((err) => {
+    console.error(`play-rollout: ${err.message}`);
+    process.exit(1);
+  });
+}
