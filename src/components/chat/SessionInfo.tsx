@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from "rea
 import { Ionicons } from "@expo/vector-icons"
 import { useTranslation } from "react-i18next"
 import type { Message, Session } from "../../lib/sdk"
+import { formatSessionCost, sessionCost } from "../../lib/session-cost"
 import type { Provider } from "../../stores/catalog"
 
 interface Props {
@@ -22,10 +23,6 @@ function compact(n: number): string {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`
   if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`
   return String(n)
-}
-
-function formatCost(cost: number): string {
-  return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(cost)
 }
 
 function formatTime(ts: number, t: (key: string, opts?: Record<string, unknown>) => string): string {
@@ -55,12 +52,11 @@ export function SessionInfo({
   const { t } = useTranslation()
   // Match TUI: last assistant message tokens (context window), cumulative cost
   const stats = useMemo(() => {
-    let cost = 0
+    const cost = sessionCost(messages)
     let last: Message | null = null
 
     for (const msg of messages) {
       if (msg.role !== "assistant") continue
-      if (msg.cost) cost += msg.cost
       if (msg.tokens && msg.tokens.output > 0) last = msg
     }
 
@@ -105,7 +101,7 @@ export function SessionInfo({
               {stats.percent > 0 && <Text style={[s.percent, isDark && s.dimDark]}>{`  ${stats.percent}%`}</Text>}
             </Text>
           )}
-          {hasCost && <Text style={[s.cost, isDark && s.dimDark]}>({formatCost(stats.cost)})</Text>}
+          {hasCost && <Text style={[s.cost, isDark && s.dimDark]}>({formatSessionCost(stats.cost)})</Text>}
           {!hasTokens && !hasCost && (
             <Text style={[s.cost, isDark && s.dimDark]}>{t("chat.sessionInfo.noUsageData")}</Text>
           )}
