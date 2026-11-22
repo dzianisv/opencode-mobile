@@ -312,7 +312,8 @@
       "browseFoldersHint": "浏览服务器的文件系统",
       "enterPathLabel": "手动输入路径",
       "createInButton": "在 {{dir}} 中创建",
-      "createSessionButton": "创建会话"
+      "createSessionButton": "创建会话",
+      "chooseDifferentDirectory": "选择其他目录"
     },
     "renameModal": {
       "title": "重命名会话"
