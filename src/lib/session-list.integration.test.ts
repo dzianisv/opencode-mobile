@@ -137,6 +137,30 @@ test("older servers (404 on /experimental/session) fall back to /session and sti
   assert.equal(legacySessionQuery({ roots: true, limit: 50 }), "?roots=true&limit=50")
 })
 
+// Session rename (#295) — the long-press Rename menu in the sessions list
+// (app/(tabs)/index.tsx submitRename) calls client.session.update, which on
+// v1 is PATCH /session/:id { title }. Drives the REAL v1 client over HTTP
+// against the mock and proves the round-trip the switcher depends on: the
+// renamed title is what a re-list returns, so the list shows the new name
+// after the rename (the list itself then just re-renders the re-loaded rows).
+// Renames seed-default (DEFAULT_DIRECTORY, so the directory-less client may
+// PATCH it — the mock enforces the same per-directory scoping as GET), and
+// leaves time.updated alone so the most-recent-first order above is stable.
+test("rename (#295): PATCH title via the real v1 client, re-list shows the new title", async () => {
+  const { createClient } = await import("./sdk.ts")
+  const client = createClient({ baseUrl: base, api: "v1" })
+
+  const renamed = await client.session.update("seed-default", { title: "Renamed Session" })
+  assert.equal(renamed.id, "seed-default")
+  assert.equal(renamed.title, "Renamed Session")
+
+  // The list the switcher renders reflects the rename — no stale title.
+  const sessions = await loadSessionList(realTransport(base), { roots: true, limit: 50 })
+  const byId = new Map(sessions.map((s) => [s.id, s]))
+  assert.equal(byId.get("seed-default")?.title, "Renamed Session")
+  assert.equal(byId.get("seed-other")?.title, "Cross-Project Session")
+})
+
 // Subagent children (#187) — the session.created routing itself lives in the
 // RN-only events store, which plain node --test cannot load, and the mock
 // emits no session.created broadcast (nor can any UI create a child), so the

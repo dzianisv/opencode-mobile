@@ -711,6 +711,34 @@ export function createMockOpencodeServer(opts: MockServerOptions) {
       return json(res, 200, session)
     }
 
+    // Rename a session (src/lib/sdk-v1.ts session.update -> PATCH
+    // /session/:id { title }, the call the sessions list's long-press
+    // Rename menu makes — see app/(tabs)/index.tsx submitRename, #295).
+    // Same per-directory enforcement as GET /session/:id above. The title
+    // is the only field the client sends; time.updated is left alone so
+    // the seeded list order (most-recent-first) is unaffected.
+    const sessionPatchMatch = path.match(/^\/session\/([^/]+)$/)
+    if (method === "PATCH" && sessionPatchMatch) {
+      const sid = sessionPatchMatch[1]
+      let body = ""
+      req.on("data", (chunk) => (body += chunk))
+      req.on("end", () => {
+        const session = sessions.get(sid)
+        if (!session || session.directory !== requestDirectory(req)) {
+          return json(res, 404, { error: `unknown session ${sid}` })
+        }
+        let title: unknown
+        try {
+          title = (JSON.parse(body || "{}") as { title?: unknown }).title
+        } catch {
+          // malformed body — fall through with no title change
+        }
+        if (typeof title === "string" && title.trim()) session.title = title.trim()
+        return json(res, 200, session)
+      })
+      return
+    }
+
     const sessionMessageMatch = path.match(/^\/session\/([^/]+)\/message$/)
     if (method === "GET" && sessionMessageMatch) {
       const sid = sessionMessageMatch[1]

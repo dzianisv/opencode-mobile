@@ -278,7 +278,6 @@
       "hoursAgo": "{{count}}h ago",
       "daysAgo": "{{count}}d ago"
     },
-    "filesCount": "{{count}} files",
     "actions": {
       "rename": "Rename"
     },

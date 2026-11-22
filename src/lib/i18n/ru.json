@@ -278,7 +278,6 @@
       "hoursAgo": "{{count}} ч назад",
       "daysAgo": "{{count}} дн назад"
     },
-    "filesCount": "Файлов: {{count}}",
     "actions": {
       "rename": "Переименовать"
     },
