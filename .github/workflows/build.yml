@@ -101,7 +101,7 @@ jobs:
         # the same reason (its repo users upgrade off versionCode).
         # SENTRY_DIST follows this step (issue #269): the identifiers step
         # below reads the versionCode derived here into dist
-        # <version>+<versionCode>, the same value the runtime reports
+        # <version>.<versionCode>, the same value the runtime reports
         # (src/lib/sentry.ts via src/lib/sentry-dist.ts), and the lockstep
         # assertion step verifies they agree. An upload-side-only change
         # would repeat the #265 release/dist mismatch, so the dist is
@@ -119,7 +119,7 @@ jobs:
         # mismatch made every uploaded source map land under a release Sentry
         # never looks up, so symbolication silently failed. Pin the Gradle-side
         # values to exactly what the app reports.
-        # Dist (issue #269) is <expo.version>+<expo.android.versionCode>, the
+        # Dist (issue #269) is <expo.version>.<expo.android.versionCode>, the
         # same formula the runtime builds in src/lib/sentry-dist.ts from the
         # same app.json — so one release+dist identifies exactly one build.
         # This step runs AFTER "Derive CI versionCode/versionName" and reads
@@ -134,21 +134,21 @@ jobs:
             exit 1
           fi
           echo "SENTRY_RELEASE=opencode-mobile@${VERSION}" >> "$GITHUB_ENV"
-          echo "SENTRY_DIST=${VERSION}+${CODE}" >> "$GITHUB_ENV"
-          echo "Sentry release=opencode-mobile@${VERSION} dist=${VERSION}+${CODE}"
+          echo "SENTRY_DIST=${VERSION}.${CODE}" >> "$GITHUB_ENV"
+          echo "Sentry release=opencode-mobile@${VERSION} dist=${VERSION}.${CODE}"
 
       - name: Assert Sentry dist matches app.json (lockstep)
         # Issue #269: the runtime dist and the upload dist are computed in two
         # places from two inputs, so they drifted silently (see #265). Re-read
-        # app.json and fail if SENTRY_DIST is not ${version}+${versionCode} —
+        # app.json and fail if SENTRY_DIST is not ${version}.${versionCode} —
         # the same value src/lib/sentry.ts reports at runtime.
         run: |
           set -euo pipefail
           VERSION=$(node -p "require('./app.json').expo.version")
           CODE=$(node -p "require('./app.json').expo.android.versionCode")
-          EXPECTED="${VERSION}+${CODE}"
+          EXPECTED="${VERSION}.${CODE}"
           if [ "${SENTRY_DIST:-}" != "$EXPECTED" ]; then
-            echo "::error::SENTRY_DIST (${SENTRY_DIST:-<unset>}) != app.json version+versionCode ($EXPECTED) — runtime/upload dist mismatch"
+            echo "::error::SENTRY_DIST (${SENTRY_DIST:-<unset>}) != app.json version.versionCode ($EXPECTED) — runtime/upload dist mismatch"
             exit 1
           fi
           echo "Lockstep OK: SENTRY_DIST=$SENTRY_DIST matches app.json $EXPECTED"

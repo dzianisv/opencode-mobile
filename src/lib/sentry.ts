@@ -24,7 +24,7 @@ const DSN = process.env.EXPO_PUBLIC_SENTRY_DSN
 const APP_VERSION = (appJson as { expo?: { version?: string } }).expo?.version ?? "unknown"
 const APP_VERSION_CODE = (appJson as { expo?: { android?: { versionCode?: unknown } } }).expo?.android
   ?.versionCode
-// Dist identifies exactly one build: <version>+<versionCode> (issue #269).
+// Dist identifies exactly one build: <version>.<versionCode> (issue #269).
 // Both sides derive it from the same app.json fields — the workflows mutate
 // expo.android.versionCode before bundling, so the runtime dist and the
 // upload SENTRY_DIST agree. Missing/non-numeric code degrades to the
