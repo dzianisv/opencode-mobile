@@ -477,6 +477,34 @@ export const useEvents = create<EventsState>((set, get) => ({
               break
             }
 
+            case "session.deleted": {
+              // Drop a session deleted elsewhere (another client, the TUI) from
+              // the lists, and close it if it is open. opencode 1.x sends the
+              // whole session in `info`, newer servers only `sessionID`.
+              const info = props.info as Session | undefined
+              const deletedID = info?.id ?? (props.sessionID as string | undefined)
+              if (!deletedID) break
+              useSessions.setState((state) => {
+                const parentID = info?.parentID
+                const children = parentID ? state.childrenByParent[parentID] : undefined
+                return {
+                  sessions: state.sessions.filter((s) => s.id !== deletedID),
+                  ...(parentID && children
+                    ? { childrenByParent: { ...state.childrenByParent, [parentID]: children.filter((s) => s.id !== deletedID) } }
+                    : {}),
+                  ...(state.currentSession?.id === deletedID ? { currentSession: null, messages: [], parts: {} } : {}),
+                }
+              })
+              break
+            }
+
+            case "message.removed": {
+              // useSessions.handleEvent already knows how to drop a message
+              // (e.g. after a revert cleanup) — it just never received it.
+              useSessions.getState().handleEvent({ type, properties: props } as any)
+              break
+            }
+
             case "session.error": {
               const error = props.error as { message?: string } | undefined
               const sessionID = props.sessionID as string
