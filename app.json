@@ -71,7 +71,7 @@
         {
           "photosPermission": "OpenCode can attach images from your photo library to messages to your AI coding agent.",
           "cameraPermission": "OpenCode can capture images with your camera and attach them to messages to your AI coding agent.",
-          "microphonePermission": false
+          "microphonePermission": "OpenCode uses the microphone to capture your voice when using speech-to-text input."
         }
       ],
       [

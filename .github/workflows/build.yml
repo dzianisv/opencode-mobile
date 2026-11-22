@@ -176,6 +176,32 @@ jobs:
         working-directory: android
         run: ./gradlew assembleRelease
 
+      - name: Assert RECORD_AUDIO in built APK manifest
+        # Issue #302: expo-image-picker with microphonePermission: false emits
+        # a tools:node="remove" rule for RECORD_AUDIO, so the manifest merger
+        # strips the permission expo-speech-recognition adds — and the mic
+        # button can then never be granted in any release build. The source
+        # manifest already contains RECORD_AUDIO, so grepping source proves
+        # nothing; assert on the BUILT APK's merged manifest instead.
+        run: |
+          set -euo pipefail
+          APK=android/app/build/outputs/apk/release/app-release.apk
+          AAPT2=$(find "${ANDROID_HOME:-$HOME/Android/Sdk}" -path '*/build-tools/*/aapt2' -type f 2>/dev/null | sort -V | tail -1)
+          if [ -z "$AAPT2" ]; then
+            echo "::error::aapt2 not found under ANDROID_HOME — cannot verify RECORD_AUDIO in $APK"
+            exit 1
+          fi
+          BADGING=$(mktemp)
+          "$AAPT2" dump badging "$APK" > "$BADGING"
+          if grep -q "uses-permission: name='android.permission.RECORD_AUDIO'" "$BADGING"; then
+            echo "RECORD_AUDIO present in $APK"
+            grep "uses-permission: name='android.permission.RECORD_AUDIO'" "$BADGING"
+          else
+            echo "::error::RECORD_AUDIO missing from built APK manifest ($APK) — see issue #302"
+            grep "uses-permission:" "$BADGING" || true
+            exit 1
+          fi
+
       - name: Upload APK artifact
         uses: actions/upload-artifact@v7
         with:
@@ -339,6 +365,30 @@ jobs:
 
       - name: Rename artifact
         run: cp android/app/build/outputs/apk/release/app-release.apk app-release-fdroid.apk
+
+      - name: Assert RECORD_AUDIO in F-Droid APK manifest
+        # Issue #302: same guard as the main build job, on the F-Droid
+        # flavor — it is built from the same app.json, so the same
+        # microphonePermission: false stripping would hit it too. Assert on
+        # the BUILT APK's merged manifest via aapt2, never on source.
+        run: |
+          set -euo pipefail
+          APK=app-release-fdroid.apk
+          AAPT2=$(find "${ANDROID_HOME:-$HOME/Android/Sdk}" -path '*/build-tools/*/aapt2' -type f 2>/dev/null | sort -V | tail -1)
+          if [ -z "$AAPT2" ]; then
+            echo "::error::aapt2 not found under ANDROID_HOME — cannot verify RECORD_AUDIO in $APK"
+            exit 1
+          fi
+          BADGING=$(mktemp)
+          "$AAPT2" dump badging "$APK" > "$BADGING"
+          if grep -q "uses-permission: name='android.permission.RECORD_AUDIO'" "$BADGING"; then
+            echo "RECORD_AUDIO present in $APK"
+            grep "uses-permission: name='android.permission.RECORD_AUDIO'" "$BADGING"
+          else
+            echo "::error::RECORD_AUDIO missing from built APK manifest ($APK) — see issue #302"
+            grep "uses-permission:" "$BADGING" || true
+            exit 1
+          fi
 
       - name: Upload F-Droid APK artifact
         uses: actions/upload-artifact@v7
