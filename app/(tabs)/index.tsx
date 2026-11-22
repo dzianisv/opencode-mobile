@@ -72,9 +72,11 @@ function SessionItem({
     ])
   }
 
-  // Extract short directory name from session
-  const shortDir = session.directory ? session.directory.split("/").filter(Boolean).pop() : null
-
+  // Regular view shows mainly the session name (#294): the title plus one
+  // small recency line. Everything else lives where it already belongs —
+  // Rename/Delete in the long-press menu (#295), the directory in the group
+  // header / connection bar — so the per-row badge, file count and chevron
+  // (the same decoration repeated on every row) are gone.
   return (
     <TouchableOpacity
       style={[styles.sessionItem, isDark && styles.sessionItemDark]}
@@ -83,29 +85,13 @@ function SessionItem({
       testID={`session-item-${session.id}`}
     >
       <View style={styles.sessionContent}>
-        <View style={styles.sessionHeader}>
-          <Text style={[styles.sessionTitle, isDark && styles.textDark]} numberOfLines={1}>
-            {session.title || t("sessionsList.untitledSession")}
-          </Text>
-        </View>
-        <View style={styles.sessionMetaRow}>
-          <Text style={[styles.sessionMeta, isDark && styles.metaDark]}>
-            {formatTime(session.time.updated, t)}
-            {/* summary is always present but files defaults to 0 until the
-                server populates it — only show the count when it's meaningful,
-                matching the SessionInfo panel's `summary.files > 0` guard (#55) */}
-            {session.summary && session.summary.files > 0 &&
-              ` · ${t("sessionsList.filesCount", { count: session.summary.files })}`}
-          </Text>
-          {shortDir && (
-            <View style={styles.sessionDirBadge}>
-              <Ionicons name="folder-outline" size={12} color={isDark ? "#888888" : "#666666"} />
-              <Text style={[styles.sessionDirText, isDark && styles.metaDark]}>{shortDir}</Text>
-            </View>
-          )}
-        </View>
+        <Text style={[styles.sessionTitle, isDark && styles.textDark]} numberOfLines={1}>
+          {session.title || t("sessionsList.untitledSession")}
+        </Text>
+        <Text style={[styles.sessionMeta, isDark && styles.metaDark]}>
+          {formatTime(session.time.updated, t)}
+        </Text>
       </View>
-      <Ionicons name="chevron-forward" size={20} color={isDark ? "#666666" : "#999999"} />
     </TouchableOpacity>
   )
 }
@@ -978,12 +964,6 @@ const styles = StyleSheet.create({
   sessionContent: {
     flex: 1,
   },
-  sessionHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    marginBottom: 2,
-  },
   sessionTitle: {
     fontSize: 16,
     fontWeight: "500",
@@ -995,24 +975,6 @@ const styles = StyleSheet.create({
   },
   sessionMeta: {
     fontSize: 13,
-    color: "#666666",
-  },
-  sessionMetaRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
-  sessionDirBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    backgroundColor: "#f5f5f5",
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
-  },
-  sessionDirText: {
-    fontSize: 11,
     color: "#666666",
   },
   metaDark: {

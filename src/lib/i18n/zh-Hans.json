@@ -278,7 +278,6 @@
       "hoursAgo": "{{count}} 小时前",
       "daysAgo": "{{count}} 天前"
     },
-    "filesCount": "{{count}} 个文件",
     "actions": {
       "rename": "重命名"
     },
