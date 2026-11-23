@@ -254,7 +254,12 @@ async function main() {
   if (args.markdown || !args.write) console.log(renderMarkdown(store, { baseline: args.baseline }))
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+// Do not run main() under the node test runner: `node --test` executes this
+// file as a test file too, and main() blocks on stdin (readStdin) until EOF,
+// which the runner's stdin never reaches — that hung CI past the job timeout
+// (#306). Direct CLI runs never set NODE_TEST_CONTEXT, so piped-stdin use
+// (`release-uptake.mjs --json | uptake-series.mjs --write`) is unaffected.
+if (import.meta.url === `file://${process.argv[1]}` && process.env.NODE_TEST_CONTEXT == null) {
   main().catch((err) => {
     console.error(String(err?.message ?? err))
     process.exit(1)
