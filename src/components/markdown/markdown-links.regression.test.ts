@@ -129,25 +129,22 @@ const Parser = require("react-native-marked/dist/commonjs/lib/Parser").default
 interface RendererCtor {
   new (linkStyle?: { color: string }): { text(text: unknown, styles?: unknown): unknown }
 }
-const { CustomRenderer } = loadTsModule(path.join(here, "Markdown.tsx")) as { CustomRenderer: RendererCtor }
-
-const theme = {
-  text: { color: "#0a0a0a", fontSize: 15, lineHeight: 22 },
-  paragraph: { marginTop: 0, marginBottom: 8 },
-  link: { color: "#8b5cf6" },
-  codespan: {
-    backgroundColor: "#e8e5f0",
-    color: "#6d28d9",
-    fontFamily: "monospace",
-    fontSize: 13,
-    paddingHorizontal: 4,
-    paddingVertical: 1,
-    borderRadius: 3,
-  },
-  code: { backgroundColor: "#e8e5f0", color: "#6d28d9", fontFamily: "monospace", fontSize: 13 },
+interface MarkdownTheme {
+  link: { color: string }
+  text: Record<string, unknown>
+  [key: string]: unknown
+}
+const { CustomRenderer, lightTheme, darkTheme } = loadTsModule(path.join(here, "Markdown.tsx")) as {
+  CustomRenderer: RendererCtor
+  lightTheme: MarkdownTheme
+  darkTheme: MarkdownTheme
 }
 
-function renderMarkdown(md: string) {
+// The tests render through the REAL themes exported from Markdown.tsx, not
+// a hardcoded copy — a style regression must fail here, not drift silently
+// past a mirror (issue #292 changed the codespan fill to a subtle gray).
+
+function renderMarkdown(md: string, theme: MarkdownTheme = lightTheme) {
   const tokens = lexer(md, { gfm: true })
   const renderer = new CustomRenderer(theme.link)
   const parser = new Parser({ styles: theme, baseUrl: "", renderer })
@@ -214,7 +211,7 @@ test("bare URL in plain text yields a link node whose onPress opens the URL", as
   // shapes above, so drive the entry point the Parser calls directly with a
   // www. URL in a raw text run — it must still yield a link node.
   const { renderer } = renderMarkdown("x")
-  const textNode = renderer.text("go to www.safescript.cc now", theme.text)
+  const textNode = renderer.text("go to www.safescript.cc now", lightTheme.text)
   const links = findLinks(textNode)
   assert.equal(links.length, 1, "linkify must split a www. URL out of raw text")
   assert.deepEqual(await pressAndGetOpened(links[0]), ["https://www.safescript.cc"], "www. opens with an https:// scheme")
@@ -240,16 +237,24 @@ test("markdown link still works", async () => {
 })
 
 test("non-URL codespan stays inert and code-styled", () => {
-  const { elements } = renderMarkdown("Run `npm install` now")
-  assert.equal(findLinks(elements).length, 0, "a non-URL codespan must not yield a link node")
-  const codeSpan = collectElements(elements).find(
-    (el) => (el as { props: ElementProps }).props.children === "npm install",
-  )
-  assert.ok(codeSpan, "the codespan text still renders")
-  const props = (codeSpan as { props: ElementProps }).props
-  assert.equal(props.onPress, undefined, "a non-URL codespan has no press handler")
-  assert.equal(flatStyle(props.style).backgroundColor, "#e8e5f0", "a non-URL codespan keeps the code background")
-  assert.equal(flatStyle(props.style).fontFamily, "monospace", "a non-URL codespan keeps the mono font")
+  // #292: subtle gray fill, no outline — in both themes.
+  const cases: Array<[MarkdownTheme, string]> = [
+    [lightTheme, "#e8e8e8"],
+    [darkTheme, "#333333"],
+  ]
+  for (const [theme, expectedBackground] of cases) {
+    const { elements } = renderMarkdown("Run `npm install` now", theme)
+    assert.equal(findLinks(elements).length, 0, "a non-URL codespan must not yield a link node")
+    const codeSpan = collectElements(elements).find(
+      (el) => (el as { props: ElementProps }).props.children === "npm install",
+    )
+    assert.ok(codeSpan, "the codespan text still renders")
+    const props = (codeSpan as { props: ElementProps }).props
+    assert.equal(props.onPress, undefined, "a non-URL codespan has no press handler")
+    assert.equal(flatStyle(props.style).backgroundColor, expectedBackground, "a non-URL codespan keeps the code background")
+    assert.equal(flatStyle(props.style).fontFamily, "monospace", "a non-URL codespan keeps the mono font")
+    assert.equal(flatStyle(props.style).borderWidth, 0, "a non-URL codespan has no outline/border")
+  }
 })
 
 test("URL inside a fenced code block stays inert (Copy-only)", () => {

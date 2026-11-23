@@ -48,6 +48,10 @@ name: Directory picker - browse server folders and create a session in one
     id: "new-session-fab"
 - assertVisible:
     text: "New Session"
+# Directory choice lives behind the collapsed "Choose a different directory"
+# disclosure by default (#291) — expand it before asserting on its contents.
+- tapOn:
+    id: "choose-different-directory-button"
 # GET /project surfaces "docs-project" under "Server Projects" (excludes the
 # current project, mock-project) — confirms the project-list endpoint wired up.
 # The modal fetches it async on open, so wait rather than assert immediately.
