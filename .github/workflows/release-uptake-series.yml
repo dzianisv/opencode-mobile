@@ -15,9 +15,11 @@ name: Release uptake series
 #     it is taken cannot be recovered. Rollout-day baselines are gone forever.
 #   * A skipped week is a hole in the curve, and a hole reads exactly like flat.
 #
-# So the series is committed to docs/metrics/release-uptake.json. Each run
-# carries the trailing 7 days and merges by date, so a missed run backfills and
-# the file self-heals. Read the curve from the file or from any run's summary:
+# So the series is committed to docs/metrics/release-uptake.json — via a pull
+# request, not a direct push: main rejects direct pushes (branch protection,
+# GH006; see #309). Each run carries the trailing 7 days and merges by date,
+# so a missed run backfills and the file self-heals. Read the curve from the
+# file or from any run's summary:
 #
 #   gh workflow run "Release uptake series"
 #   gh run watch <id> && gh run view <id>
@@ -47,6 +49,10 @@ on:
 
 permissions:
   contents: write
+  # Open the datapoint PR + arm auto-merge.
+  pull-requests: write
+  # Dispatch "Build Android APK" and "iOS CI" onto the PR branch (see below).
+  actions: write
 
 concurrency:
   group: release-uptake-series
@@ -82,18 +88,55 @@ jobs:
           node scripts/uptake-series.mjs --in /tmp/uptake.json --write --markdown \
             --baseline "${{ inputs.baseline || '2026-08-14' }}" | tee -a "$GITHUB_STEP_SUMMARY"
 
-      - name: Commit the datapoint
+      # The datapoint reaches main through a pull request: direct pushes to
+      # main are rejected by branch protection (GH006, #309).
+      #
+      # A PR opened with GITHUB_TOKEN does NOT start the required CI checks
+      # (token-triggered events never start workflow runs), so this step
+      # dispatches "Build Android APK" and "iOS CI" onto the PR branch via
+      # workflow_dispatch — the documented exception — and arms auto-merge:
+      # GitHub merges once the three required checks pass. Both dispatched
+      # workflows carry a `workflow_dispatch` trigger for exactly this.
+      #
+      # The branch is persistent (metrics/release-uptake) and force-pushed
+      # each run, so at most one uptake PR is ever open. If main moves
+      # between PR creation and merge, auto-merge waits; the next run
+      # rebases the branch and re-dispatches, and the file backfills the
+      # trailing 7 days, so no datapoint is lost.
+      - name: Open the datapoint pull request
         if: ${{ inputs.commit != false }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
           if git diff --quiet -- docs/metrics/release-uptake.json; then
             echo "no change to the series" >> "$GITHUB_STEP_SUMMARY"
             exit 0
           fi
+          BRANCH=metrics/release-uptake
+          DATE=$(date -u +%F)
           git config user.name  "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add docs/metrics/release-uptake.json
-          git commit -m "chore(metrics): record install-base uptake for $(date -u +%F)"
-          # A concurrent push must not fail the measurement; rebase and retry once.
+          git commit -m "chore(metrics): record install-base uptake for $DATE"
+          # Rebase onto current main so the PR branch stays up to date
+          # (branch protection is strict); a concurrent push must not fail
+          # the measurement.
           git pull --rebase --autostash origin main || true
-          git push origin HEAD:main
+          git push --force origin "HEAD:$BRANCH"
+          PR=$(gh pr list --head "$BRANCH" --state open --json number --jq '.[0].number // empty')
+          if [ -n "$PR" ]; then
+            echo "reusing open PR #$PR" >> "$GITHUB_STEP_SUMMARY"
+          else
+            PR_URL=$(gh pr create --base main --head "$BRANCH" \
+              --title "chore(metrics): record install-base uptake for $DATE" \
+              --body "Daily install-base uptake datapoint (see #309). Related to #309 and #306 — no closing keyword: the datapoint lands when this PR merges.")
+            PR=${PR_URL##*/}
+            echo "opened $PR_URL" >> "$GITHUB_STEP_SUMMARY"
+          fi
+          # Token-triggered PRs do not start CI; dispatch the two workflows
+          # that own the required checks onto the PR branch.
+          gh workflow run build.yml --ref "$BRANCH"
+          gh workflow run ios-ci.yml --ref "$BRANCH"
+          gh pr merge "$PR" --auto --squash
+          echo "PR #$PR will merge once the required checks pass" >> "$GITHUB_STEP_SUMMARY"
