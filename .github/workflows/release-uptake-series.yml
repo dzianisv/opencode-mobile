@@ -68,7 +68,7 @@ jobs:
       # The merge rules (partial days, backfill, never-downgrade) decide what the
       # curve says. They are verified before they are allowed to write history.
       - name: Test the series model
-        run: node --test scripts/uptake-series.mjs scripts/uptake-series.test.mjs scripts/release-uptake.test.mjs
+        run: node --test scripts/uptake-series.test.mjs scripts/release-uptake.test.mjs
 
       - name: Measure
         env:
