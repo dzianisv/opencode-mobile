@@ -170,10 +170,14 @@ test("the implementation file does not run main() under the test runner with std
   })
   // Never write to or close child.stdin — that is the point of the test.
   const exit = new Promise((resolve) => child.once("exit", (code, signal) => resolve({ code, signal })))
-  const timedOut = await Promise.race([
-    exit.then((r) => ({ ...r, timedOut: false })),
-    new Promise((resolve) => setTimeout(() => resolve({ timedOut: true }), 10_000)),
-  ])
+  // Clear the timer once the race settles: an uncleared 10s timeout keeps
+  // this test-file process alive the full 10s on the passing path.
+  let timer
+  const timeout = new Promise((resolve) => {
+    timer = setTimeout(() => resolve({ timedOut: true }), 10_000)
+  })
+  const timedOut = await Promise.race([exit.then((r) => ({ ...r, timedOut: false })), timeout])
+  clearTimeout(timer)
   if (timedOut.timedOut) {
     child.kill("SIGKILL")
     await exit
