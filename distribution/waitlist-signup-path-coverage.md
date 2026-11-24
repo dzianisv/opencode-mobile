@@ -40,7 +40,7 @@ returns 0 results) and the app is not on IzzyOnDroid, so those channels contribu
 
 ## After-number: how it gets attributed (AGE-100)
 
-_Pending — v0.4.13 (the first build users can actually run the retry queue on) went to the Play **production** track on 2026-08-14 as **versionCode 149** ([run 31786473735](https://github.com/dzianisv/opencode-mobile/actions/runs/31786473735)). Re-read one week out._
+**Answer (2026-08-20, [AGE-100](https://app.paperclip.so/AGE/issues/AGE-100)): `stamped=0` over 6.3 days, but `n=0` — no mailto-fallback conversation of any kind arrived in that window, so the 0 is a pass on an empty sample, not 0-out-of-many.** v0.4.13 (the first build users can actually run the retry queue on) went to the Play **production** track on 2026-08-14 as **versionCode 149** ([run 31786473735](https://github.com/dzianisv/opencode-mobile/actions/runs/31786473735)).
 
 Baseline at release time, from the hourly reconciler's last run before the cut
 (`Waitlist Mailto Reconcile`, 2026-08-14 07:59 UTC): `scanned=34 synced=0 skipped=34 failed=0`
@@ -93,9 +93,45 @@ First reading after the release, from the run that first carried the split
 scanned=34 synced=0 skipped=34 failed=0 unstamped=0 stamped=0
 ```
 
-Same 34 known conversations as the pre-release baseline, nothing new. That is one hour of exposure,
-not a verdict — it only proves the measurement pipeline reports the split end to end. The week-out
-sum is what closes AGE-100.
+Same 34 known conversations as the pre-release baseline, nothing new. That was one hour of
+exposure; the aggregate below is the full read.
+
+### Aggregate, 2026-08-14 09:57 UTC → 2026-08-20 16:02 UTC (143 runs)
+
+```
+gh run list --repo dzianisv/VibeBrowserProductPage \
+  --workflow "Waitlist Mailto Reconcile" --limit 200 \
+  --json databaseId,createdAt,conclusion
+# per run id:
+gh run view --repo dzianisv/VibeBrowserProductPage <id> --log | grep -E "^scanned="
+```
+
+Every one of the 143 runs after [#237](https://github.com/dzianisv/VibeBrowserProductPage/pull/237)
+merged (2026-08-14T09:56:54Z) printed the **identical** line:
+
+```
+scanned=34 synced=0 skipped=34 failed=0 unstamped=0 stamped=0
+```
+
+(One run at 09:38 UTC predates the #237 merge and lacks the split fields — expected, not a gap;
+no hourly gap exceeds ~2.3h in the whole window, so the liveness guard is clean.)
+
+**`scanned` never moved off 34 — the same 34 conversations as the pre-release baseline
+(2026-08-14 07:59 UTC) — for the entire 6.3-day window.** `scanned` counts every
+Chatwoot conversation with the waitlist subject, ever, not just new ones
+(`scripts/reconcile-waitlist-mailto.js:listConversations`, `status=all`, no time filter). Constant
+`scanned` therefore means **zero new mailto-fallback conversations of any kind — pre-v0.4.13 or
+stamped — arrived in the inbox in 6.3 days**, versus ~1.9/day (20 of 21 in 11 days) before AGE-87
+shipped. `unstamped`/`stamped` are computed only over `summary.synced`
+(`lib/waitlist-mailto-reconcile.ts:splitByAppVersion`), and nothing synced, so both are trivially 0.
+
+**Read this as a pass on the stated condition (`stamped=0`), not as "143 samples, zero
+regressions." It is 0 samples.** Whether that is because the retry queue now succeeds before the
+user ever taps mailto, or because the ~436-device sideload cohort simply had a quiet week, cannot
+be distinguished from this signal alone — the sideload cohort never auto-updates, so its background
+rate should have been unaffected by the v0.4.13 rollout. No conversation gives grounds to suspect a
+regression, so [AGE-100](https://app.paperclip.so/AGE/issues/AGE-100) closes on this number; a
+future stamped signup would still reopen it as a new defect per the table above.
 
 ## Method / reproducing
 
