@@ -1,77 +1,64 @@
 # ASO — Google Play listing for OpenCode Mobile
 
-Status: DRAFT, prepared 2026-11-14. Not applied: applying it waits on the owner's
-Play Console sign-in (Work Log row "Unblock Play reviews — Den's one-time browser sign-in").
-Package: cc.agentlabs.opencode. Current live listing verified by reading the Play page 2026-11-13.
+Package: cc.agentlabs.opencode. Source of truth for the listing text is
+`fastlane/metadata/android/en-US/` (title, short + full description,
+phoneScreenshots) — it must match the live listing; a drift here is a bug,
+not a stale note. Text applied Nov 15, 2026; verified live Nov 22, 2026
+(storefront fetch + Play Console readback).
 
-## Live listing today (verified)
+## Live listing (verified 2026-11-22)
 
-- Title: "OpenCode: AI Coding Agent" (25 chars). No "Mobile" in the title, no "Android" keyword.
-- Short description: "AI coding agent in your pocket. Review diffs, approve tool calls, on your phone." (80 chars, field is full)
-- Rating: 4.65 stars from 139 ratings.
-- Long description: good structure (what it does, features, connections, who it is for, getting started, open source, privacy).
+- Title: "OpenCode Mobile: AI Coding" (26/30 chars).
+- Short description: "AI coding agent in your pocket. Review diffs, approve tool calls, on your phone." (80/80 chars).
+- Long description: hook + WHAT IT DOES / CORE FEATURES / CONNECTION OPTIONS /
+  WHO IT IS FOR / GETTING STARTED / OPEN SOURCE / PRIVACY, ending "Android
+  only. There is no iOS version." (2,467 chars, in fastlane).
+- Rating: 4.778 last 28 days / 4.520 default, 144 raters.
+- v0.4.25 at 50% staged rollout (versionCode 165), 178 countries.
 
-## Proposed title (30 chars max)
+## Screenshot deck — rebuilt 2026-11-22 (PR pending, then apply in Console)
 
-- "OpenCode Mobile: AI Coding" (26 chars) — carries the brand name people search for
-  ("OpenCode Mobile") plus the "AI coding" keyword. Replaces "OpenCode: AI Coding Agent".
-- Do not use "OpenCode Mobile — AI Coding Agent" (33 chars, over the limit).
+The old deck was 7 raw captures: slot 1 a bare setup form, slots 2 and 3 the
+same Sessions list twice (with smoke-test names "cua-smoke-sessions-check"
+and "Pong reply" visible on the public storefront), slots 6 and 7 the same
+code block twice, slot 4 mid-typing with the keyboard open and an Android
+autofill bar. No headlines anywhere — the deck documented the UI instead of
+selling the outcome.
 
-## Proposed short description (80 chars max)
+New deck: 5 ad-style cards, 1280x2560, built by
+`growth/play-screenshots/build-cards.py` from the real captures in
+`docs-site/screenshots/` (same navy/blue system as the Product Hunt cards).
+One benefit headline per card (3–5 words per line), real capture in a blue
+frame below. Cuts land in clean white space, verified by pixel scan + visual
+readback of every card.
 
-- Keep the current one unchanged: "AI coding agent in your pocket. Review diffs, approve tool calls, on your phone."
-  It is exactly 80 chars, reads as conversion copy, and already contains "AI coding agent".
+| Slot | Headline | Sub | Source capture | Cut |
+|---|---|---|---|---|
+| 1 Hero | Your code, written from your phone. | The agent writes. You approve. | 06 (code created) | bottom 575px: "Run it..." lines + input bar |
+| 2 Differentiator | Watch it think. Approve every step. | Thinking, tool calls, and diffs as they happen. | 05 (thinking + tool calls) | bottom 460px: tool card below the message |
+| 3 Feature | Connect in seconds. | Paste your server address. Done. | 01 (Add Connection) | bottom 150px: half-cut button |
+| 4 Feature | Every session, in your pocket. | Start, resume, and switch sessions. | 02 (Sessions list) | bottom 500px: FAB + tab bar |
+| 5 Closer | Free. Open. Yours. | — | no screenshot: benefit list + icon | — |
 
-## Proposed long description (4000 chars max, all indexed)
+Copy options considered per slot (paint a moment / outcome / kill a pain):
+slot 1 also "Code lands while you're out." / "Never wait at your desk again.";
+slot 2 also "Every step, visible." / "No silent rewrites." The chosen lines
+won on the thumbnail test (readable at ~160px wide, one idea each).
 
-Keep the live long description. It already works. Two small changes only:
+Known limit: slot 4 still shows the smoke-test session names — no clean
+Sessions capture exists yet. A fresh capture with real session titles
+replaces it in the next deck refresh.
 
-1. First paragraph: keep as is — it contains opencode, Android, AI coding, self-hosted,
-   and phone in the first 200 words.
-2. Add one line at the end, under PRIVACY: "Android only. There is no iOS version."
+## Baseline for measuring the deck (2026-11-22, Play Console, 28-day)
 
-Full text (copy from the live listing, with the added line):
-
-OpenCode Mobile is the AI coding agent companion built for developers who self-host opencode.
-Connect your Android phone to your opencode server and run AI-powered coding sessions from
-anywhere — watch diffs land, approve tool calls, and guide Claude, GPT-4, or Gemini in real time.
-
-WHAT IT DOES
-OpenCode Mobile is a thin client for the opencode CLI (github.com/sst/opencode). It speaks the
-opencode HTTP + SSE API, so every AI coding session on your workstation or server is instantly
-reachable from your phone. All AI model calls go through your own server — your API keys, your
-code, your infrastructure. Nothing passes through our servers.
-
-CORE FEATURES
-- Real-time streaming chat — watch your AI coding assistant think and respond token by token, just like a desktop terminal
-- File diff viewer — see every code change the agent proposes before you approve it; no surprise rewrites
-- Tool-call approval — review and approve or reject file writes, shell commands, and other agent actions from your phone
-- Multi-session management — start, resume, and switch between AI coding sessions without losing context
-- Biometric unlock — fingerprint or face unlock keeps your sessions private on shared or lost devices
-
-CONNECTION OPTIONS
-- Local Wi-Fi — zero config when phone and dev machine are on the same network
-- Tailscale — connect securely across networks without opening ports
-- Cloudflare Tunnel — public HTTPS endpoint for your opencode server in minutes
-- ngrok — quick ad-hoc tunnels for demos or one-off remote sessions
-
-WHO IT IS FOR
-- Developers running opencode on their workstation who want to check in from their phone
-- Engineers away from their desk who want to review or steer long-running AI coding jobs
-- Teams self-hosting AI developer tools who want a polished mobile interface
-- Open-source contributors who want an MIT-licensed alternative to proprietary AI coding apps
-
-GETTING STARTED
-Install opencode on any machine: npm install -g opencode-ai, then run opencode serve. Open the app,
-tap Connect, paste your server URL. Your AI coding agent is now on your phone.
-
-OPEN SOURCE
-MIT licensed. Source code at github.com/dzianisv/opencode-mobile. Contributions welcome.
-
-PRIVACY
-OpenCode Mobile does not collect your code, prompts, or AI responses. All traffic goes from the app
-directly to YOUR opencode server. Optional Sentry crash reporting collects only device model, OS version,
-and stack traces. Android only. There is no iOS version.
+- Acquisitions 5.83K (−2% vs prev 28d); first opens 3.11K (−13%); MAU 6.39K (+14%).
+- Store listing: visitors 18.1K (+1%), install clicks 6.37K (+9%), CTR 35% (+8%).
+- Conversion: 28.2% (28-day). Correction: the 33.25% carried since Nov 14 is
+  the 90-day figure (Grow overview shows 33.22% under "Last 90 days"), not
+  the 28-day figure — measure the deck against 28.2%.
+- Crash 0.63%, ANR 0.09%. Impressions 149K (+40%); 7-day retention 176 (+47%).
+- Ratings last 28d: 18 ratings — 5★ 8, 4★ 1, 3★ 1, 2★ 0, 1★ 8 (polarized;
+  the 1★ reviews go to the 09:17 PT Play reviews job, not this lane).
 
 ## Keywords to win (score monthly: relevance, difficulty, volume)
 
@@ -80,16 +67,10 @@ and stack traces. Android only. There is no iOS version.
 - claude code android, code from phone, self-hosted ai coding
 - ai coding agent android, opencode android client
 
-## Screenshots (first 3 carry search — already live on the site)
+## How to apply (owner step, after the PR merges)
 
-1. Connect to your opencode server (biggest promise: your agent, on your phone)
-2. Sessions load from your server (core interaction)
-3. Send tasks to your AI agent (differentiator: you steer, it codes)
-Ship at least 5 screenshots plus the 1024x500 feature graphic. One caption of 5 to 7 words each.
-
-## How to apply (owner step, after sign-in)
-
-1. Play Console > OpenCode: AI Coding Agent > Store presence > Main store listing.
-2. Paste the title, short description, and long description above. Save.
-3. Record the date and the rating/downloads before and after in this file, so the next
-   iteration can tell what moved.
+1. Play Console > OpenCode Mobile: AI Coding > Store presence > Main store listing.
+2. Replace phone screenshots 01–07 with the new 01–05; delete the old 06/07.
+3. Save, submit for review. Record the date and the numbers above in this
+   file, so the next iteration can tell what moved. Watch conversion + install
+   clicks over the next 28 days; a deck change moves slowly.
