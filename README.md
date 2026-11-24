@@ -28,7 +28,7 @@ There are **three working ways** to install OpenCode Mobile today, all for Andro
    ```
    https://dzianisv.github.io/opencode-mobile/fdroid/repo
    ```
-   In the F-Droid app: **Settings → Repositories → + (add)** and paste the URL above. Current version: **v0.4.25**.
+   In the F-Droid app: **Settings → Repositories → + (add)** and paste the URL above. Current version: **v0.4.27**.
 
 3. **Direct signed APK** — download the latest release and install it manually:
    **https://github.com/dzianisv/opencode-mobile/releases/latest**
@@ -64,7 +64,7 @@ OpenCode Mobile is a React Native / Expo app that brings the power of the [openc
 
 ## Get OpenCode Mobile
 
-Package: `cc.agentlabs.opencode` · Android only · current version v0.4.25
+Package: `cc.agentlabs.opencode` · Android only · current version v0.4.27
 
 | Channel | Status | How |
 |---|---|---|
@@ -137,7 +137,7 @@ OpenCode Mobile is a thin client. It speaks the opencode HTTP + SSE API: listing
 
 ## Project Status
 
-**Current version: v0.4.25**
+**Current version: v0.4.27**
 
 | Feature | Status |
 |---|---|
