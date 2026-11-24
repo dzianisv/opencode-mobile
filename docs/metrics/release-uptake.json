@@ -218,6 +218,62 @@
       "share": 0.11976047904191617,
       "partial": true,
       "observedAt": "2026-08-14T18:36:57.687Z"
+    },
+    "2026-11-17": {
+      "gated": 16,
+      "total": 17,
+      "share": 0.9411764705882353,
+      "partial": false,
+      "observedAt": "2026-11-24T23:37:22.428Z"
+    },
+    "2026-11-18": {
+      "gated": 10,
+      "total": 11,
+      "share": 0.9090909090909091,
+      "partial": false,
+      "observedAt": "2026-11-24T23:37:22.428Z"
+    },
+    "2026-11-19": {
+      "gated": 7,
+      "total": 10,
+      "share": 0.7,
+      "partial": false,
+      "observedAt": "2026-11-24T23:37:22.428Z"
+    },
+    "2026-11-20": {
+      "gated": 9,
+      "total": 9,
+      "share": 1,
+      "partial": false,
+      "observedAt": "2026-11-24T23:37:22.428Z"
+    },
+    "2026-11-21": {
+      "gated": 11,
+      "total": 13,
+      "share": 0.8461538461538461,
+      "partial": false,
+      "observedAt": "2026-11-24T23:37:22.428Z"
+    },
+    "2026-11-22": {
+      "gated": 12,
+      "total": 13,
+      "share": 0.9230769230769231,
+      "partial": false,
+      "observedAt": "2026-11-24T23:37:22.428Z"
+    },
+    "2026-11-23": {
+      "gated": 8,
+      "total": 12,
+      "share": 0.6666666666666666,
+      "partial": false,
+      "observedAt": "2026-11-24T23:37:22.428Z"
+    },
+    "2026-11-24": {
+      "gated": 11,
+      "total": 12,
+      "share": 0.9166666666666666,
+      "partial": true,
+      "observedAt": "2026-11-24T23:37:22.428Z"
     }
   },
   "snapshots": {
@@ -236,6 +292,22 @@
       },
       "staleVersion": "0.4.10",
       "staleShare": 0.6358658453114305
+    },
+    "2026-11-24": {
+      "observedAt": "2026-11-24T23:37:22.428Z",
+      "windowDays": 7,
+      "share": 0.8764044943820225,
+      "shareBySession": 0.8820754716981132,
+      "users": {
+        "gated": 78,
+        "total": 89
+      },
+      "sessions": {
+        "gated": 187,
+        "total": 212
+      },
+      "staleVersion": "0.4.12",
+      "staleShare": 0.06741573033707865
     }
   }
 }
