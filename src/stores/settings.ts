@@ -11,12 +11,14 @@ interface Settings {
   pageSize: number
   notifications: Record<Category, boolean>
   locale: LocalePreference
+  showMessageTimestamps: boolean
 }
 
 const DEFAULTS: Settings = {
   pageSize: 25,
   notifications: { ...defaultPreferences },
   locale: "system",
+  showMessageTimestamps: false,
 }
 
 interface SettingsState extends Settings {
@@ -25,10 +27,16 @@ interface SettingsState extends Settings {
   setPageSize: (size: number) => Promise<void>
   setNotification: (category: Category, enabled: boolean) => Promise<void>
   setLocale: (locale: LocalePreference) => Promise<void>
+  setShowMessageTimestamps: (show: boolean) => Promise<void>
 }
 
 function snapshot(get: () => SettingsState): Settings {
-  return { pageSize: get().pageSize, notifications: get().notifications, locale: get().locale }
+  return {
+    pageSize: get().pageSize,
+    notifications: get().notifications,
+    locale: get().locale,
+    showMessageTimestamps: get().showMessageTimestamps,
+  }
 }
 
 async function persist(settings: Settings) {
@@ -68,5 +76,10 @@ export const useSettings = create<SettingsState>((set, get) => ({
     set({ locale })
     setAppLocale(locale) // applies immediately
     await persist({ ...snapshot(get), locale })
+  },
+
+  setShowMessageTimestamps: async (showMessageTimestamps) => {
+    set({ showMessageTimestamps })
+    await persist({ ...snapshot(get), showMessageTimestamps })
   },
 }))
