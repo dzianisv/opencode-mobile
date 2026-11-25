@@ -6,15 +6,22 @@ phoneScreenshots) — it must match the live listing; a drift here is a bug,
 not a stale note. Text applied Nov 15, 2026; verified live Nov 22, 2026
 (storefront fetch + Play Console readback).
 
-## Live listing (verified 2026-11-22)
+## Live listing (verified 2026-11-26, Play Console live read)
 
-- Title: "OpenCode Mobile: AI Coding" (26/30 chars).
-- Short description: "AI coding agent in your pocket. Review diffs, approve tool calls, on your phone." (80/80 chars).
+- Title: "OpenCode Mobile: AI Coding" (26/30 chars). Matches
+  `fastlane/metadata/android/en-US/title.txt` — no drift.
+- Short description: "AI coding agent in your pocket. Review diffs, approve tool calls, on your phone." (80/80 chars). Matches fastlane — no drift.
 - Long description: hook + WHAT IT DOES / CORE FEATURES / CONNECTION OPTIONS /
   WHO IT IS FOR / GETTING STARTED / OPEN SOURCE / PRIVACY, ending "Android
-  only. There is no iOS version." (2,467 chars, in fastlane).
-- Rating: 4.778 last 28 days / 4.520 default, 144 raters.
-- v0.4.25 at 50% staged rollout (versionCode 165), 178 countries.
+  only. There is no iOS version." (2,489 bytes in fastlane).
+- Rating: 4.824 last 28 days (+0.58) / 4.510 default, 146 raters, 46 ratings
+  with reviews.
+- v0.4.27 at 20% staged rollout (released Nov 23, 2026 06:07, 178 countries);
+  v0.4.26 superseded. Rollout step-up held on the S/T surge (Sentry S 65, T 15).
+- Reviews: queue clear — the one new review since Nov 24 (Daniel, Nov 25,
+  5 stars, keyboard issue "got fixed") was already replied to Nov 26 01:20.
+- NEW Play Console flag: "Your app may crash on 16 KB devices." Not yet
+  verified as a real defect — flagged for the daily loop to check.
 
 ## Screenshot deck — rebuilt 2026-11-22 (PR pending, then apply in Console)
 
@@ -59,6 +66,20 @@ replaces it in the next deck refresh.
 - Crash 0.63%, ANR 0.09%. Impressions 149K (+40%); 7-day retention 176 (+47%).
 - Ratings last 28d: 18 ratings — 5★ 8, 4★ 1, 3★ 1, 2★ 0, 1★ 8 (polarized;
   the 1★ reviews go to the 09:17 PT Play reviews job, not this lane).
+
+## Deck measurement 2026-11-26 (Play Console live read, 28-day Oct 29–Nov 25)
+
+- Acquisitions 5.06K (−22%); first opens 2.80K (−27%); MAU 6.08K (+5%).
+- Store listing (Oct 26–Nov 22 window): visitors 16.2K (+14%), install
+  clicks 5.55K (+13%), CTR 34% (+2pp). Conversion 27.1% (default listing;
+  the 33.13% on the Grow overview card is the 90-day figure, not 28-day).
+- Verdict: NO SIGNAL YET. The deck has been live ~3 days (storefront
+  "Updated on Nov 23, 2026") and the 28-day window is still dominated by
+  pre-deck days; conversion 28.2% → 27.1% is within noise. Keep measuring
+  daily; judge the deck after a full week live.
+- Crash 0.73% (+0.155pp), ANR 0.09% (+0.09pp). Impressions 163K (+45%);
+  7-day retention 168 (+22%). Installed audience 7,719 (Nov 23).
+- Rating 28-day 4.824 (+0.58) / default 4.510, 146 raters.
 
 ## Keywords to win (score monthly: relevance, difficulty, volume)
 
