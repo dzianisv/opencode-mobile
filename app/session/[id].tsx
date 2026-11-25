@@ -456,6 +456,9 @@ export default function SessionScreen() {
   useFocusEffect(
     useCallback(() => {
       if (!id) return
+      // Refresh the agent/model catalog for this session's project so a stale
+      // agent from another project can't be sent (and error) here.
+      useCatalog.getState().load(directory)
       selectSession(id, directory).then(() => {
         // Re-fetch pending permissions/questions from the server to recover from
         // missed SSE events or failed optimistic removals
