@@ -1,0 +1,3 @@
+v0.4.27 — Connection probe handles non-ASCII passwords
+
+• Adding a connection with a non-ASCII username or password no longer crashes the app — the probe now handles any characters.

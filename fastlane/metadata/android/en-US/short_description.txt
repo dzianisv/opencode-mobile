@@ -1,1 +1,1 @@
-AI coding agent in your pocket. Stream, diff, approve — free & open source.
+AI coding agent in your pocket. Review diffs, approve tool calls, on your phone.

@@ -1,0 +1,6 @@
+v0.4.26 — Mic input works again, links tap open, session switcher
+
+• Voice input works again — the mic button can now request the microphone permission in release builds.
+• Links in chat messages are tappable and open in your browser.
+• Switch between sessions from the header, see the current session's cost, and start new sessions in your server's default folder.
+• Inline code in messages is easier to read.
