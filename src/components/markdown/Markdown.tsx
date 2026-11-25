@@ -132,7 +132,9 @@ export class CustomRenderer extends Renderer {
 
 const mono = Platform.OS === "ios" ? "Menlo" : "monospace"
 
-const lightTheme = {
+// Exported so the regression tests assert the real shipped styles instead
+// of a hardcoded copy that drifts (issue #292).
+export const lightTheme = {
   text: { color: "#0a0a0a", fontSize: 15, lineHeight: 22 },
   paragraph: { marginTop: 0, marginBottom: 8 },
   h1: { fontSize: 22, fontWeight: "700" as const, color: "#0a0a0a", marginBottom: 8, marginTop: 12 },
@@ -157,13 +159,18 @@ const lightTheme = {
     borderRadius: 4,
   },
   codespan: {
-    backgroundColor: "#e8e5f0",
+    // #292: subtle neutral gray fill, no outline — the previous pale
+    // lavender (#e8e5f0) read as a white box against the assistant bubble
+    // (#f0f0ff). No borderWidth is set by the library default either; the
+    // explicit 0 pins the no-outline requirement.
+    backgroundColor: "#e8e8e8",
     color: "#6d28d9",
     fontFamily: mono,
     fontSize: 13,
     paddingHorizontal: 4,
     paddingVertical: 1,
     borderRadius: 3,
+    borderWidth: 0,
   },
   list: { marginBottom: 4 },
   li: { marginBottom: 2 },
@@ -174,7 +181,7 @@ const lightTheme = {
   image: { borderRadius: 8 },
 }
 
-const darkTheme = {
+export const darkTheme = {
   ...lightTheme,
   text: { ...lightTheme.text, color: "#e5e5e5" },
   h1: { ...lightTheme.h1, color: "#ffffff" },
@@ -192,8 +199,9 @@ const darkTheme = {
   },
   codespan: {
     ...lightTheme.codespan,
-    backgroundColor: "#2a2040",
+    backgroundColor: "#333333",
     color: "#c4b5fd",
+    borderWidth: 0,
   },
   hr: { ...lightTheme.hr, backgroundColor: "#2a2a2a" },
 }

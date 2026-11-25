@@ -8,6 +8,7 @@ import * as SecureStore from "expo-secure-store"
 import appJson from "../../app.json"
 import { log, formatLogLines } from "./logbuffer"
 import { type Classification, type ProbeAttempt, type ParsedUrl, parseUrl, classify } from "./diagnostics-classify"
+import { toBase64Utf8 } from "./headers"
 import { chatwootConfigured, sendSupportReport } from "./chatwoot"
 import { hasTelemetryConsent, loadTelemetryConsent } from "./telemetry"
 import { redactHostAndUrls } from "./scrub"
@@ -77,7 +78,10 @@ export async function probeConnection(url: string, auth?: { username: string; pa
   log.info("diag", "probe start", url, "parsed", JSON.stringify(parsed))
 
   const headers: Record<string, string> = {}
-  if (auth) headers["Authorization"] = `Basic ${btoa(`${auth.username}:${auth.password}`)}`
+  // UTF-8-safe base64: raw `btoa` is Latin1-only on Hermes and throws on
+  // non-ASCII credentials (issue #304). `toBase64Utf8` is byte-identical
+  // to plain `btoa` for ASCII input (RFC 7617).
+  if (auth) headers["Authorization"] = `Basic ${toBase64Utf8(`${auth.username}:${auth.password}`)}`
 
   let health: ProbeAttempt
   let root: ProbeAttempt
