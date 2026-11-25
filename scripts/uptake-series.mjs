@@ -254,7 +254,16 @@ async function main() {
   if (args.markdown || !args.write) console.log(renderMarkdown(store, { baseline: args.baseline }))
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+// Do not run main() under the node test runner: `node --test` executes this
+// file as a test file too, and main() blocks on stdin (readStdin) until EOF,
+// which the runner's stdin never reaches — that hung CI past the job timeout
+// (#306). NODE_TEST_CONTEXT is set by the runner for its test files and is
+// inherited by every process they spawn, so a CLI run descended from a
+// `node --test` process also sees it and skips main() — do not shell out to
+// this CLI from a test harness without clearing the variable first.
+// Piped-stdin use from a normal shell
+// (`release-uptake.mjs --json | uptake-series.mjs --write`) is unaffected.
+if (import.meta.url === `file://${process.argv[1]}` && process.env.NODE_TEST_CONTEXT == null) {
   main().catch((err) => {
     console.error(String(err?.message ?? err))
     process.exit(1)

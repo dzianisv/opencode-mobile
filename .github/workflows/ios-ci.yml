@@ -20,6 +20,11 @@ on:
     branches: [main]
   push:
     branches: [main]
+  # The release-uptake workflow dispatches this workflow onto its PR branch:
+  # a PR opened with GITHUB_TOKEN does not start CI on its own, and the
+  # uptake PR needs the "Typecheck and unit tests" check to satisfy branch
+  # protection (#309).
+  workflow_dispatch: {}
 
 # Cancel superseded runs for the same ref (e.g. new push to an open PR).
 concurrency:

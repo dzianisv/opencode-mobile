@@ -1,4 +1,3 @@
-v0.4.25 — In-app updates go to the right place
+v0.4.27 — Connection probe handles non-ASCII passwords
 
-• Play installs now open the Play Store listing to update; F-Droid installs no longer get a broken update prompt; sideloaded installs still update from GitHub.
-• Crash reports now identify exactly one build, so crashes on this release can be matched to their source maps.
+• Adding a connection with a non-ASCII username or password no longer crashes the app — the probe now handles any characters.

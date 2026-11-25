@@ -40,7 +40,7 @@ interface CatalogState {
   loaded: boolean
 
   // Actions
-  load: () => Promise<void>
+  load: (directory?: string) => Promise<void>
   setAgent: (name: string) => void
   setModel: (selection: ModelSelection | null) => void
   setVariant: (variant: string | null) => void
@@ -57,8 +57,11 @@ export const useCatalog = create<CatalogState>((set, get) => ({
   variant: null,
   loaded: false,
 
-  load: async () => {
-    const client = useConnections.getState().client
+  load: async (directory) => {
+    const connState = useConnections.getState()
+    const client = directory
+      ? (connState.clientForDirectory(directory) ?? connState.client)
+      : connState.client
     if (!client) return
 
     const [agentResult, commandResult, providerResult] = await Promise.all([
@@ -100,7 +103,9 @@ export const useCatalog = create<CatalogState>((set, get) => ({
 
     // Default agent
     const current = get().agent
-    const agent = current && visible.some((a) => a.name === current) ? current : visible[0]?.name || "build"
+    // Reset a stale agent that doesn't exist in this project (e.g. after
+    // switching projects) instead of keeping a name the server will reject.
+    const agent = current && visible.some((a) => a.name === current) ? current : visible[0]?.name || ""
 
     // Default model: keep valid existing selection; otherwise prefer connected
     // provider defaults, then first connected model; agent model is last fallback.

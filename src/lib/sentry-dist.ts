@@ -1,7 +1,7 @@
 // Sentry dist builder (issue #269).
 //
-// The dist identifies exactly one build: `<version>+<versionCode>`, e.g.
-// `0.4.24+1000062` (CI), `0.4.24+162` (Play), `0.4.24+51` (F-Droid).
+// The dist identifies exactly one build: `<version>.<versionCode>`, e.g.
+// `0.4.24.1000062` (CI), `0.4.24.162` (Play), `0.4.24.51` (F-Droid).
 // Release stays `opencode-mobile@<version>`; the versionCode is the only
 // per-build identity already distinct across all three builds.
 //
@@ -18,7 +18,7 @@
 
 export function buildSentryDist(version: string, versionCode?: unknown): string {
   const code = parseVersionCode(versionCode)
-  return code === null ? version : `${version}+${code}`
+  return code === null ? version : `${version}.${code}`
 }
 
 function parseVersionCode(value: unknown): number | null {

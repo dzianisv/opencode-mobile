@@ -130,7 +130,7 @@ jobs:
         # mismatch made every uploaded source map land under a release Sentry
         # never looks up, so symbolication silently failed. Pin the Gradle-side
         # values to exactly what the app reports.
-        # Dist (issue #269) is <expo.version>+<expo.android.versionCode>, the
+        # Dist (issue #269) is <expo.version>.<expo.android.versionCode>, the
         # same formula the runtime builds in src/lib/sentry-dist.ts from the
         # same app.json — so one release+dist identifies exactly one build.
         # The "Bump android.versionCode" step above runs first, so CODE here
@@ -144,8 +144,8 @@ jobs:
             exit 1
           fi
           echo "SENTRY_RELEASE=opencode-mobile@${VERSION}" >> "$GITHUB_ENV"
-          echo "SENTRY_DIST=${VERSION}+${CODE}" >> "$GITHUB_ENV"
-          echo "Sentry release=opencode-mobile@${VERSION} dist=${VERSION}+${CODE}"
+          echo "SENTRY_DIST=${VERSION}.${CODE}" >> "$GITHUB_ENV"
+          echo "Sentry release=opencode-mobile@${VERSION} dist=${VERSION}.${CODE}"
 
       - name: Purge stale generated sources
         # The Android build cache (restore-keys prefix fallback) can restore a
@@ -282,7 +282,7 @@ jobs:
         # a different debug id — so "first bundle for this release+dist"
         # used to match a sibling build and pass (0.4.22: built 95a40809,
         # verify matched the F-Droid bundle's 656f154e and passed). Issue
-        # #269 gives each build its own dist (<version>+<versionCode>), so
+        # #269 gives each build its own dist (<version>.<versionCode>), so
         # the three builds no longer collide: more than one match now means
         # a re-run of this workflow or a stale bundle, not a sibling build.
         # The step still requires a matched bundle's shared debug id to equal

@@ -16,7 +16,10 @@ export interface HeaderConfig {
 // credentials are UTF-8 before being base64-encoded). ASCII input is
 // byte-identical to plain `btoa` since encodeURIComponent/unescape
 // round-trip it unchanged.
-function toBase64Utf8(str: string): string {
+//
+// Exported so other auth-header builders reuse it instead of hand-rolling
+// `btoa` (see probeConnection in diagnostics.ts, issue #304).
+export function toBase64Utf8(str: string): string {
   return btoa(unescape(encodeURIComponent(str)))
 }
 
