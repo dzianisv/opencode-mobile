@@ -56,6 +56,7 @@ import {
   keyboardVerticalOffset,
 } from "../../src/lib/keyboard-offset"
 import { composerMaxHeight } from "../../src/lib/session-layout"
+import { sessionCostText } from "../../src/lib/session-cost"
 
 // --- Builtin slash commands ---
 const BUILTIN_COMMANDS: SlashCommand[] = [
@@ -856,6 +857,13 @@ export default function SessionScreen() {
 
   const navigation = useNavigation()
 
+  // Session cost in the header (#293): cumulative $ spent so far, summed
+  // from assistant messages — the same total SessionInfo shows, but visible
+  // without opening it. Null (renders nothing) until the first priced
+  // assistant message lands. A string dep, so the header only reconfigures
+  // when the displayed cost changes — not on every streamed token.
+  const costText = useMemo(() => sessionCostText(messages ?? []), [messages])
+
   // Header options are set via effect, not inline <Stack.Screen>: this screen
   // re-renders on every streamed message, and inline options pushed a native
   // header-config update each render — the trigger for the react-native-screens
@@ -871,6 +879,11 @@ export default function SessionScreen() {
               <Text style={[s.dirText, isDark && s.dirTextDark]}>{shortDir}</Text>
             </View>
           )}
+          {costText && (
+            <Text testID="session-cost" style={[s.costText, isDark && s.costTextDark]}>
+              {costText}
+            </Text>
+          )}
           <TouchableOpacity onPress={() => setShowInfo((v) => !v)} hitSlop={8}>
             <Ionicons
               name={showInfo ? "stats-chart" : "stats-chart-outline"}
@@ -881,7 +894,7 @@ export default function SessionScreen() {
         </View>
       ),
     })
-  }, [navigation, currentSession?.title, shortDir, showInfo, isDark, t])
+  }, [navigation, currentSession?.title, shortDir, costText, showInfo, isDark, t])
 
   return (
     <>
@@ -1495,6 +1508,8 @@ const s = StyleSheet.create({
   dirBadgeDark: { backgroundColor: "#1a1a1a" },
   dirText: { fontSize: 12, color: "#666666", fontWeight: "500" },
   dirTextDark: { color: "#888888" },
+  costText: { fontSize: 13, color: "#0a0a0a", fontWeight: "600", fontVariant: ["tabular-nums"] },
+  costTextDark: { color: "#e5e5e5" },
 
   // SSE reconnect/connected banner
   banner: {

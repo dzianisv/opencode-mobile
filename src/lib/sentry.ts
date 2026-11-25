@@ -16,11 +16,20 @@
 import * as Sentry from "@sentry/react-native"
 import appJson from "../../app.json"
 import { log } from "./logbuffer"
+import { buildSentryDist } from "./sentry-dist"
 import { NoiseGate, eventText, isFatalEvent, isTransportNoise } from "./sentry-noise"
 import type { DiagnosticReport } from "./diagnostics"
 
 const DSN = process.env.EXPO_PUBLIC_SENTRY_DSN
 const APP_VERSION = (appJson as { expo?: { version?: string } }).expo?.version ?? "unknown"
+const APP_VERSION_CODE = (appJson as { expo?: { android?: { versionCode?: unknown } } }).expo?.android
+  ?.versionCode
+// Dist identifies exactly one build: <version>.<versionCode> (issue #269).
+// Both sides derive it from the same app.json fields — the workflows mutate
+// expo.android.versionCode before bundling, so the runtime dist and the
+// upload SENTRY_DIST agree. Missing/non-numeric code degrades to the
+// version-only dist (see sentry-dist.ts); the workflows hard-fail instead.
+const APP_DIST = buildSentryDist(APP_VERSION, APP_VERSION_CODE)
 
 let enabled = false
 let handlersInstalled = false
@@ -40,7 +49,7 @@ export function initSentry() {
     Sentry.init({
       dsn: DSN,
       release: `opencode-mobile@${APP_VERSION}`,
-      dist: APP_VERSION,
+      dist: APP_DIST,
       // Performance tracing off by default; only error + crash capture.
       tracesSampleRate: 0,
       enableAutoSessionTracking: true,
@@ -72,7 +81,8 @@ export function initSentry() {
     })
     enabled = true
     Sentry.setTag("app.version", APP_VERSION)
-    log.info("sentry", "initialized", `release=opencode-mobile@${APP_VERSION}`)
+    Sentry.setTag("app.dist", APP_DIST)
+    log.info("sentry", "initialized", `release=opencode-mobile@${APP_VERSION} dist=${APP_DIST}`)
   } catch (e) {
     log.warn("sentry", "init failed", String(e))
   }

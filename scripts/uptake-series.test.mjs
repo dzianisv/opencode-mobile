@@ -1,5 +1,7 @@
 import assert from "node:assert/strict"
+import { spawn } from "node:child_process"
 import test from "node:test"
+import { fileURLToPath } from "node:url"
 
 import { emptyStore, mergeDaily, recordSnapshot, renderMarkdown, serialize, sortedDays, trend } from "./uptake-series.mjs"
 
@@ -149,6 +151,40 @@ test("serialize sorts keys so a daily commit diffs as one added line", () => {
   const keys = Object.keys(JSON.parse(serialize(s)).days)
   assert.deepEqual(keys, ["2026-08-14", "2026-08-15", "2026-08-16"])
   assert.ok(serialize(s).endsWith("\n"))
+})
+
+test("the implementation file does not run main() under the test runner with stdin held open (#306)", async () => {
+  // Regression test for #306: `node --test scripts/uptake-series.mjs` used to
+  // run main(), which blocks on stdin until EOF. Under the test runner stdin
+  // is not a TTY and never reaches EOF, so the step hung past the job timeout.
+  // The runner executes a test file exactly as `node <file>` with
+  // NODE_TEST_CONTEXT set, so spawn it that way: stdin a pipe that is never
+  // written to or closed (the CI shape) and assert the child exits 0 promptly.
+  // (Spawning a nested `node --test` cannot reproduce this: the nested runner
+  // hands its test-file child a fresh stdin that EOFs immediately.)
+  const repoRoot = fileURLToPath(new URL("..", import.meta.url))
+  const child = spawn(process.execPath, ["scripts/uptake-series.mjs"], {
+    cwd: repoRoot,
+    stdio: ["pipe", "ignore", "pipe"],
+    env: { ...process.env, NODE_TEST_CONTEXT: "child-v8" },
+  })
+  // Never write to or close child.stdin — that is the point of the test.
+  const exit = new Promise((resolve) => child.once("exit", (code, signal) => resolve({ code, signal })))
+  // Clear the timer once the race settles: an uncleared 10s timeout keeps
+  // this test-file process alive the full 10s on the passing path.
+  let timer
+  const timeout = new Promise((resolve) => {
+    timer = setTimeout(() => resolve({ timedOut: true }), 10_000)
+  })
+  const timedOut = await Promise.race([exit.then((r) => ({ ...r, timedOut: false })), timeout])
+  clearTimeout(timer)
+  if (timedOut.timedOut) {
+    child.kill("SIGKILL")
+    await exit
+    assert.fail("scripts/uptake-series.mjs did not exit within 10s under NODE_TEST_CONTEXT with stdin held open (hangs on stdin, #306)")
+  }
+  assert.equal(timedOut.signal, null)
+  assert.equal(timedOut.code, 0)
 })
 
 test("markdown marks partial rows and shows the per-day delta", () => {

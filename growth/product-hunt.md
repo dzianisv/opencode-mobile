@@ -1,13 +1,42 @@
 # Product Hunt — launch runbook for OpenCode Mobile
 
-Status: PREP ONLY, 2026-11-18. Nothing here has been posted. There is no
-Product Hunt account and no listing for OpenCode Mobile; do not create
-either from this prep — the launch itself is a later step, once prep is
-complete and a Tue–Thu window opens.
+Status: PARKED, 2026-11-19 (WITA). Unblock sweep 2026-11-19 12:21 WITA:
+the Google verification step is VERIFIED Den-only — the launch is parked
+pending it. Do not retry the Google route, do not use @den29, do not
+create the account via any other social provider, and do not ask Den for
+a passkey, code, or browser takeover. Resume only when Den completes the
+verification himself.
+
+## Launch status — PARKED (2026-11-19)
+
+Google route attempted to completion (browser task 5ca74a0a, 23:56–00:49
+UTC): the saved password for vibeteaichnologies@gmail.com was accepted,
+then Google's "Verify it's you" page offered only two options: "Use your
+passkey" and "Get a verification code from the Google Authenticator app".
+No phone-tap, text-message, or email-code option. Passkey prompt text:
+"Use your passkey to confirm it's really you" / "To help keep your
+account safe, Google wants to make sure it's really you" / "Your device
+will ask for your fingerprint, face, or screen lock". The cloud browser
+cannot do a passkey. §9 store check (sweep 12:21 WITA): BWS agentpod
+(20 keys), vibebrowser (10 keys), shared_infra (~100 keys) hold no Google
+TOTP seed or passkey for this account; the workspace holds no otpauth://
+URI; 1Password / Secure Vault hold no Vibe Google login that can satisfy
+a live 2SV challenge (the saved password was already used and accepted).
+A passkey / Authenticator code is a credential only Den holds.
+
+Unpublished draft left as-is (do not publish, do not delete):
+https://www.producthunt.com/posts/new/YDKNH42P5YCQ36F4QW47SPQOOEQ2I57RKL?step=assistant
+— created from @den29 before the stop instruction arrived; name/tagline/
+description + Play link set, logo + 3 gallery images auto-filled from
+the Play Store, checklist 6/12. AgentPod/VibeBrowser drafts untouched.
+
+Resume only when Den completes the Google verification himself. Do not
+retry the Google route. Do not post from @den29. Do not create the
+account via another social provider.
 
 Product: OpenCode Mobile — free, open-source (MIT) Android client for
 OpenCode (v1 + v2). Package `cc.agentlabs.opencode` — never change it.
-Prod: v0.4.23 (Play 20% rollout, versionCode 163). Repo:
+Prod: v0.4.24 (Play 50% rollout, versionCode 164). Repo:
 github.com/dzianisv/opencode-mobile. Play:
 https://play.google.com/store/apps/details?id=cc.agentlabs.opencode.
 Docs site: https://dzianisv.github.io/opencode-mobile/
@@ -39,19 +68,19 @@ Developer Tools, Artificial Intelligence, Android
 
 ### First comment (posted by the maker, right after the listing goes live)
 
-> Hey — I'm Den, I build OpenCode Mobile.
+> Hey — we're the team behind OpenCode Mobile.
 >
-> What broke: my AI coding agent lived on my desk. OpenCode runs on my
-> workstation, and the moment I walked away from it — commute, couch,
-> coffee shop — I was blind. The agent kept working, but I couldn't see
-> it, steer it, or approve anything until I was back at my keyboard.
+> What broke: our AI coding agent lived on the desk. OpenCode runs on our
+> workstation, and the moment we walked away from it — commute, couch,
+> coffee shop — we were blind. The agent kept working, but we couldn't see
+> it, steer it, or approve anything until we were back at our keyboard.
 >
 > What changed: OpenCode Mobile puts the session in your pocket. Connect
 > your phone to the OpenCode server on your own machine and you can watch
 > the agent think token by token, review diffs before anything lands,
-> and approve or reject tool calls from anywhere. v0.4.23, live on Google
-> Play now, fixes the chat crash that killed long sessions and ships
-> F-Droid parity, so the open-source build is reproducible.
+> and approve or reject tool calls from anywhere. v0.4.24, live on Google
+> Play now, fixes the in-app update routing and ships F-Droid parity, so
+> the open-source build is reproducible.
 >
 > Why it matters: the agent works for you, not the other way round. You
 > don't need a laptop to stay in the loop on a long job — you need a
@@ -61,7 +90,7 @@ Developer Tools, Artificial Intelligence, Android
 > code, prompts, and API keys never leave your server — the app talks
 > only to the server you run.
 >
-> Happy to answer anything — and I'd genuinely like to know: if you run
+> Happy to answer anything — and we'd genuinely like to know: if you run
 > a coding agent, what would you want a phone client to do first?
 
 ## Where the content comes from
@@ -156,8 +185,9 @@ Investigated: Firebase Test Lab Robo-test video, project
 
 ## How the post is uploaded
 
-1. Create the Product Hunt account at launch time (maker account — not
-   part of this prep).
+1. Create the Product Hunt account at launch time (maker account — NEW
+   project account via Google OAuth with the project Gmail; see the launch
+   Work Log row).
 2. New product: name "OpenCode Mobile", tagline + description from
    "Launch copy" above, links: Google Play listing + GitHub repo +
    docs site.
@@ -180,7 +210,8 @@ Investigated: Firebase Test Lab Robo-test video, project
 
 - Docs-site version bump: `llms.txt` says 0.4.22, prod is 0.4.23.
   That is a separate pick (tomorrow's), not this PR.
-- No Product Hunt account creation, no posting, no launch today.
+- Account creation + launch scheduling are in progress (unblock sweep
+  2026-11-18) — no longer out of scope.
 - No DevHunt, Show HN, or Reddit step in this PR (DevHunt
   UNCONFIRMED — no public page for the Android client exists in
   search, only the upstream OpenCode CLI's page).

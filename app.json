@@ -2,7 +2,7 @@
   "expo": {
     "name": "OpenCode",
     "slug": "opencode-mobile",
-    "version": "0.4.24",
+    "version": "0.4.27",
     "orientation": "portrait",
     "scheme": "opencode",
     "userInterfaceStyle": "automatic",
@@ -35,7 +35,7 @@
     },
     "android": {
       "package": "cc.agentlabs.opencode",
-      "versionCode": 51,
+      "versionCode": 54,
       "usesCleartextTraffic": true,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
@@ -71,7 +71,7 @@
         {
           "photosPermission": "OpenCode can attach images from your photo library to messages to your AI coding agent.",
           "cameraPermission": "OpenCode can capture images with your camera and attach them to messages to your AI coding agent.",
-          "microphonePermission": false
+          "microphonePermission": "OpenCode uses the microphone to capture your voice when using speech-to-text input."
         }
       ],
       [

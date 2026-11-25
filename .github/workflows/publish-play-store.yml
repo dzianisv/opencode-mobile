@@ -129,13 +129,23 @@ jobs:
         # (`opencode-mobile@${app.json version}`, see src/lib/sentry.ts). That
         # mismatch made every uploaded source map land under a release Sentry
         # never looks up, so symbolication silently failed. Pin the Gradle-side
-        # values to exactly what the app reports. (Only expo.version matters
-        # here, not the android.versionCode bumped above.)
+        # values to exactly what the app reports.
+        # Dist (issue #269) is <expo.version>.<expo.android.versionCode>, the
+        # same formula the runtime builds in src/lib/sentry-dist.ts from the
+        # same app.json — so one release+dist identifies exactly one build.
+        # The "Bump android.versionCode" step above runs first, so CODE here
+        # is the Play code (run_number+100), not the repo code.
         run: |
+          set -euo pipefail
           VERSION=$(node -p "require('./app.json').expo.version")
+          CODE=$(node -p "require('./app.json').expo.android.versionCode")
+          if [ -z "$CODE" ] || [ "$CODE" = "undefined" ]; then
+            echo "::error::expo.android.versionCode is missing from app.json — cannot derive SENTRY_DIST"
+            exit 1
+          fi
           echo "SENTRY_RELEASE=opencode-mobile@${VERSION}" >> "$GITHUB_ENV"
-          echo "SENTRY_DIST=${VERSION}" >> "$GITHUB_ENV"
-          echo "Sentry release=opencode-mobile@${VERSION} dist=${VERSION}"
+          echo "SENTRY_DIST=${VERSION}.${CODE}" >> "$GITHUB_ENV"
+          echo "Sentry release=opencode-mobile@${VERSION} dist=${VERSION}.${CODE}"
 
       - name: Purge stale generated sources
         # The Android build cache (restore-keys prefix fallback) can restore a
@@ -268,16 +278,19 @@ jobs:
         # Issue #265: the (i) check below is an IDENTITY check, not an
         # existence check. A tag push triggers three workflows (Play AAB
         # here, CI APK in build.yml, F-Droid APK in publish-fdroid.yml)
-        # that all upload a bundle under the SAME release+dist, each with
+        # that used to upload a bundle under the SAME release+dist, each with
         # a different debug id — so "first bundle for this release+dist"
         # used to match a sibling build and pass (0.4.22: built 95a40809,
-        # verify matched the F-Droid bundle's 656f154e and passed). The
-        # step now requires a matched bundle's shared debug id to equal
+        # verify matched the F-Droid bundle's 656f154e and passed). Issue
+        # #269 gives each build its own dist (<version>.<versionCode>), so
+        # the three builds no longer collide: more than one match now means
+        # a re-run of this workflow or a stale bundle, not a sibling build.
+        # The step still requires a matched bundle's shared debug id to equal
         # $BUILT_DEBUG_ID (persisted above from the just-built AAB+map),
         # and checks EVERY bundle matching release+dist instead of taking
-        # the first. More than one match only warns: sibling uploads
-        # legitimately collide on release+dist, so failing on count alone
-        # would fail every publish by design — the debug-id match is the
+        # the first. More than one match only warns: a re-run legitimately
+        # re-uploads under the same release+dist, so failing on count alone
+        # would fail every re-run by design — the debug-id match is the
         # gate. NOTE: this fix alone does NOT restore symbolication.
         # Uploaded bundles since 0.4.16 do not survive in Sentry (the
         # vanishing mechanism is still unidentified, issue #265), so this
@@ -316,11 +329,13 @@ jobs:
                     f"(fileCount={bundle.get('fileCount')}, date={bundle.get('date')})",
                     file=sys.stderr)
           if len(matches) > 1:
-              # Sibling workflows upload different builds under the same
-              # release+dist (issue #265) — a count alone proves nothing,
-              # so this warns and the debug-id check below decides.
+              # Since issue #269 each build has its own dist, so sibling
+              # workflows no longer collide here — >1 match is a re-run of
+              # this workflow or a stale bundle, not a sibling build. A
+              # count alone still proves nothing, so this warns and the
+              # debug-id check below decides.
               print(f"::warning::{len(matches)} artifact bundles match release {want_release} "
-                    f"dist {want_dist} — sibling builds collide on release+dist; "
+                    f"dist {want_dist} — re-run/stale bundles share release+dist; "
                     "matching on the built debug id, not on order", file=sys.stderr)
           for bundle in matches:
               print(bundle['bundleId'])
@@ -486,8 +501,9 @@ jobs:
         # Issue #266 (AC2): also record the Play AAB's built debug id
         # ($BUILT_DEBUG_ID, persisted by the verify step above from the
         # just-built AAB+map) alongside the versionCode, so a Sentry event
-        # can be traced to this exact build while the three builds still
-        # share one Sentry release+dist. The verify step already fails the
+        # can be traced to this exact build. Each build now has its own
+        # Sentry dist (issue #269); the debug id is the second factor tying
+        # an event to this exact build. The verify step already fails the
         # job if the id cannot be extracted, so by the time this step runs
         # it is always set; `:-unknown` only guards against a future
         # reorder of the steps.

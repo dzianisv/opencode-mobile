@@ -278,7 +278,6 @@
       "hoursAgo": "{{count}}h ago",
       "daysAgo": "{{count}}d ago"
     },
-    "filesCount": "{{count}} files",
     "actions": {
       "rename": "Rename"
     },
@@ -312,7 +311,8 @@
       "browseFoldersHint": "Explore the server's filesystem",
       "enterPathLabel": "Enter Path Manually",
       "createInButton": "Create in {{dir}}",
-      "createSessionButton": "Create Session"
+      "createSessionButton": "Create Session",
+      "chooseDifferentDirectory": "Choose a different directory"
     },
     "renameModal": {
       "title": "Rename Session"
