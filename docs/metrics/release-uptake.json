@@ -231,56 +231,56 @@
       "total": 11,
       "share": 0.9090909090909091,
       "partial": false,
-      "observedAt": "2026-11-25T00:46:19.360Z"
+      "observedAt": "2026-11-25T01:35:26.800Z"
     },
     "2026-11-19": {
       "gated": 7,
       "total": 10,
       "share": 0.7,
       "partial": false,
-      "observedAt": "2026-11-25T00:46:19.360Z"
+      "observedAt": "2026-11-25T01:35:26.800Z"
     },
     "2026-11-20": {
       "gated": 9,
       "total": 9,
       "share": 1,
       "partial": false,
-      "observedAt": "2026-11-25T00:46:19.360Z"
+      "observedAt": "2026-11-25T01:35:26.800Z"
     },
     "2026-11-21": {
       "gated": 11,
       "total": 13,
       "share": 0.8461538461538461,
       "partial": false,
-      "observedAt": "2026-11-25T00:46:19.360Z"
+      "observedAt": "2026-11-25T01:35:26.800Z"
     },
     "2026-11-22": {
       "gated": 12,
       "total": 13,
       "share": 0.9230769230769231,
       "partial": false,
-      "observedAt": "2026-11-25T00:46:19.360Z"
+      "observedAt": "2026-11-25T01:35:26.800Z"
     },
     "2026-11-23": {
       "gated": 8,
       "total": 12,
       "share": 0.6666666666666666,
       "partial": false,
-      "observedAt": "2026-11-25T00:46:19.360Z"
+      "observedAt": "2026-11-25T01:35:26.800Z"
     },
     "2026-11-24": {
       "gated": 11,
       "total": 12,
       "share": 0.9166666666666666,
       "partial": false,
-      "observedAt": "2026-11-25T00:46:19.360Z"
+      "observedAt": "2026-11-25T01:35:26.800Z"
     },
     "2026-11-25": {
       "gated": 1,
       "total": 1,
       "share": 1,
       "partial": true,
-      "observedAt": "2026-11-25T00:46:19.360Z"
+      "observedAt": "2026-11-25T01:35:26.800Z"
     }
   },
   "snapshots": {
@@ -317,17 +317,17 @@
       "staleShare": 0.06741573033707865
     },
     "2026-11-25": {
-      "observedAt": "2026-11-25T00:46:19.360Z",
+      "observedAt": "2026-11-25T01:35:26.800Z",
       "windowDays": 7,
       "share": 0.8666666666666667,
-      "shareBySession": 0.8743169398907104,
+      "shareBySession": 0.8795811518324608,
       "users": {
         "gated": 65,
         "total": 75
       },
       "sessions": {
-        "gated": 160,
-        "total": 183
+        "gated": 168,
+        "total": 191
       },
       "staleVersion": "0.4.12",
       "staleShare": 0.08
