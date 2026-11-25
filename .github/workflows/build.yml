@@ -45,6 +45,20 @@ jobs:
       SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
       SENTRY_ORG: ${{ secrets.SENTRY_ORG }}
       SENTRY_PROJECT: ${{ secrets.SENTRY_PROJECT }}
+      # Issue #316: fork PRs receive no repository secrets, so
+      # SENTRY_AUTH_TOKEN is empty there and the Sentry source-map upload
+      # task (sentry.gradle, onlyIf shouldSentryAutoUploadGeneral()) would
+      # attempt an authenticated upload and fail the build ("Project not
+      # found", sentry-cli exit 1). Disable the upload exactly when no
+      # token is present; with a token this renders "false" and the upload
+      # still runs. The expression renders as the string "true"/"false",
+      # which is what sentry.gradle compares against
+      # (System.getenv('SENTRY_DISABLE_AUTO_UPLOAD') != 'true').
+      # Same pattern as the unconditional "true" in activation-e2e.yml:115
+      # and ios-ci.yml:68, here conditional instead of unconditional.
+      # Job-level env (not a GITHUB_ENV step) so the value is set before
+      # every step, including the fresh ./gradlew process in "Build APK".
+      SENTRY_DISABLE_AUTO_UPLOAD: ${{ secrets.SENTRY_AUTH_TOKEN == '' }}
     steps:
       - uses: actions/checkout@v6
 
@@ -174,6 +188,19 @@ jobs:
               -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 \
               -dname "CN=Android Debug,O=Android,C=US"
             echo "Signing: debug keystore (non-release build)"
+          fi
+
+      - name: Log Sentry upload guard
+        # Issue #316: log-observable signal for the guard above. The value
+        # echoed here is a boolean derived from token presence, NOT a
+        # secret — safe to print. Expect "false" (upload enabled) on
+        # same-repo/tag runs and "true" (upload skipped) on fork PRs.
+        run: |
+          echo "SENTRY_DISABLE_AUTO_UPLOAD=${SENTRY_DISABLE_AUTO_UPLOAD:-<unset>}"
+          if [ "${SENTRY_DISABLE_AUTO_UPLOAD:-}" = "true" ]; then
+            echo "Sentry source-map upload SKIPPED (no SENTRY_AUTH_TOKEN — fork PR or secrets unavailable)"
+          else
+            echo "Sentry source-map upload ENABLED (SENTRY_AUTH_TOKEN present)"
           fi
 
       - name: Build APK
