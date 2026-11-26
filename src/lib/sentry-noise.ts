@@ -54,9 +54,11 @@ export type NoiseEventLike = {
 export const TRANSPORT_NOISE_PATTERNS: RegExp[] = [
   // captureDiagnostic() → new Error(`connect ${classification}`)
   // `auth-failed` = the server answered 401/403: wrong password, user config.
+  // `auth-required` = 401/403 with no credentials sent (empty password field):
+  // same family — user config, not a defect.
   // `health-failed` and `tls-error` are deliberately NOT here — a box that
   // answers but is unhealthy, or a broken cert, is actionable.
-  /^connect (?:timeout|server-unreachable|no-internet|malformed-url|auth-failed)$/i,
+  /^connect (?:timeout|server-unreachable|no-internet|malformed-url|auth-failed|auth-required)$/i,
   // RN fetch failures surfacing through the global handler / rejection hook.
   /network request failed/i,
   /request timed out after/i,
