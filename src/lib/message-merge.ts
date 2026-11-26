@@ -30,3 +30,22 @@ export function mergeIncomingMessage(messages: Message[], message: Message): Mes
   // No optimistic placeholder to resolve (e.g. an assistant reply): append.
   return [...messages, message]
 }
+
+/**
+ * Apply a `message.part.delta` event (`{partID, field, delta}`) to a message's
+ * parts. opencode streams assistant text token by token this way between
+ * `message.part.updated` snapshots; without it the text only appears once the
+ * part is complete.
+ *
+ * A delta for an unknown part or a non-string field is ignored: the next
+ * `message.part.updated` carries the full part and reconciles the state.
+ */
+export function applyPartDelta<P extends { id: string }>(parts: P[], partID: string, field: string, delta: string): P[] {
+  const index = parts.findIndex((p) => p.id === partID)
+  if (index === -1) return parts
+  const current = (parts[index] as Record<string, unknown>)[field]
+  if (current !== undefined && typeof current !== "string") return parts
+  const next = parts.slice()
+  next[index] = { ...parts[index], [field]: (current ?? "") + delta }
+  return next
+}

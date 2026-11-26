@@ -1,6 +1,6 @@
 import { test } from "node:test"
 import assert from "node:assert/strict"
-import { mergeIncomingMessage } from "./message-merge.ts"
+import { applyPartDelta, mergeIncomingMessage } from "./message-merge.ts"
 import type { Message } from "./sdk.ts"
 
 const msg = (id: string, role: "user" | "assistant" = "user"): Message => ({
@@ -45,4 +45,23 @@ test("appends a real message when there is no matching temp and it is new", () =
 test("does not remove a temp of a different role", () => {
   const out = mergeIncomingMessage([msg("temp-1", "user")], msg("real-a", "assistant"))
   assert.ok(out.some((m) => m.id === "temp-1"))
+})
+
+test("applyPartDelta appends text to the matching part", () => {
+  const parts = [{ id: "p1", type: "text", text: "Hel" }, { id: "p2", type: "text", text: "x" }]
+  const out = applyPartDelta(parts, "p1", "text", "lo")
+  assert.equal(out[0].text, "Hello")
+  assert.equal(out[1], parts[1])
+  assert.equal(parts[0].text, "Hel", "input is not mutated")
+})
+
+test("applyPartDelta starts an absent field from empty", () => {
+  const out = applyPartDelta([{ id: "p1", type: "reasoning" } as { id: string; text?: string }], "p1", "text", "a")
+  assert.equal(out[0].text, "a")
+})
+
+test("applyPartDelta ignores unknown parts and non-string fields", () => {
+  const parts = [{ id: "p1", type: "tool", state: { status: "running" } }]
+  assert.equal(applyPartDelta(parts, "nope", "text", "a"), parts)
+  assert.equal(applyPartDelta(parts, "p1", "state", "a"), parts)
 })

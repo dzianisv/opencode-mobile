@@ -6,7 +6,7 @@ import { useCatalog } from "./catalog"
 import { addBreadcrumb } from "../lib/sentry"
 import { AnalyticsEvent, track } from "../lib/analytics"
 import { extractPromptFromParts, type PromptFromParts } from "../lib/prompt-from-parts"
-import { mergeIncomingMessage } from "../lib/message-merge"
+import { applyPartDelta, mergeIncomingMessage } from "../lib/message-merge"
 import { isColdSessionLoad, isLiveEventForSession } from "../lib/session-load-reconcile"
 import { selectChildren } from "../lib/session-children"
 
@@ -500,6 +500,28 @@ export const useSessions = create<SessionsState>((set, get) => ({
             // much proof of life as a message update.
             isLoading: false,
           }
+        })
+        break
+      }
+
+      case "message.part.delta": {
+        // Token-by-token streaming: append `delta` to `field` of a part we
+        // already hold (see applyPartDelta).
+        const { sessionID, messageID, partID, field, delta } = props as {
+          sessionID?: string
+          messageID?: string
+          partID?: string
+          field?: string
+          delta?: string
+        }
+        if (!messageID || !partID || !field || typeof delta !== "string") return
+        if (sessionID && sessionID !== currentSession.id) return
+        set((state) => {
+          const messageParts = state.parts[messageID]
+          if (!messageParts) return {}
+          const next = applyPartDelta(messageParts, partID, field, delta)
+          if (next === messageParts) return {}
+          return { parts: { ...state.parts, [messageID]: next }, isLoading: false }
         })
         break
       }

@@ -440,6 +440,11 @@ export const useEvents = create<EventsState>((set, get) => ({
               break
             }
 
+            case "message.part.delta": {
+              useSessions.getState().handleEvent({ type, properties: props } as any)
+              break
+            }
+
             case "session.updated": {
               const info = props.info as Session | undefined
               if (!info) break
