@@ -1,0 +1,43 @@
+# F-Droid metadata for the self-hosted repository (fdroid/repo).
+#
+# This file is shipped into the repo index by .github/workflows/publish-fdroid.yml
+# (copied into fdroidserver's metadata/ dir before `fdroid update`). Without it,
+# fdroidserver's --create-metadata produces a minimal entry from the APK alone:
+# name + package id + version, with no author, no source-code link, no website,
+# and license "Unknown" — which is what the live index showed before this file
+# existed.
+#
+# Field values mirror distribution/fdroid-submission/metadata.yml (the F-Droid
+# mainline submission) so both listings identify the same author and repository.
+# Keep the two in sync.
+
+AntiFeatures:
+  NonFreeNet:
+    en-US: The app connects to a user-self-hosted opencode server which may in turn
+      connect to proprietary AI services (OpenAI API, Anthropic API, Google Gemini).
+      The app itself is fully open source and does not require any specific provider.
+Categories:
+  - Development
+License: MIT
+AuthorName: VIBE TECHNOLOGIES, LLC
+AuthorEmail: support@agentlabs.cc
+WebSite: https://agentlabs.cc/opencode
+SourceCode: https://github.com/dzianisv/opencode-mobile
+IssueTracker: https://github.com/dzianisv/opencode-mobile/issues
+Changelog: https://github.com/dzianisv/opencode-mobile/releases
+
+AutoName: OpenCode
+Summary: Android client for the opencode AI coding agent
+
+Description: |
+  Connect your Android phone to your own self-hosted opencode server and
+  steer your AI coding agent from anywhere: watch token-by-token streaming
+  output, review inline file diffs, and approve or reject tool calls.
+
+  All code, prompts, and AI responses travel directly between your phone
+  and your own opencode server — nothing passes through VIBE TECHNOLOGIES,
+  LLC's infrastructure. OpenCode Mobile is an independent, community-built
+  client and is not made by, endorsed by, or affiliated with the opencode
+  / Anomaly team.
+
+  MIT licensed. Source code: https://github.com/dzianisv/opencode-mobile
