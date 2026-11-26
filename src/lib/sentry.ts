@@ -17,10 +17,10 @@ import * as Sentry from "@sentry/react-native"
 import appJson from "../../app.json"
 import { log } from "./logbuffer"
 import { buildSentryDist } from "./sentry-dist"
-import { NoiseGate, eventText, isFatalEvent, isTransportNoise } from "./sentry-noise"
+import { NoiseGate, eventText, isFatalEvent, isTransportNoise, normalizeDsn } from "./sentry-noise"
 import type { DiagnosticReport } from "./diagnostics"
 
-const DSN = process.env.EXPO_PUBLIC_SENTRY_DSN
+const DSN = normalizeDsn(process.env.EXPO_PUBLIC_SENTRY_DSN)
 const APP_VERSION = (appJson as { expo?: { version?: string } }).expo?.version ?? "unknown"
 const APP_VERSION_CODE = (appJson as { expo?: { android?: { versionCode?: unknown } } }).expo?.android
   ?.versionCode

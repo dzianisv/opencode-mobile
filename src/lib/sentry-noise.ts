@@ -250,3 +250,13 @@ export class NoiseGate {
     }
   }
 }
+
+// Self-hosted GlitchTip hands out DSNs whose public key is a hyphenated UUID,
+// but the DSN parser in @sentry/core only accepts \w in the key — so
+// Sentry.init silently fails with "Invalid Sentry Dsn" and no crash reports
+// are sent. GlitchTip reads the key as a UUID either way, so strip hyphens
+// from the key part only (before "@"); sentry.io DSNs are left untouched.
+export function normalizeDsn(dsn: string | undefined): string | undefined {
+  if (!dsn) return dsn
+  return dsn.replace(/^(\w+:\/\/)([^@/]+)@/, (_m, scheme: string, key: string) => `${scheme}${key.replace(/-/g, "")}@`)
+}

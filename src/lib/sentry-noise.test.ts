@@ -213,3 +213,14 @@ test("gate: the AGE-105 mixed hour lands far under the old volume", () => {
   // 1126 raw events -> 1 auth report + 4 real crashes.
   assert.equal(sent, 5)
 })
+
+test("normalizeDsn strips hyphens from a GlitchTip UUID key only", async () => {
+  const { normalizeDsn } = await import("./sentry-noise.ts")
+  assert.equal(
+    normalizeDsn("https://b0e107eb-d61a-4429-8e95-6c581bca97e5@glitchtip.example.com/39"),
+    "https://b0e107ebd61a44298e956c581bca97e5@glitchtip.example.com/39",
+  )
+  assert.equal(normalizeDsn("https://abc123@o1.ingest.sentry.io/5"), "https://abc123@o1.ingest.sentry.io/5")
+  assert.equal(normalizeDsn("https://my-host.example/7"), "https://my-host.example/7")
+  assert.equal(normalizeDsn(undefined), undefined)
+})
