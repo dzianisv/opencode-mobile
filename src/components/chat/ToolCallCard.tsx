@@ -2,6 +2,7 @@ import { useState, useCallback } from "react"
 import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, ScrollView, Platform } from "react-native"
 import { Ionicons } from "@expo/vector-icons"
 import { useTranslation } from "react-i18next"
+import { taskToolTitle } from "../../lib/tool-title"
 import type { Part } from "../../lib/sdk"
 import { DiffView } from "./DiffView"
 
@@ -321,6 +322,7 @@ export function ToolCallCard({ tool, isDark }: Props) {
   const error = tool.state?.error?.message
   const elapsed = duration(tool.state?.time?.start, tool.state?.time?.end)
   const hasDetail = tool.state?.input !== undefined || tool.state?.output !== undefined || error
+  const title = tool.tool === "task" ? taskToolTitle(tool.state?.input) : undefined
 
   const toggle = useCallback(() => {
     if (hasDetail) setExpanded((v) => !v)
@@ -342,7 +344,7 @@ export function ToolCallCard({ tool, isDark }: Props) {
         <View style={s.headerLeft}>
           <Ionicons name={icon as any} size={16} color={color} />
           <Text style={[s.name, isDark && s.nameDark]} numberOfLines={1}>
-            {tool.state?.title || tool.tool || t("chat.toolCallCard.fallbackTitle")}
+            {title || tool.state?.title || tool.tool || t("chat.toolCallCard.fallbackTitle")}
           </Text>
           {elapsed && <Text style={[s.elapsed, isDark && s.elapsedDark]}>{elapsed}</Text>}
         </View>
