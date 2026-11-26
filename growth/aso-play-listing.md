@@ -6,7 +6,7 @@ phoneScreenshots) — it must match the live listing; a drift here is a bug,
 not a stale note. Text applied Nov 15, 2026; verified live Nov 22, 2026
 (storefront fetch + Play Console readback).
 
-## Live listing (verified 2026-11-26, Play Console live read)
+## Live listing (verified 2026-11-27, Play Console live read)
 
 - Title: "OpenCode Mobile: AI Coding" (26/30 chars). Matches
   `fastlane/metadata/android/en-US/title.txt` — no drift.
@@ -14,8 +14,8 @@ not a stale note. Text applied Nov 15, 2026; verified live Nov 22, 2026
 - Long description: hook + WHAT IT DOES / CORE FEATURES / CONNECTION OPTIONS /
   WHO IT IS FOR / GETTING STARTED / OPEN SOURCE / PRIVACY, ending "Android
   only. There is no iOS version." (2,489 bytes in fastlane).
-- Rating: 4.824 last 28 days (+0.58) / 4.510 default, 146 raters, 46 ratings
-  with reviews.
+- Rating: 4.824 last 28 days (+0.56) / 4.510 default, 147 raters, 46 ratings
+  with reviews (verified 2026-11-27, Play Console live read).
 - v0.4.27 at 20% staged rollout (released Nov 23, 2026 06:07, 178 countries);
   v0.4.26 superseded. Rollout step-up held on the S/T surge (Sentry S 65, T 15).
 - Reviews: queue clear — the one new review since Nov 24 (Daniel, Nov 25,
@@ -66,6 +66,17 @@ replaces it in the next deck refresh.
 - Crash 0.63%, ANR 0.09%. Impressions 149K (+40%); 7-day retention 176 (+47%).
 - Ratings last 28d: 18 ratings — 5★ 8, 4★ 1, 3★ 1, 2★ 0, 1★ 8 (polarized;
   the 1★ reviews go to the 09:17 PT Play reviews job, not this lane).
+
+## Deck measurement 2026-11-27 (Play Console live read, 28-day Oct 30–Nov 26; data through Nov 24)
+
+- Acquisitions 4.87K (−26%); first opens 2.74K (−30%); MAU 5.97K (0%).
+- Store listing (Oct 27–Nov 23 window): visitors 17,412, install clicks 5.37K (−17%), CTR 34% (flat). Conversion 26.8% (default listing; the 33.15% on the Grow overview card is the 90-day figure, not 28-day).
+- Verdict: NO SIGNAL YET. Deck live ~4 days; the 28-day window is still dominated by pre-deck days; conversion 27.1% → 26.8% is within noise. Judge the deck after a full week live (Nov 30).
+- Crash 0.89% (+0.256pp vs previous 28d — up from 0.73% Nov 26), ANR 0.07% (−0.02pp). Crash uptick flagged for the daily loop / Sentry job — not a listing signal by itself, but watch it.
+- Rating 28-day 4.824 (+0.56) / default 4.510, 147 raters (+1). No new reviews since Nov 25.
+- v0.4.27 still at 20% rollout (5 days), step-up held. Installed audience 7,639 (Nov 24).
+- Lifetime installs (Console monthly sum, Jun–Nov 24): 24,661 device acquisitions (Jun 880, Jul 2,718, Aug 4,657, Sep 4,947, Oct 7,319, Nov 4,140 MTD) — up from 23,257 measured Nov 17.
+- Storefront verified live this run (crawled 2026-11-26 21:41 UTC): title, short desc (80/80), long desc all match fastlane — no drift.
 
 ## Deck measurement 2026-11-26 (Play Console live read, 28-day Oct 29–Nov 25)
 
